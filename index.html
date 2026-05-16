@@ -136,6 +136,28 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:-apple-sy
 #np-vol::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:#fff;margin-top:-5px}
 #np-footer{display:flex;justify-content:space-around;padding:4px 20px 0}
 .np-foot{background:none;border:none;color:var(--fg3);font-size:13px;cursor:pointer;font-family:inherit;padding:8px 12px;display:flex;align-items:center;gap:5px}
+.np-foot.active{color:var(--red)}
+
+/* ── EQ Panel ── */
+#eq-panel{position:absolute;left:0;right:0;bottom:0;background:var(--bg2);border-radius:20px 20px 0 0;padding:16px 20px 28px;transform:translateY(100%);transition:transform .35s cubic-bezier(.32,1,.6,1);z-index:10}
+#eq-panel.open{transform:translateY(0)}
+#eq-panel h3{text-align:center;font-size:14px;font-weight:600;color:var(--fg2);margin:0 0 14px;letter-spacing:.5px;text-transform:uppercase}
+.eq-presets{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:16px}
+.eq-preset{background:var(--bg3);border:none;color:var(--fg2);font-size:12px;font-weight:600;padding:6px 14px;border-radius:20px;cursor:pointer;font-family:inherit;transition:background .15s,color .15s}
+.eq-preset.active{background:var(--red);color:#fff}
+.eq-bands{display:flex;justify-content:space-between;align-items:flex-end;gap:4px;margin-bottom:14px}
+.eq-band{display:flex;flex-direction:column;align-items:center;gap:6px;flex:1}
+.eq-band label{font-size:10px;color:var(--fg3);text-align:center;white-space:nowrap}
+.eq-band input[type=range]{writing-mode:vertical-lr;direction:rtl;-webkit-appearance:slider-vertical;width:28px;height:90px;cursor:pointer;accent-color:var(--red)}
+.eq-gain-val{font-size:10px;color:var(--fg2);font-variant-numeric:tabular-nums;min-width:28px;text-align:center}
+.eq-comp-row{display:flex;align-items:center;justify-content:space-between;padding:10px 4px 0;border-top:1px solid rgba(255,255,255,.07);margin-top:4px}
+.eq-comp-row span{font-size:13px;color:var(--fg2)}
+.toggle{position:relative;width:44px;height:26px;flex-shrink:0}
+.toggle input{opacity:0;width:0;height:0}
+.toggle-track{position:absolute;inset:0;background:rgba(255,255,255,.2);border-radius:13px;transition:background .2s}
+.toggle input:checked+.toggle-track{background:var(--red)}
+.toggle-thumb{position:absolute;top:3px;left:3px;width:20px;height:20px;background:#fff;border-radius:50%;transition:transform .2s;box-shadow:0 1px 4px rgba(0,0,0,.4)}
+.toggle input:checked~.toggle-thumb{transform:translateX(18px)}
 
 /* Loading ring in now playing */
 #np-loading{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.4)}
@@ -491,9 +513,40 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:-apple-sy
       <button class="np-foot" id="np-add-pl-btn">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Playlist
       </button>
+      <button class="np-foot" id="np-eq-btn">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>EQ
+      </button>
       <button class="np-foot" id="np-queue-btn">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>Queue
       </button>
+    </div>
+
+    <!-- EQ Panel (slides up inside NP) -->
+    <div id="eq-panel">
+      <h3>Equalizer</h3>
+      <div class="eq-presets">
+        <button class="eq-preset active" data-preset="flat">Flat</button>
+        <button class="eq-preset" data-preset="bass">Bass Boost</button>
+        <button class="eq-preset" data-preset="vocal">Vocal</button>
+        <button class="eq-preset" data-preset="rock">Rock</button>
+        <button class="eq-preset" data-preset="pop">Pop</button>
+        <button class="eq-preset" data-preset="classical">Classical</button>
+      </div>
+      <div class="eq-bands">
+        <div class="eq-band"><input type="range" class="eq-slider" min="-12" max="12" value="0" step="0.5" data-band="0"><div class="eq-gain-val">0</div><label>60Hz</label></div>
+        <div class="eq-band"><input type="range" class="eq-slider" min="-12" max="12" value="0" step="0.5" data-band="1"><div class="eq-gain-val">0</div><label>250Hz</label></div>
+        <div class="eq-band"><input type="range" class="eq-slider" min="-12" max="12" value="0" step="0.5" data-band="2"><div class="eq-gain-val">0</div><label>1kHz</label></div>
+        <div class="eq-band"><input type="range" class="eq-slider" min="-12" max="12" value="0" step="0.5" data-band="3"><div class="eq-gain-val">0</div><label>4kHz</label></div>
+        <div class="eq-band"><input type="range" class="eq-slider" min="-12" max="12" value="0" step="0.5" data-band="4"><div class="eq-gain-val">0</div><label>12kHz</label></div>
+      </div>
+      <div class="eq-comp-row">
+        <span>Dynamic Compressor</span>
+        <label class="toggle">
+          <input type="checkbox" id="eq-comp-toggle">
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+      </div>
     </div>
   </div>
 </div>
@@ -525,7 +578,7 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:-apple-sy
 'use strict';
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '1.5.1';
+const APP_VERSION = '1.5.2';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -697,6 +750,92 @@ let openPlId   = null;
 
 const audio = document.getElementById('audio');
 
+// ── WEB AUDIO EQ ───────────────────────────────────────────────────────────────
+const EQ_BANDS  = [60, 250, 1000, 4000, 12000]; // Hz
+const EQ_PRESETS = {
+  flat:      [0,  0,  0,  0,  0],
+  bass:      [7,  5,  1, -1,  1],
+  vocal:     [-2,-2,  5,  5,  2],
+  rock:      [5,  3, -1,  3,  5],
+  pop:       [2,  4,  5,  3,  1],
+  classical: [4,  2, -2,  2,  5],
+};
+let eqCtx = null, eqSource = null, eqFilters = [], eqCompressor = null;
+let eqGains = [0, 0, 0, 0, 0];
+let eqCompOn = false;
+
+function initEQ() {
+  if (eqCtx) return;
+  eqCtx = new (window.AudioContext || window.webkitAudioContext)();
+  eqSource = eqCtx.createMediaElementSource(audio);
+  eqFilters = EQ_BANDS.map((freq, i) => {
+    const f = eqCtx.createBiquadFilter();
+    f.type = (i === 0) ? 'lowshelf' : (i === EQ_BANDS.length - 1) ? 'highshelf' : 'peaking';
+    f.frequency.value = freq;
+    f.gain.value = eqGains[i];
+    return f;
+  });
+  eqCompressor = eqCtx.createDynamicsCompressor();
+  eqCompressor.threshold.value = -24;
+  eqCompressor.knee.value = 30;
+  eqCompressor.ratio.value = 5;
+  eqCompressor.attack.value = 0.003;
+  eqCompressor.release.value = 0.25;
+  // Chain: source → filters → compressor (bypassed by default) → destination
+  let node = eqSource;
+  eqFilters.forEach(f => { node.connect(f); node = f; });
+  node.connect(eqCompressor);
+  eqCompressor.connect(eqCtx.destination);
+  applyEQComp();
+}
+
+function applyEQComp() {
+  if (!eqCtx) return;
+  eqFilters.forEach((f, i) => { f.gain.value = eqGains[i]; });
+  // Compressor bypass: disconnect/reconnect around it
+  try {
+    eqFilters[eqFilters.length - 1].disconnect();
+    if (eqCompOn) {
+      eqFilters[eqFilters.length - 1].connect(eqCompressor);
+      eqCompressor.connect(eqCtx.destination);
+    } else {
+      eqFilters[eqFilters.length - 1].connect(eqCtx.destination);
+    }
+  } catch {}
+}
+
+function setEQPreset(name) {
+  const gains = EQ_PRESETS[name] || EQ_PRESETS.flat;
+  eqGains = [...gains];
+  if (eqCtx) applyEQComp();
+  // Update sliders + value labels
+  document.querySelectorAll('.eq-slider').forEach((sl, i) => {
+    sl.value = eqGains[i];
+    sl.closest('.eq-band').querySelector('.eq-gain-val').textContent =
+      (eqGains[i] > 0 ? '+' : '') + eqGains[i];
+  });
+  document.querySelectorAll('.eq-preset').forEach(b =>
+    b.classList.toggle('active', b.dataset.preset === name));
+  localStorage.setItem('mbx_eq', JSON.stringify({ preset: name, gains: eqGains, comp: eqCompOn }));
+}
+
+function loadEQState() {
+  try {
+    const s = JSON.parse(localStorage.getItem('mbx_eq') || '{}');
+    if (s.gains) eqGains = s.gains;
+    if (s.comp)  eqCompOn = s.comp;
+    const preset = s.preset || 'flat';
+    document.querySelectorAll('.eq-preset').forEach(b =>
+      b.classList.toggle('active', b.dataset.preset === preset));
+    document.querySelectorAll('.eq-slider').forEach((sl, i) => {
+      sl.value = eqGains[i];
+      sl.closest('.eq-band').querySelector('.eq-gain-val').textContent =
+        (eqGains[i] > 0 ? '+' : '') + eqGains[i];
+    });
+    document.getElementById('eq-comp-toggle').checked = eqCompOn;
+  } catch {}
+}
+
 // ── STORAGE ────────────────────────────────────────────────────────────────────
 function loadData() {
   try { const s = localStorage.getItem(STORE_KEY); if (s) return JSON.parse(s); } catch {}
@@ -834,6 +973,8 @@ async function play(song, newQueue, idx) {
     if (stream.image) nowSong.image = stream.image;
     if (stream.quality) nowSong.quality = stream.quality;
     refreshMini(); refreshNP();
+    initEQ();
+    if (eqCtx?.state === 'suspended') eqCtx.resume();
     audio.src = stream.url;
     await audio.play().catch(() => toast('Tap play to start'));
     playing = true;
@@ -857,6 +998,8 @@ function setNPLoading(on) {
 
 function togglePlay() {
   if (!nowSong || loadingUrl) return;
+  initEQ();
+  if (eqCtx?.state === 'suspended') eqCtx.resume();
   if (playing) audio.pause(); else audio.play().catch(() => {});
 }
 
@@ -1024,8 +1167,52 @@ document.getElementById('np-menu-btn').addEventListener('click', () => { if (now
 document.getElementById('np-add-pl-btn').addEventListener('click', () => { if (nowSong) showAddToPlaylist(nowSong); });
 document.getElementById('np-queue-btn').addEventListener('click', showQueueSheet);
 
+// ── EQ PANEL ───────────────────────────────────────────────────────────────────
+const eqPanel = document.getElementById('eq-panel');
+const eqBtn   = document.getElementById('np-eq-btn');
+
+function openEQPanel() {
+  initEQ();
+  if (eqCtx.state === 'suspended') eqCtx.resume();
+  eqPanel.classList.add('open');
+  eqBtn.classList.add('active');
+}
+function closeEQPanel() {
+  eqPanel.classList.remove('open');
+  eqBtn.classList.remove('active');
+}
+
+eqBtn.addEventListener('click', () => {
+  eqPanel.classList.contains('open') ? closeEQPanel() : openEQPanel();
+});
+
+document.querySelectorAll('.eq-preset').forEach(btn => {
+  btn.addEventListener('click', () => setEQPreset(btn.dataset.preset));
+});
+
+document.querySelectorAll('.eq-slider').forEach(sl => {
+  sl.addEventListener('input', () => {
+    const i = +sl.dataset.band;
+    eqGains[i] = +sl.value;
+    sl.closest('.eq-band').querySelector('.eq-gain-val').textContent =
+      (eqGains[i] > 0 ? '+' : '') + eqGains[i];
+    document.querySelectorAll('.eq-preset').forEach(b => b.classList.remove('active'));
+    initEQ();
+    applyEQComp();
+    localStorage.setItem('mbx_eq', JSON.stringify({ preset: 'custom', gains: eqGains, comp: eqCompOn }));
+  });
+});
+
+document.getElementById('eq-comp-toggle').addEventListener('change', e => {
+  eqCompOn = e.target.checked;
+  initEQ();
+  applyEQComp();
+  localStorage.setItem('mbx_eq', JSON.stringify({ gains: eqGains, comp: eqCompOn }));
+});
+
+// Close EQ panel when NP closes
 function openNP()  { document.getElementById('np').classList.add('open'); }
-function closeNP() { document.getElementById('np').classList.remove('open'); }
+function closeNP() { closeEQPanel(); document.getElementById('np').classList.remove('open'); }
 
 // ── TABS ───────────────────────────────────────────────────────────────────────
 document.getElementById('tabbar').addEventListener('click', e => {
@@ -1655,6 +1842,7 @@ if ('serviceWorker' in navigator) {
 
 // ── INIT ────────────────────────────────────────────────────────────────────────
 Log.init();
+loadEQState();
 buildDiscover();
 renderPlaylists();
 
