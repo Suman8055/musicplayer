@@ -12,9 +12,11 @@
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#000;--bg2:#1c1c1e;--bg3:#2c2c2e;
-  --fg:#fff;--fg2:rgba(255,255,255,.55);--fg3:rgba(255,255,255,.3);
-  --red:#fc3c44;--sep:rgba(255,255,255,.1);
+  --bg:#080808;--bg2:#141414;--bg3:#1e1e1e;--bg4:#282828;
+  --fg:#fff;--fg2:rgba(255,255,255,.55);--fg3:rgba(255,255,255,.28);
+  --red:#ff375f;--red2:#ff7b45;
+  --grad:linear-gradient(135deg,#ff375f,#ff7b45);
+  --sep:rgba(255,255,255,.09);
   --tab-h:calc(49px + env(safe-area-inset-bottom));
   --mini-h:64px;
   --safe-top:env(safe-area-inset-top);
@@ -38,12 +40,12 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:-apple-sy
 
 /* Song rows */
 .song-list{padding:0 0 8px}
-.song-item{display:flex;align-items:center;padding:10px 8px 10px 16px;gap:12px;cursor:pointer;border-radius:10px;margin:0 8px}
-.song-item:active{background:var(--bg2)}
-.song-art{width:50px;height:50px;border-radius:7px;object-fit:cover;background:var(--bg3);flex-shrink:0}
+.song-item{display:flex;align-items:center;padding:9px 8px 9px 16px;gap:12px;cursor:pointer;border-radius:12px;margin:0 8px}
+.song-item:active{background:rgba(255,255,255,.06)}
+.song-art{width:52px;height:52px;border-radius:10px;object-fit:cover;background:var(--bg3);flex-shrink:0;box-shadow:0 4px 12px rgba(0,0,0,.35)}
 .song-info{flex:1;min-width:0}
-.song-title{font-size:15px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.song-title.now{color:var(--red)}
+.song-title{font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-.1px}
+.song-title.now{background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
 .song-meta{font-size:13px;color:var(--fg2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
 .song-more{color:var(--fg3);font-size:22px;padding:8px 10px;flex-shrink:0;line-height:1}
 
@@ -117,9 +119,9 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:-apple-sy
 #np-artist{font-size:15px;color:var(--fg2);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #np-like{background:none;border:none;font-size:28px;cursor:pointer;padding:4px;flex-shrink:0;line-height:1}
 #np-seek-wrap{padding:0 28px}
-#np-seek{width:100%;height:4px;-webkit-appearance:none;appearance:none;background:rgba(255,255,255,.2);border-radius:2px;outline:none;cursor:pointer;display:block}
-#np-seek::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#fff;margin-top:-7px}
-#np-seek::-webkit-slider-runnable-track{height:4px;border-radius:2px}
+#np-seek{width:100%;height:5px;-webkit-appearance:none;appearance:none;background:linear-gradient(to right,#ff375f var(--pct,0%),rgba(255,255,255,.18) var(--pct,0%));border-radius:3px;outline:none;cursor:pointer;display:block}
+#np-seek::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#fff;margin-top:-7px;box-shadow:0 2px 8px rgba(0,0,0,.4)}
+#np-seek::-webkit-slider-runnable-track{height:5px;border-radius:3px}
 #np-times{display:flex;justify-content:space-between;padding:6px 0 2px;font-size:11px;color:var(--fg3);font-variant-numeric:tabular-nums}
 #np-controls{display:flex;align-items:center;justify-content:space-between;padding:12px 28px}
 .ctl{background:none;border:none;color:var(--fg);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:8px}
@@ -207,22 +209,47 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:-apple-sy
 .log-level.ERROR{color:#ff453a}.log-level.CRITICAL{color:#ff2d55}
 .log-msg{color:var(--fg);word-break:break-all;font-size:11px;font-family:'SF Mono',Menlo,monospace;line-height:1.4}
 
-/* ── Browse redesign ── */
-.browse-sec-hd{padding:18px 16px 10px;font-size:18px;font-weight:700}
-.lang-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 16px 4px}
-.lang-tile{border-radius:14px;padding:12px 14px;height:84px;display:flex;flex-direction:column;justify-content:flex-end;cursor:pointer;color:#fff;-webkit-tap-highlight-color:transparent}
-.lang-tile:active{opacity:.8}
-.lang-tile-emoji{font-size:22px;line-height:1;margin-bottom:5px}
-.lang-tile-label{font-size:15px;font-weight:700;line-height:1.1}
-.lang-selected-content{display:none}
-.lang-selected-content.visible{display:block}
-.h-scroll{overflow-x:auto;display:flex;gap:10px;padding:2px 16px 12px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+/* ── Premium Discover tab ── */
+/* Hero card */
+.hero-card{margin:6px 16px 4px;border-radius:20px;overflow:hidden;cursor:pointer;position:relative;height:196px;background:var(--bg3);flex-shrink:0;-webkit-tap-highlight-color:transparent}
+.hero-card:active{opacity:.92;transform:scale(.99)}
+.hero-card-img{width:100%;height:100%;object-fit:cover;display:block}
+.hero-card-overlay{position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.88) 0%,rgba(0,0,0,.15) 55%,transparent 100%)}
+.hero-card-body{position:absolute;bottom:0;left:0;right:0;padding:14px 18px}
+.hero-card-eyebrow{font-size:10px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:5px}
+.hero-card-title{font-size:21px;font-weight:800;letter-spacing:-.4px;line-height:1.15;color:#fff}
+.hero-card-sub{font-size:13px;color:rgba(255,255,255,.65);margin-top:3px}
+.hero-play-btn{position:absolute;top:14px;right:14px;width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.18);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:none;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer}
+
+/* Section headers */
+.disc-hd{display:flex;align-items:center;justify-content:space-between;padding:20px 16px 10px}
+.disc-hd-title{font-size:20px;font-weight:800;letter-spacing:-.35px}
+.disc-hd-sub{font-size:14px;font-weight:600;color:transparent;background:var(--grad);-webkit-background-clip:text;background-clip:text;cursor:pointer;border:none;background-color:transparent;font-family:inherit;padding:0}
+
+/* Language pills */
+.lang-pills{display:flex;gap:8px;padding:2px 16px 14px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.lang-pills::-webkit-scrollbar{display:none}
+.lang-pill{flex-shrink:0;padding:7px 18px;border-radius:20px;border:1.5px solid rgba(255,255,255,.14);background:var(--bg2);color:var(--fg2);font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;white-space:nowrap;transition:border-color .15s}
+.lang-pill.active{background:var(--grad);border-color:transparent;color:#fff}
+
+/* Horizontal scroll */
+.h-scroll{overflow-x:auto;display:flex;gap:12px;padding:2px 16px 14px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
 .h-scroll::-webkit-scrollbar{display:none}
-.content-card{flex-shrink:0;width:120px;cursor:pointer;-webkit-tap-highlight-color:transparent}
-.content-card:active{opacity:.8}
-.content-card-img{width:120px;height:120px;border-radius:10px;object-fit:cover;background:var(--bg3);display:block}
-.content-card-title{font-size:12px;font-weight:600;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Content cards - premium */
+.content-card{flex-shrink:0;width:148px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.content-card:active{opacity:.82}
+.content-card-art{position:relative;width:148px;height:148px;border-radius:14px;overflow:hidden;background:var(--bg3)}
+.content-card-img{width:100%;height:100%;object-fit:cover;display:block}
+.content-card-shine{position:absolute;inset:0;background:linear-gradient(145deg,rgba(255,255,255,.07) 0%,transparent 60%)}
+.content-card-title{font-size:12px;font-weight:700;margin-top:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-.1px}
 .content-card-sub{font-size:11px;color:var(--fg2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-transform:capitalize}
+
+/* Chart rank badge on cards */
+.chart-rank{position:absolute;bottom:6px;left:8px;font-size:24px;font-weight:900;color:rgba(255,255,255,.9);text-shadow:0 2px 8px rgba(0,0,0,.6);line-height:1;letter-spacing:-1px}
+
+/* Subsection label */
+.sub-label{padding:4px 16px 6px;font-size:12px;font-weight:700;color:var(--fg3);text-transform:uppercase;letter-spacing:.7px}
 #browse-detail{position:absolute;inset:0;background:var(--bg);transform:translateX(100%);transition:transform .32s cubic-bezier(.32,.72,0,1);overflow-y:auto;-webkit-overflow-scrolling:touch;z-index:22}
 #browse-detail.open{transform:translateX(0)}
 </style>
@@ -246,25 +273,33 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:-apple-sy
       </div>
     </div>
 
-    <!-- Browse -->
+    <!-- Discover -->
     <div id="tab-browse" class="tab-pane">
-      <div class="tab-header">Browse</div>
+      <div class="tab-header">Discover</div>
 
-      <div class="browse-sec-hd">Languages</div>
-      <div class="lang-grid" id="lang-grid"></div>
+      <!-- Hero — top India chart -->
+      <div id="disc-hero"></div>
 
-      <!-- Language content (albums + playlists) appears here after selecting -->
-      <div class="lang-selected-content" id="lang-content">
-        <div class="browse-sec-hd" id="lang-content-title"></div>
-        <div style="padding:2px 16px 4px;font-size:14px;font-weight:600;color:var(--fg2)">New Releases</div>
-        <div class="h-scroll" id="lang-albums"></div>
-        <div style="padding:2px 16px 4px;font-size:14px;font-weight:600;color:var(--fg2)">Featured Playlists</div>
-        <div class="h-scroll" id="lang-playlists"></div>
+      <!-- Language pills -->
+      <div class="lang-pills" id="lang-pills"></div>
+
+      <!-- Trending India -->
+      <div class="disc-hd">
+        <span class="disc-hd-title">🔥 Trending India</span>
       </div>
-
-      <div class="browse-sec-hd">📊 Charts</div>
       <div class="h-scroll" id="browse-charts-row">
         <div style="padding:16px;color:var(--fg2);font-size:14px">Loading…</div>
+      </div>
+
+      <!-- Language content — shown when pill tapped -->
+      <div id="lang-content" style="display:none">
+        <div class="disc-hd">
+          <span class="disc-hd-title" id="lang-content-title"></span>
+        </div>
+        <div class="sub-label">New Releases</div>
+        <div class="h-scroll" id="lang-albums"></div>
+        <div class="sub-label" style="padding-top:8px">Featured Playlists</div>
+        <div class="h-scroll" id="lang-playlists"></div>
       </div>
     </div>
 
@@ -386,8 +421,8 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:-apple-sy
       <span class="tab-label">Search</span>
     </button>
     <button class="tab-btn" data-tab="browse">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-      <span class="tab-label">Browse</span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M2 12h3M19 12h3M12 2v3M12 19v3"/><circle cx="12" cy="12" r="8"/></svg>
+      <span class="tab-label">Discover</span>
     </button>
     <button class="tab-btn" data-tab="library">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
@@ -487,7 +522,7 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:-apple-sy
 'use strict';
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '1.4.0';
+const APP_VERSION = '1.5.0';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -854,7 +889,9 @@ audio.addEventListener('error', () => {
 audio.addEventListener('timeupdate', () => {
   if (seeking || !audio.duration) return;
   const pct = audio.currentTime / audio.duration;
-  document.getElementById('np-seek').value = Math.round(pct * 1000);
+  const el = document.getElementById('np-seek');
+  el.value = Math.round(pct * 1000);
+  el.style.setProperty('--pct', (pct * 100).toFixed(2) + '%');
   document.getElementById('mini-bar').style.width = (pct * 100) + '%';
   document.getElementById('np-elapsed').textContent = fmt(audio.currentTime);
   document.getElementById('np-remain').textContent  = '−' + fmt(audio.duration - audio.currentTime);
@@ -866,7 +903,10 @@ seekEl.addEventListener('touchstart', () => seeking = true, { passive: true });
 seekEl.addEventListener('mouseup',    () => seeking = false);
 seekEl.addEventListener('touchend',   () => seeking = false);
 seekEl.addEventListener('input', () => {
-  if (audio.duration) audio.currentTime = (seekEl.value / 1000) * audio.duration;
+  if (audio.duration) {
+    audio.currentTime = (seekEl.value / 1000) * audio.duration;
+    seekEl.style.setProperty('--pct', (seekEl.value / 10).toFixed(2) + '%');
+  }
 });
 // iOS ignores audio.volume — replace slider with a note
 if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
@@ -1051,11 +1091,15 @@ function normSaavnSong(s) {
   };
 }
 
-function createContentCard(title, sub, imgUrl, onClick) {
+function createContentCard(title, sub, imgUrl, onClick, rank) {
   const card = document.createElement('div');
   card.className = 'content-card';
   card.innerHTML = `
-    <img class="content-card-img" src="${esc(imgUrl || '')}" alt="" loading="lazy" onerror="this.style.opacity='.25'">
+    <div class="content-card-art">
+      <img class="content-card-img" src="${esc(imgUrl || '')}" alt="" loading="lazy" onerror="this.style.opacity='.2'">
+      <div class="content-card-shine"></div>
+      ${rank ? `<div class="chart-rank">${rank}</div>` : ''}
+    </div>
     <div class="content-card-title">${esc(title || '')}</div>
     <div class="content-card-sub">${esc(sub || '')}</div>
   `;
@@ -1079,16 +1123,24 @@ const langCache = new Map();      // lang → { albums, playlists } DOM fragment
 const searchCache = new Map();    // query → songs[]
 let searchSeq = 0;                // increments on each search to discard stale results
 
-function buildBrowse() {
-  const grid = document.getElementById('lang-grid');
-  LANG_TILES.forEach(({ lang, label, color, emoji }) => {
-    const tile = document.createElement('div');
-    tile.className = 'lang-tile';
-    tile.style.background = color;
-    tile.innerHTML = `<div class="lang-tile-emoji">${emoji}</div><div class="lang-tile-label">${esc(label)}</div>`;
-    tile.addEventListener('click', () => loadBrowseLang(lang, label));
-    grid.appendChild(tile);
+function buildDiscover() {
+  const pills = document.getElementById('lang-pills');
+  LANG_TILES.forEach(({ lang, label }, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'lang-pill' + (i === 0 ? ' active' : '');
+    btn.textContent = label;
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.lang-pill').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      const content = document.getElementById('lang-content');
+      content.style.display = 'block';
+      loadBrowseLang(lang, label);
+      content.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    pills.appendChild(btn);
   });
+  // load first language by default after a beat
+  setTimeout(() => loadBrowseLang(LANG_TILES[0].lang, LANG_TILES[0].label), 100);
 }
 
 async function loadBrowseLang(lang, label) {
@@ -1098,8 +1150,7 @@ async function loadBrowseLang(lang, label) {
   const playlistEl = document.getElementById('lang-playlists');
 
   titleEl.textContent = label;
-  content.classList.add('visible');
-  content.scrollIntoView({ behavior: 'smooth' });
+  content.style.display = 'block';
 
   // Serve from cache instantly if available
   if (langCache.has(lang)) {
@@ -1154,19 +1205,43 @@ async function loadBrowseCharts() {
     const resp = await saavnFetch(`${SIGMA_API}/modules?language=hindi,english,punjabi,tamil,telugu`);
     const data = await resp.json();
     if (data.status !== 'SUCCESS') throw new Error('API error');
+    const charts = data.data.charts || [];
     wrap.innerHTML = '';
-    (data.data.charts || []).slice(0, 24).forEach(chart => {
+    charts.slice(0, 24).forEach((chart, i) => {
       wrap.appendChild(createContentCard(
         chart.title,
         chart.language || chart.subtitle || '',
-        bestImg(chart.image),
-        () => openBrowseDetail(chart.id, 'playlist', chart.title)
+        bestImg(chart.image, '500x500'),
+        () => openBrowseDetail(chart.id, 'playlist', chart.title),
+        i < 10 ? i + 1 : null
       ));
     });
+    // Build hero from first chart
+    const hero = charts[0];
+    if (hero) buildHeroCard(hero.id, 'playlist', hero.title, bestImg(hero.image, '500x500'), hero.subtitle || 'Top India Chart');
   } catch (err) {
     Log.warn('Browse charts failed', { err: err.message });
-    wrap.innerHTML = '<div style="padding:16px;color:var(--fg2);font-size:14px">Could not load charts</div>';
+    wrap.innerHTML = '<div style="padding:16px;color:var(--fg2);font-size:14px">Could not load</div>';
+    document.getElementById('disc-hero').innerHTML = '';
   }
+}
+
+function buildHeroCard(id, type, title, imgUrl, sub) {
+  const heroEl = document.getElementById('disc-hero');
+  heroEl.innerHTML = `
+    <div class="hero-card" id="hero-card-inner">
+      <img class="hero-card-img" src="${esc(imgUrl)}" alt="" loading="lazy">
+      <div class="hero-card-overlay"></div>
+      <div class="hero-card-body">
+        <div class="hero-card-eyebrow">Trending India</div>
+        <div class="hero-card-title">${esc(title)}</div>
+        <div class="hero-card-sub">${esc(sub)}</div>
+      </div>
+      <button class="hero-play-btn" aria-label="Open">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+      </button>
+    </div>`;
+  document.getElementById('hero-card-inner').addEventListener('click', () => openBrowseDetail(id, type, title));
 }
 
 async function openBrowseDetail(id, type, title) {
@@ -1559,7 +1634,7 @@ if ('serviceWorker' in navigator) {
 
 // ── INIT ────────────────────────────────────────────────────────────────────────
 Log.init();
-buildBrowse();
+buildDiscover();
 renderPlaylists();
 
 // auto-upload on start, then every 30 min (mirrors SW update cadence)
