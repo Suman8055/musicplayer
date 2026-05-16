@@ -206,6 +206,25 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:-apple-sy
 .log-level.INFO{color:#34c759}.log-level.WARN{color:#ff9f0a}
 .log-level.ERROR{color:#ff453a}.log-level.CRITICAL{color:#ff2d55}
 .log-msg{color:var(--fg);word-break:break-all;font-size:11px;font-family:'SF Mono',Menlo,monospace;line-height:1.4}
+
+/* ── Browse redesign ── */
+.browse-sec-hd{padding:18px 16px 10px;font-size:18px;font-weight:700}
+.lang-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 16px 4px}
+.lang-tile{border-radius:14px;padding:12px 14px;height:84px;display:flex;flex-direction:column;justify-content:flex-end;cursor:pointer;color:#fff;-webkit-tap-highlight-color:transparent}
+.lang-tile:active{opacity:.8}
+.lang-tile-emoji{font-size:22px;line-height:1;margin-bottom:5px}
+.lang-tile-label{font-size:15px;font-weight:700;line-height:1.1}
+.lang-selected-content{display:none}
+.lang-selected-content.visible{display:block}
+.h-scroll{overflow-x:auto;display:flex;gap:10px;padding:2px 16px 12px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.h-scroll::-webkit-scrollbar{display:none}
+.content-card{flex-shrink:0;width:120px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.content-card:active{opacity:.8}
+.content-card-img{width:120px;height:120px;border-radius:10px;object-fit:cover;background:var(--bg3);display:block}
+.content-card-title{font-size:12px;font-weight:600;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.content-card-sub{font-size:11px;color:var(--fg2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-transform:capitalize}
+#browse-detail{position:absolute;inset:0;background:var(--bg);transform:translateX(100%);transition:transform .32s cubic-bezier(.32,.72,0,1);overflow-y:auto;-webkit-overflow-scrolling:touch;z-index:20}
+#browse-detail.open{transform:translateX(0)}
 </style>
 </head>
 <body>
@@ -230,8 +249,23 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:-apple-sy
     <!-- Browse -->
     <div id="tab-browse" class="tab-pane">
       <div class="tab-header">Browse</div>
-      <div class="cat-grid" id="cat-grid"></div>
-      <div id="browse-results"></div>
+
+      <div class="browse-sec-hd">Languages</div>
+      <div class="lang-grid" id="lang-grid"></div>
+
+      <!-- Language content (albums + playlists) appears here after selecting -->
+      <div class="lang-selected-content" id="lang-content">
+        <div class="browse-sec-hd" id="lang-content-title"></div>
+        <div style="padding:2px 16px 4px;font-size:14px;font-weight:600;color:var(--fg2)">New Releases</div>
+        <div class="h-scroll" id="lang-albums"></div>
+        <div style="padding:2px 16px 4px;font-size:14px;font-weight:600;color:var(--fg2)">Featured Playlists</div>
+        <div class="h-scroll" id="lang-playlists"></div>
+      </div>
+
+      <div class="browse-sec-hd">📊 Charts</div>
+      <div class="h-scroll" id="browse-charts-row">
+        <div style="padding:16px;color:var(--fg2);font-size:14px">Loading…</div>
+      </div>
     </div>
 
     <!-- Library -->
@@ -243,6 +277,17 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:-apple-sy
       </div>
       <div class="sep"></div>
       <div id="pl-list"></div>
+    </div>
+
+    <!-- Browse detail slide-in (album / chart / playlist songs) -->
+    <div id="browse-detail">
+      <div class="pl-view-hdr">
+        <button class="back-btn" id="browse-detail-back">‹ Browse</button>
+        <div class="pl-view-title" id="browse-detail-title"></div>
+        <div style="min-width:60px"></div>
+      </div>
+      <div class="section-title" id="browse-detail-sub"></div>
+      <div id="browse-detail-songs"></div>
     </div>
 
     <!-- Playlist view -->
@@ -768,6 +813,7 @@ document.getElementById('tabbar').addEventListener('click', e => {
   btn.classList.add('on');
   if (tab === 'library')  renderPlaylists();
   if (tab === 'settings') renderSettings();
+  if (tab === 'browse' && !browseChartsLoaded) { browseChartsLoaded = true; loadBrowseCharts(); }
 });
 
 // ── SEARCH ─────────────────────────────────────────────────────────────────────
@@ -795,46 +841,177 @@ async function runSearch(q) {
   }
 }
 
-// ── BROWSE ─────────────────────────────────────────────────────────────────────
-const CATS = [
-  { name: 'Bollywood Hits',  q: 'bollywood hits 2024',     color: '#1a2b6e,#0d1840' },
-  { name: 'Punjabi',         q: 'punjabi songs 2024',       color: '#6e1a1a,#400d0d' },
-  { name: 'Telugu',          q: 'telugu hits 2024',         color: '#1a5e2a,#0d3318' },
-  { name: 'Tamil',           q: 'tamil hits 2024',          color: '#6e4a1a,#40290d' },
-  { name: 'Romantic',        q: 'romantic hindi songs',     color: '#6e1a55,#400d33' },
-  { name: 'Party Mix',       q: 'party dance songs hindi',  color: '#1a5a6e,#0d3340' },
-  { name: 'Devotional',      q: 'bhakti songs hindi',       color: '#4a6e1a,#293d0d' },
-  { name: '90s Classics',    q: 'hindi songs 1990s hits',   color: '#3a1a6e,#200d40' },
+// ── BROWSE (JioSaavn-style) ────────────────────────────────────────────────────
+const SIGMA_API = 'https://jiosaavn-api-sigma-sandy.vercel.app';
+const SAAVN_API = 'https://saavn.8man.dev';
+
+async function saavnFetch(url) {
+  try {
+    const r = await fetch(url, { signal: AbortSignal.timeout(9000) });
+    if (r.ok) return r;
+    throw new Error('status_' + r.status);
+  } catch {
+    return proxyFetch(url);
+  }
+}
+
+function bestImg(images, quality = '150x150') {
+  if (!Array.isArray(images)) return '';
+  const img = images.find(i => i.quality === quality) || images[1] || images[0];
+  return img?.link || img?.url || '';
+}
+
+function normSaavnSong(s) {
+  const artist = (s.artists?.primary || s.primaryArtists || []).map(a => a.name).join(', ') || '';
+  return {
+    id:       s.id,
+    name:     s.name || 'Unknown',
+    artist,
+    album:    s.album?.name || '',
+    image:    bestImg(s.image, '150x150'),
+    duration: s.duration || 0,
+  };
+}
+
+function createContentCard(title, sub, imgUrl, onClick) {
+  const card = document.createElement('div');
+  card.className = 'content-card';
+  card.innerHTML = `
+    <img class="content-card-img" src="${esc(imgUrl || '')}" alt="" loading="lazy" onerror="this.style.opacity='.25'">
+    <div class="content-card-title">${esc(title || '')}</div>
+    <div class="content-card-sub">${esc(sub || '')}</div>
+  `;
+  card.addEventListener('click', onClick);
+  return card;
+}
+
+const LANG_TILES = [
+  { lang: 'hindi',     label: 'Hindi',     color: '#c0392b', emoji: '🇮🇳' },
+  { lang: 'punjabi',   label: 'Punjabi',   color: '#1e7e34', emoji: '🎵' },
+  { lang: 'english',   label: 'English',   color: '#1565c0', emoji: '🎧' },
+  { lang: 'tamil',     label: 'Tamil',     color: '#6a1b9a', emoji: '🎶' },
+  { lang: 'telugu',    label: 'Telugu',    color: '#e65100', emoji: '🎼' },
+  { lang: 'bengali',   label: 'Bengali',   color: '#ad1457', emoji: '🎤' },
+  { lang: 'kannada',   label: 'Kannada',   color: '#00695c', emoji: '🎹' },
+  { lang: 'malayalam', label: 'Malayalam', color: '#0277bd', emoji: '🎸' },
 ];
 
-let activeCat = -1;
-function buildCategories() {
-  const grid = document.getElementById('cat-grid');
-  grid.innerHTML = CATS.map((c, i) =>
-    `<div class="cat-card" data-cat="${i}" style="background:linear-gradient(135deg,${c.color})">${esc(c.name)}</div>`
-  ).join('');
-  grid.addEventListener('click', e => {
-    const el = e.target.closest('.cat-card');
-    if (el) loadCat(+el.dataset.cat);
+let browseChartsLoaded = false;
+
+function buildBrowse() {
+  const grid = document.getElementById('lang-grid');
+  LANG_TILES.forEach(({ lang, label, color, emoji }) => {
+    const tile = document.createElement('div');
+    tile.className = 'lang-tile';
+    tile.style.background = color;
+    tile.innerHTML = `<div class="lang-tile-emoji">${emoji}</div><div class="lang-tile-label">${esc(label)}</div>`;
+    tile.addEventListener('click', () => loadBrowseLang(lang, label));
+    grid.appendChild(tile);
   });
 }
 
-async function loadCat(i) {
-  if (activeCat === i) { document.getElementById('browse-results').scrollIntoView({ behavior: 'smooth' }); return; }
-  activeCat = i;
-  const c = CATS[i];
-  document.getElementById('browse-results').innerHTML =
-    `<div class="section-title">${esc(c.name)}</div><div class="loading-wrap"><div class="spinner"></div></div>`;
+async function loadBrowseLang(lang, label) {
+  const content    = document.getElementById('lang-content');
+  const titleEl    = document.getElementById('lang-content-title');
+  const albumsEl   = document.getElementById('lang-albums');
+  const playlistEl = document.getElementById('lang-playlists');
+
+  titleEl.textContent  = label;
+  albumsEl.innerHTML   = '<div class="loading-wrap" style="padding:20px 0"><div class="spinner"></div></div>';
+  playlistEl.innerHTML = '';
+  content.classList.add('visible');
+  content.scrollIntoView({ behavior: 'smooth' });
+
   try {
-    const songs = await apiSearch(c.q, 15);
-    cacheSongs(songs);
-    document.getElementById('browse-results').innerHTML = `<div class="section-title">${esc(c.name)}</div>`;
-    renderSongList(songs, 'browse-results', true);
-  } catch {
-    document.getElementById('browse-results').innerHTML =
-      '<div class="empty-wrap"><div class="empty-ico">⚠️</div><div class="empty-txt">Could not load — check internet</div></div>';
+    const resp = await saavnFetch(`${SIGMA_API}/modules?language=${encodeURIComponent(lang)}`);
+    const data = await resp.json();
+    if (data.status !== 'SUCCESS') throw new Error('API error');
+    const md = data.data;
+
+    albumsEl.innerHTML = '';
+    (md.albums || []).slice(0, 15).forEach(album => {
+      const artists = ((album.primaryArtists?.length ? album.primaryArtists : album.artists) || []).map(a => a.name).slice(0, 2).join(', ');
+      albumsEl.appendChild(createContentCard(
+        album.name,
+        artists || album.year || '',
+        bestImg(album.image),
+        () => openBrowseDetail(album.id, 'album', album.name)
+      ));
+    });
+
+    playlistEl.innerHTML = '';
+    (md.playlists || []).slice(0, 15).forEach(pl => {
+      playlistEl.appendChild(createContentCard(
+        pl.title,
+        pl.subtitle || '',
+        bestImg(pl.image),
+        () => openBrowseDetail(pl.id, 'playlist', pl.title)
+      ));
+    });
+  } catch (err) {
+    Log.warn('Browse lang failed', { lang, err: err.message });
+    albumsEl.innerHTML = '<div style="padding:16px;color:var(--fg2);font-size:14px">Could not load — check internet</div>';
+    playlistEl.innerHTML = '';
   }
 }
+
+async function loadBrowseCharts() {
+  const wrap = document.getElementById('browse-charts-row');
+  wrap.innerHTML = '<div class="loading-wrap" style="padding:20px 0"><div class="spinner"></div></div>';
+  try {
+    const resp = await saavnFetch(`${SIGMA_API}/modules?language=hindi,english,punjabi,tamil,telugu`);
+    const data = await resp.json();
+    if (data.status !== 'SUCCESS') throw new Error('API error');
+    wrap.innerHTML = '';
+    (data.data.charts || []).slice(0, 24).forEach(chart => {
+      wrap.appendChild(createContentCard(
+        chart.title,
+        chart.language || chart.subtitle || '',
+        bestImg(chart.image),
+        () => openBrowseDetail(chart.id, 'playlist', chart.title)
+      ));
+    });
+  } catch (err) {
+    Log.warn('Browse charts failed', { err: err.message });
+    wrap.innerHTML = '<div style="padding:16px;color:var(--fg2);font-size:14px">Could not load charts</div>';
+  }
+}
+
+async function openBrowseDetail(id, type, title) {
+  document.getElementById('browse-detail-title').textContent = title;
+  document.getElementById('browse-detail-sub').textContent   = '';
+  document.getElementById('browse-detail-songs').innerHTML   = '<div class="loading-wrap"><div class="spinner"></div></div>';
+  document.getElementById('browse-detail').classList.add('open');
+
+  try {
+    const url = type === 'album'
+      ? `${SAAVN_API}/api/albums?id=${encodeURIComponent(id)}`
+      : `${SAAVN_API}/api/playlists?id=${encodeURIComponent(id)}&limit=50`;
+    const resp = await saavnFetch(url);
+    const data = await resp.json();
+    const item = data?.data;
+    if (!item) throw new Error('Not found');
+
+    const songs = (item.songs || []).map(normSaavnSong);
+    document.getElementById('browse-detail-sub').textContent = `${songs.length} songs`;
+    cacheSongs(songs);
+
+    if (!songs.length) {
+      document.getElementById('browse-detail-songs').innerHTML =
+        '<div class="empty-wrap"><div class="empty-ico">🎵</div><div class="empty-txt">No songs found</div></div>';
+      return;
+    }
+    renderSongList(songs, 'browse-detail-songs');
+  } catch (err) {
+    Log.warn('Browse detail failed', { id, type, err: err.message });
+    document.getElementById('browse-detail-songs').innerHTML =
+      '<div class="empty-wrap"><div class="empty-ico">⚠️</div><div class="empty-txt">Could not load songs</div></div>';
+  }
+}
+
+document.getElementById('browse-detail-back').addEventListener('click', () => {
+  document.getElementById('browse-detail').classList.remove('open');
+});
 
 // ── SONG LIST ──────────────────────────────────────────────────────────────────
 function renderSongList(songs, containerId, append = false) {
@@ -1123,7 +1300,7 @@ if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catc
 
 // ── INIT ────────────────────────────────────────────────────────────────────────
 Log.init();
-buildCategories();
+buildBrowse();
 renderPlaylists();
 </script>
 </body>
