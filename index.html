@@ -573,7 +573,7 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:-apple-sy
 'use strict';
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '1.5.3';
+const APP_VERSION = '1.5.4';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -758,30 +758,40 @@ const EQ_PRESETS = {
 let eqCtx = null, eqFilters = [], eqCompressor = null;
 let eqGains = [0, 0, 0, 0, 0], eqCompOn = false, eqPreset = 'flat';
 
-async function initEQ() {
-  if (eqCtx) {
-    if (eqCtx.state === 'suspended') await eqCtx.resume();
-    return;
-  }
-  eqCtx = new (window.AudioContext || window.webkitAudioContext)();
-  const src = eqCtx.createMediaElementSource(audio);
-  eqFilters = EQ_BANDS.map((freq, i) => {
-    const f = eqCtx.createBiquadFilter();
-    f.type = i === 0 ? 'lowshelf' : i === 4 ? 'highshelf' : 'peaking';
-    f.frequency.value = freq;
-    f.gain.value = eqGains[i];
-    return f;
-  });
-  eqCompressor = eqCtx.createDynamicsCompressor();
-  eqCompressor.attack.value = 0.003;
-  eqCompressor.release.value = 0.25;
-  // Fixed chain — no disconnect/reconnect ever: src → f0→f1→f2→f3→f4 → compressor → dest
-  let node = src;
-  eqFilters.forEach(f => { node.connect(f); node = f; });
-  node.connect(eqCompressor);
-  eqCompressor.connect(eqCtx.destination);
-  applyEQ(); // apply saved gains immediately
-  if (eqCtx.state === 'suspended') await eqCtx.resume();
+// iOS rule: AudioContext must be created + resumed SYNCHRONOUSLY inside a user gesture.
+// Async/await breaks the gesture chain, so we create the context on the very first touch
+// before any async work, then wire the graph lazily on first play.
+function _createAudioContext() {
+  if (eqCtx) return;
+  try {
+    eqCtx = new (window.AudioContext || window.webkitAudioContext)();
+    eqCtx.resume(); // synchronous call — still inside the gesture
+  } catch (e) {}
+}
+document.addEventListener('touchstart', _createAudioContext, { once: true, passive: true });
+document.addEventListener('mousedown',  _createAudioContext, { once: true, passive: true });
+
+// Wire the audio graph once AudioContext exists. Safe to call after awaits.
+function initEQ() {
+  if (!eqCtx || eqFilters.length > 0) return; // no context yet, or already wired
+  try {
+    const src = eqCtx.createMediaElementSource(audio);
+    eqFilters = EQ_BANDS.map((freq, i) => {
+      const f = eqCtx.createBiquadFilter();
+      f.type = i === 0 ? 'lowshelf' : i === 4 ? 'highshelf' : 'peaking';
+      f.frequency.value = freq;
+      f.gain.value = eqGains[i];
+      return f;
+    });
+    eqCompressor = eqCtx.createDynamicsCompressor();
+    eqCompressor.attack.value = 0.003;
+    eqCompressor.release.value = 0.25;
+    let node = src;
+    eqFilters.forEach(f => { node.connect(f); node = f; });
+    node.connect(eqCompressor);
+    eqCompressor.connect(eqCtx.destination);
+    applyEQ();
+  } catch (e) { Log.warn('EQ init failed', { err: e.message }); }
 }
 
 function applyEQ() {
@@ -965,7 +975,7 @@ async function play(song, newQueue, idx) {
     if (stream.image) nowSong.image = stream.image;
     if (stream.quality) nowSong.quality = stream.quality;
     refreshMini(); refreshNP();
-    await initEQ();
+    initEQ();
     audio.src = stream.url;
     await audio.play().catch(() => toast('Tap play to start'));
     playing = true;
@@ -989,7 +999,9 @@ function setNPLoading(on) {
 
 function togglePlay() {
   if (!nowSong || loadingUrl) return;
-  initEQ().then(() => { if (playing) audio.pause(); else audio.play().catch(() => {}); });
+  if (eqCtx?.state === 'suspended') eqCtx.resume();
+  initEQ();
+  if (playing) audio.pause(); else audio.play().catch(() => {});
 }
 
 function prev() {
