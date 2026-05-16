@@ -319,6 +319,23 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:-apple-sy
         </div>
       </div>
 
+      <div class="settings-section">GitHub Log Upload</div>
+      <div class="settings-card">
+        <div class="settings-row">
+          <div class="settings-label">Auto-upload<small>Upload logs on start &amp; every 30 min</small></div>
+          <input type="checkbox" id="gh-auto-toggle" style="width:22px;height:22px;accent-color:var(--red);cursor:pointer;flex-shrink:0">
+        </div>
+        <div class="settings-row" style="flex-direction:column;align-items:flex-start;gap:2px">
+          <div class="settings-label" style="font-size:13px">Last upload</div>
+          <div id="gh-last-status" style="font-size:12px;color:var(--fg2)">—</div>
+        </div>
+      </div>
+      <input type="password" class="settings-input" id="gh-pat-input" placeholder="Fine-grained PAT (Contents: Read &amp; Write)">
+      <div class="settings-btn-row">
+        <button class="settings-btn sec" id="gh-save-btn">Save Token</button>
+        <button class="settings-btn" id="gh-upload-btn">Upload Now</button>
+      </div>
+
       <div class="settings-section">Diagnostic Logs</div>
       <div class="log-bar">
         <select id="log-filter">
@@ -475,6 +492,9 @@ const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
 const DES_KEY     = '38346591';
+const GH_CFG_KEY  = 'mbx_ghcfg';
+const GH_REPO     = 'Suman8055/musicplayer';
+const GH_LOG_PATH = 'logs/musicplayer-log.json';
 
 // Two free CORS proxies — tried in order, falls back if first is slow/down
 const PROXIES = [
@@ -504,6 +524,90 @@ const Log = {
   all()               { return [...this._store]; },
   clear()             { this._store = []; try { localStorage.removeItem(LOG_KEY); } catch {}; }
 };
+
+// ── GITHUB LOG UPLOAD ─────────────────────────────────────────────────────────
+function getGhCfg() {
+  try { return JSON.parse(localStorage.getItem(GH_CFG_KEY) || '{}'); } catch { return {}; }
+}
+function saveGhCfg(cfg) {
+  try { localStorage.setItem(GH_CFG_KEY, JSON.stringify(cfg)); } catch {}
+}
+
+async function uploadLogsToGithub(silent = false) {
+  const cfg = getGhCfg();
+  if (!cfg.pat) { if (!silent) toast('No GitHub token — save one in Settings'); return; }
+
+  const logs = Log.all();
+  if (!logs.length) { if (!silent) toast('No logs to upload'); return; }
+
+  const btn = document.getElementById('gh-upload-btn');
+  if (btn) { btn.textContent = 'Uploading…'; btn.disabled = true; }
+
+  try {
+    // get current file SHA so GitHub lets us update (not just create)
+    let sha;
+    const getR = await fetch(
+      `https://api.github.com/repos/${GH_REPO}/contents/${GH_LOG_PATH}`,
+      { headers: { Authorization: `Bearer ${cfg.pat}`, Accept: 'application/vnd.github+json' } }
+    ).catch(() => null);
+    if (getR && getR.ok) { const j = await getR.json(); sha = j.sha; }
+
+    const payload = {
+      appVersion: APP_VERSION,
+      uploadedAt: new Date().toISOString(),
+      device: navigator.userAgent.slice(0, 200),
+      entries: logs
+    };
+
+    // btoa needs latin1 — encodeURIComponent → unescape handles UTF-8 in song names
+    const content = btoa(unescape(encodeURIComponent(JSON.stringify(payload, null, 2))));
+    const body = {
+      message: `logs: ${new Date().toISOString().slice(0, 16)} (${logs.length} entries)`,
+      content,
+      ...(sha ? { sha } : {})
+    };
+
+    const putR = await fetch(
+      `https://api.github.com/repos/${GH_REPO}/contents/${GH_LOG_PATH}`,
+      {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${cfg.pat}`,
+          Accept: 'application/vnd.github+json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(body)
+      }
+    );
+    if (!putR.ok) throw new Error('HTTP ' + putR.status);
+
+    cfg.lastUpload = new Date().toISOString();
+    cfg.lastStatus = `OK — ${logs.length} entries`;
+    saveGhCfg(cfg);
+    Log.info('Logs uploaded to GitHub', { entries: logs.length });
+    if (!silent) toast('Logs uploaded to GitHub');
+  } catch (e) {
+    cfg.lastStatus = 'Failed: ' + e.message;
+    saveGhCfg(cfg);
+    Log.error('GitHub log upload failed', { err: e.message });
+    if (!silent) toast('Upload failed: ' + e.message);
+  } finally {
+    if (btn) { btn.textContent = 'Upload Now'; btn.disabled = false; }
+    if (document.getElementById('gh-last-status')) renderGhStatus();
+  }
+}
+
+function renderGhStatus() {
+  const cfg = getGhCfg();
+  const el = document.getElementById('gh-last-status');
+  if (!el) return;
+  if (cfg.lastUpload) {
+    const d = new Date(cfg.lastUpload);
+    el.textContent = `${d.toLocaleDateString()} ${d.toLocaleTimeString()} — ${cfg.lastStatus || 'OK'}`;
+  } else {
+    el.textContent = cfg.pat ? 'Token saved — never uploaded' : '—';
+  }
+}
 
 // ── CORS PROXY FETCH ──────────────────────────────────────────────────────────
 async function proxyFetch(url) {
@@ -1308,6 +1412,10 @@ function toast(msg) {
 function renderSettings() {
   document.getElementById('cfg-version').textContent  = 'v' + APP_VERSION;
   document.getElementById('cfg-logcount').textContent = Log.all().length + ' / ' + LOG_MAX;
+  const cfg = getGhCfg();
+  const toggle = document.getElementById('gh-auto-toggle');
+  if (toggle) toggle.checked = !!cfg.autoUpload;
+  renderGhStatus();
   renderLogs(document.getElementById('log-filter').value);
 }
 
@@ -1347,6 +1455,27 @@ document.getElementById('log-clear-btn').addEventListener('click', () => {
   Log.info('Logs cleared by user');
   renderSettings();
   toast('Logs cleared');
+});
+
+// ── GITHUB LOG UPLOAD CONTROLS ────────────────────────────────────────────────
+document.getElementById('gh-save-btn').addEventListener('click', () => {
+  const pat = document.getElementById('gh-pat-input').value.trim();
+  if (!pat) { toast('Paste your GitHub PAT first'); return; }
+  const cfg = getGhCfg();
+  cfg.pat = pat;
+  saveGhCfg(cfg);
+  document.getElementById('gh-pat-input').value = '';
+  renderGhStatus();
+  toast('Token saved');
+});
+
+document.getElementById('gh-upload-btn').addEventListener('click', () => uploadLogsToGithub(false));
+
+document.getElementById('gh-auto-toggle').addEventListener('change', e => {
+  const cfg = getGhCfg();
+  cfg.autoUpload = e.target.checked;
+  saveGhCfg(cfg);
+  toast(e.target.checked ? 'Auto-upload enabled' : 'Auto-upload disabled');
 });
 
 // ── PULL LATEST BUILD ──────────────────────────────────────────────────────────
@@ -1400,6 +1529,16 @@ if ('serviceWorker' in navigator) {
 Log.init();
 buildBrowse();
 renderPlaylists();
+
+// auto-upload on start, then every 30 min (mirrors SW update cadence)
+(function scheduleLogUpload() {
+  const cfg = getGhCfg();
+  if (cfg.autoUpload && cfg.pat) uploadLogsToGithub(true);
+  setInterval(() => {
+    const c = getGhCfg();
+    if (c.autoUpload && c.pat) uploadLogsToGithub(true);
+  }, 30 * 60 * 1000);
+})();
 </script>
 </body>
 </html>
