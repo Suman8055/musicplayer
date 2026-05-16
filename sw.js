@@ -1,6 +1,6 @@
 'use strict';
-const CACHE = 'mbx-shell-v1';
-const SHELL = ['/', '/index.html', '/manifest.json'];
+const CACHE = 'mbx-shell-v1.2.0';
+const SHELL = ['/musicplayer/', '/musicplayer/index.html', '/musicplayer/manifest.json'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -14,10 +14,18 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  // Only cache same-origin shell requests; pass through API + CDN
   const url = new URL(e.request.url);
   if (url.origin !== location.origin) return;
-  e.respondWith(
-    caches.match(e.request).then(hit => hit || fetch(e.request))
-  );
+  // Network-first for HTML so updates are picked up immediately
+  if (e.request.destination === 'document') {
+    e.respondWith(
+      fetch(e.request).then(r => {
+        const copy = r.clone();
+        caches.open(CACHE).then(c => c.put(e.request, copy));
+        return r;
+      }).catch(() => caches.match(e.request))
+    );
+    return;
+  }
+  e.respondWith(caches.match(e.request).then(hit => hit || fetch(e.request)));
 });
