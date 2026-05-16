@@ -360,6 +360,8 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:-apple-sy
 // After deploying your Cloudflare Worker, replace this URL with your worker URL.
 // Example: 'https://musicbox-api.yourname.workers.dev'
 const WORKER = 'YOUR_CLOUDFLARE_WORKER_URL';
+const MB_TOKEN = 'da5dcf15b75a3ad6ca1ef9537cbf5705';
+const MB_HEADERS = { 'X-MB-Token': MB_TOKEN };
 
 const STORE_KEY = 'mbx_v2';
 
@@ -393,7 +395,7 @@ function workerReady() { return WORKER && WORKER !== 'YOUR_CLOUDFLARE_WORKER_URL
 
 async function apiSearch(q, limit = 20) {
   if (!workerReady()) throw new Error('worker_not_set');
-  const r = await fetch(`${WORKER}/search?q=${encodeURIComponent(q)}&limit=${limit}`);
+  const r = await fetch(`${WORKER}/search?q=${encodeURIComponent(q)}&limit=${limit}`, { headers: MB_HEADERS });
   if (!r.ok) throw new Error('api_error');
   const j = await r.json();
   if (j.error) throw new Error(j.error);
@@ -402,7 +404,7 @@ async function apiSearch(q, limit = 20) {
 
 async function apiStream(id) {
   if (!workerReady()) throw new Error('worker_not_set');
-  const r = await fetch(`${WORKER}/stream?id=${encodeURIComponent(id)}`);
+  const r = await fetch(`${WORKER}/stream?id=${encodeURIComponent(id)}`, { headers: MB_HEADERS });
   if (!r.ok) throw new Error('stream_error');
   const j = await r.json();
   if (j.error) throw new Error(j.error);

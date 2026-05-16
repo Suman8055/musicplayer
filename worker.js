@@ -10,6 +10,8 @@
 
 'use strict';
 
+const TOKEN = 'da5dcf15b75a3ad6ca1ef9537cbf5705';
+
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
@@ -24,6 +26,12 @@ const DES_KEY = '38346591';
 export default {
   async fetch(req) {
     if (req.method === 'OPTIONS') return new Response(null, { headers: CORS });
+
+    if (req.headers.get('X-MB-Token') !== TOKEN) {
+      return new Response(JSON.stringify({ error: 'Forbidden' }), {
+        status: 403, headers: { ...CORS, 'Content-Type': 'application/json' },
+      });
+    }
 
     const url = new URL(req.url);
 
