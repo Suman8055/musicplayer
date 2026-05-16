@@ -589,28 +589,62 @@ async function apiSearch(q, limit = 20) {
   }
 }
 
+// Stream URL cache — keyed by song id, capped at 15 entries
+const streamCache = new Map();
+
+async function fetchStream(id) {
+  // ── Fast path: saavn.8man.dev returns pre-decrypted 320kbps CDN URLs with CORS ──
+  try {
+    const r = await fetch(`https://saavn.8man.dev/api/songs/${encodeURIComponent(id)}`, {
+      signal: AbortSignal.timeout(6000),
+    });
+    if (r.ok) {
+      const data = await r.json();
+      const song = Array.isArray(data?.data) ? data.data[0] : null;
+      if (song) {
+        const urls = song.downloadUrl || [];
+        const best = urls.find(u => u.quality === '320kbps') || urls[urls.length - 1];
+        if (best?.url) {
+          Log.info('Stream OK (fast)', { id });
+          return { url: best.url, image: bestImg(song.image, '500x500'), duration: song.duration || 0 };
+        }
+      }
+    }
+  } catch (e) { Log.warn('Fast stream failed, falling back', { id, err: e.message }); }
+
+  // ── Fallback: CORS proxy → JioSaavn → DES decrypt ────────────────────────────
+  const r = await proxyFetch(
+    `https://www.jiosaavn.com/api.php?__call=song.getDetails&cc=in&_format=json&pids=${encodeURIComponent(id)}`
+  );
+  const data = await r.json();
+  const key  = Object.keys(data)[0];
+  const song = data[key];
+  if (!song?.encrypted_media_url) throw new Error('No stream URL');
+  const url96 = desDecrypt(song.encrypted_media_url, DES_KEY);
+  if (!url96) throw new Error('Decrypt failed');
+  const is320 = song['320kbps'] === 'true';
+  const url = is320
+    ? url96.replace('_96.', '_320.').replace('_96_p.', '_320_p.').replace(/(_\d{1,3})\.mp4/, '_320.mp4')
+    : url96;
+  Log.info('Stream OK (fallback)', { id, quality: is320 ? '320kbps' : '96kbps' });
+  return {
+    url,
+    image:    (song.image || '').replace('50x50', '500x500').replace('150x150', '500x500'),
+    duration: parseInt(song.duration || 0),
+  };
+}
+
 async function apiStream(id) {
   Log.info('Stream fetch', { id });
   try {
-    const r = await proxyFetch(
-      `https://www.jiosaavn.com/api.php?__call=song.getDetails&cc=in&_format=json&pids=${encodeURIComponent(id)}`
-    );
-    const data = await r.json();
-    const key  = Object.keys(data)[0];
-    const song = data[key];
-    if (!song?.encrypted_media_url) throw new Error('No stream URL');
-    const url96 = desDecrypt(song.encrypted_media_url, DES_KEY);
-    if (!url96) throw new Error('Decrypt failed');
-    const is320 = song['320kbps'] === 'true';
-    const url = is320
-      ? url96.replace('_96.', '_320.').replace('_96_p.', '_320_p.').replace(/(_\d{1,3})\.mp4/, '_320.mp4')
-      : url96;
-    Log.info('Stream OK', { id, quality: is320 ? '320kbps' : '96kbps' });
-    return {
-      url,
-      image:    (song.image || '').replace('50x50', '500x500').replace('150x150', '500x500'),
-      duration: parseInt(song.duration || 0),
-    };
+    if (streamCache.has(id)) {
+      Log.info('Stream cache hit', { id });
+      return streamCache.get(id);
+    }
+    const result = await fetchStream(id);
+    streamCache.set(id, result);
+    if (streamCache.size > 15) streamCache.delete(streamCache.keys().next().value);
+    return result;
   } catch (e) {
     Log.error('Stream failed', { id, err: e.message });
     throw e;
@@ -651,6 +685,7 @@ async function play(song, newQueue, idx) {
     await audio.play().catch(() => toast('Tap play to start'));
     playing = true;
     Log.info('Playback started', { name: song.name, artist: song.artist });
+    setTimeout(preloadNext, 1500);
   } catch (e) {
     toast('Stream unavailable — try another song');
     playing = false;
@@ -686,6 +721,18 @@ function next() {
   }
   qIdx = ni;
   play(queue[qIdx]);
+}
+
+// Silently prefetch the next song's stream URL so it plays instantly
+async function preloadNext() {
+  if (!queue.length || qIdx >= queue.length - 1) return;
+  const next = queue[qIdx + 1];
+  if (!next || streamCache.has(next.id)) return;
+  try {
+    const result = await fetchStream(next.id);
+    streamCache.set(next.id, result);
+    Log.info('Preloaded next', { id: next.id, name: next.name });
+  } catch { /* silent — best effort only */ }
 }
 
 // ── AUDIO EVENTS ───────────────────────────────────────────────────────────────
@@ -1325,8 +1372,29 @@ document.getElementById('update-app-btn').addEventListener('click', async () => 
   }
 });
 
-// ── SERVICE WORKER ─────────────────────────────────────────────────────────────
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+// ── SERVICE WORKER (live sync) ─────────────────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').then(reg => {
+    // If a new SW is already waiting (page was open during last deploy), activate it now
+    if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+
+    // When a new SW finishes installing, activate it immediately
+    reg.addEventListener('updatefound', () => {
+      const sw = reg.installing;
+      sw?.addEventListener('statechange', () => {
+        if (sw.state === 'installed' && navigator.serviceWorker.controller) {
+          sw.postMessage({ type: 'SKIP_WAITING' });
+        }
+      });
+    });
+
+    // Once a new SW takes control, reload the page to run the latest build
+    navigator.serviceWorker.addEventListener('controllerchange', () => location.reload());
+
+    // Poll for new builds every 30 minutes
+    setInterval(() => reg.update(), 30 * 60 * 1000);
+  }).catch(() => {});
+}
 
 // ── INIT ────────────────────────────────────────────────────────────────────────
 Log.init();
