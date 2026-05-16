@@ -614,7 +614,7 @@ async function proxyFetch(url) {
   let last;
   for (const proxy of PROXIES) {
     try {
-      const r = await fetch(proxy(url), { signal: AbortSignal.timeout(9000) });
+      const r = await fetch(proxy(url), { signal: AbortSignal.timeout(6000) });
       if (r.ok) return r;
       last = new Error('proxy_' + r.status);
     } catch (e) { last = e; }
@@ -700,7 +700,7 @@ async function fetchStream(id) {
   // ── Fast path: saavn.8man.dev returns pre-decrypted 320kbps CDN URLs with CORS ──
   try {
     const r = await fetch(`https://saavn.8man.dev/api/songs/${encodeURIComponent(id)}`, {
-      signal: AbortSignal.timeout(6000),
+      signal: AbortSignal.timeout(4000),
     });
     if (r.ok) {
       const data = await r.json();
@@ -789,7 +789,7 @@ async function play(song, newQueue, idx) {
     await audio.play().catch(() => toast('Tap play to start'));
     playing = true;
     Log.info('Playback started', { name: song.name, artist: song.artist });
-    setTimeout(preloadNext, 1500);
+    preloadNext();
   } catch (e) {
     toast('Stream unavailable — try another song');
     playing = false;
@@ -868,7 +868,13 @@ seekEl.addEventListener('touchend',   () => seeking = false);
 seekEl.addEventListener('input', () => {
   if (audio.duration) audio.currentTime = (seekEl.value / 1000) * audio.duration;
 });
-document.getElementById('np-vol').addEventListener('input', e => { audio.volume = +e.target.value; });
+// iOS ignores audio.volume — replace slider with a note
+if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
+  const wrap = document.getElementById('np-vol-wrap');
+  wrap.innerHTML = '<span style="flex:1;text-align:center;font-size:12px;color:var(--fg3)">Use volume buttons to adjust</span>';
+} else {
+  document.getElementById('np-vol').addEventListener('input', e => { audio.volume = +e.target.value; });
+}
 
 // ── UI REFRESH ─────────────────────────────────────────────────────────────────
 function refreshMini() {
@@ -989,11 +995,23 @@ document.getElementById('search-input').addEventListener('input', e => {
 });
 
 async function runSearch(q) {
+  const mySeq = ++searchSeq;
+  if (searchCache.has(q)) {
+    if (mySeq === searchSeq) {
+      cacheSongs(searchCache.get(q));
+      renderSongList(searchCache.get(q), 'search-results');
+    }
+    return;
+  }
   try {
     const songs = await apiSearch(q);
+    if (mySeq !== searchSeq) return;
+    searchCache.set(q, songs);
+    if (searchCache.size > 10) searchCache.delete(searchCache.keys().next().value);
     cacheSongs(songs);
     renderSongList(songs, 'search-results');
   } catch {
+    if (mySeq !== searchSeq) return;
     document.getElementById('search-results').innerHTML =
       '<div class="empty-wrap"><div class="empty-ico">⚠️</div><div class="empty-txt">Could not connect — check your internet</div></div>';
   }
@@ -1005,7 +1023,7 @@ const SAAVN_API = 'https://saavn.8man.dev';
 
 async function saavnFetch(url) {
   try {
-    const r = await fetch(url, { signal: AbortSignal.timeout(9000) });
+    const r = await fetch(url, { signal: AbortSignal.timeout(5000) });
     if (r.ok) return r;
     throw new Error('status_' + r.status);
   } catch {
@@ -1055,6 +1073,9 @@ const LANG_TILES = [
 ];
 
 let browseChartsLoaded = false;
+const langCache = new Map();      // lang → { albums, playlists } DOM fragments
+const searchCache = new Map();    // query → songs[]
+let searchSeq = 0;                // increments on each search to discard stale results
 
 function buildBrowse() {
   const grid = document.getElementById('lang-grid');
@@ -1074,11 +1095,20 @@ async function loadBrowseLang(lang, label) {
   const albumsEl   = document.getElementById('lang-albums');
   const playlistEl = document.getElementById('lang-playlists');
 
-  titleEl.textContent  = label;
-  albumsEl.innerHTML   = '<div class="loading-wrap" style="padding:20px 0"><div class="spinner"></div></div>';
-  playlistEl.innerHTML = '';
+  titleEl.textContent = label;
   content.classList.add('visible');
   content.scrollIntoView({ behavior: 'smooth' });
+
+  // Serve from cache instantly if available
+  if (langCache.has(lang)) {
+    const { albumsHTML, playlistsHTML } = langCache.get(lang);
+    albumsEl.innerHTML   = albumsHTML;
+    playlistEl.innerHTML = playlistsHTML;
+    return;
+  }
+
+  albumsEl.innerHTML   = '<div class="loading-wrap" style="padding:20px 0"><div class="spinner"></div></div>';
+  playlistEl.innerHTML = '';
 
   try {
     const resp = await saavnFetch(`${SIGMA_API}/modules?language=${encodeURIComponent(lang)}`);
@@ -1106,6 +1136,8 @@ async function loadBrowseLang(lang, label) {
         () => openBrowseDetail(pl.id, 'playlist', pl.title)
       ));
     });
+
+    langCache.set(lang, { albumsHTML: albumsEl.innerHTML, playlistsHTML: playlistEl.innerHTML });
   } catch (err) {
     Log.warn('Browse lang failed', { lang, err: err.message });
     albumsEl.innerHTML = '<div style="padding:16px;color:var(--fg2);font-size:14px">Could not load — check internet</div>';
