@@ -92,15 +92,15 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:-apple-sy
 
 /* Tab bar */
 #tabbar{background:rgba(28,28,30,.88);backdrop-filter:blur(30px);-webkit-backdrop-filter:blur(30px);
-  border-top:1px solid var(--sep);display:flex;padding-bottom:var(--safe-bot)}
+  border-top:1px solid var(--sep);display:flex;padding-bottom:var(--safe-bot);position:relative;z-index:210}
 .tab-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
-  padding:8px 0;cursor:pointer;gap:3px;color:var(--fg3);background:none;border:none;font-family:inherit;min-height:49px}
+  padding:8px 0;cursor:pointer;gap:3px;color:var(--fg3);background:none;border:none;font-family:inherit;height:49px}
 .tab-btn.on{color:var(--red)}
 .tab-btn svg{width:22px;height:22px}
 .tab-label{font-size:10px;font-weight:500;letter-spacing:.2px}
 
 /* Now Playing */
-#np{position:fixed;inset:0;z-index:100;transform:translateY(100%);transition:transform .42s cubic-bezier(.32,.72,0,1);display:flex;flex-direction:column}
+#np{position:fixed;top:0;left:0;right:0;bottom:var(--tab-h);z-index:100;transform:translateY(100%);transition:transform .42s cubic-bezier(.32,.72,0,1);display:flex;flex-direction:column}
 #np.open{transform:translateY(0)}
 #np-bg{position:absolute;inset:0;background-size:cover;background-position:center;filter:blur(50px) brightness(.35) saturate(2.5);transform:scale(1.4);pointer-events:none}
 #np-inner{position:relative;flex:1;display:flex;flex-direction:column;padding-top:var(--safe-top);padding-bottom:calc(var(--safe-bot)+8px);overflow:hidden}
@@ -970,6 +970,8 @@ function closeNP() { document.getElementById('np').classList.remove('open'); }
 document.getElementById('tabbar').addEventListener('click', e => {
   const btn = e.target.closest('.tab-btn');
   if (!btn) return;
+  closeSheet();
+  closeNP();
   const tab = btn.dataset.tab;
   document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('on'));
@@ -1402,8 +1404,9 @@ function showSheet(title, items) {
   document.getElementById('sheet-wrap').classList.add('open');
 }
 function closeSheet() { document.getElementById('sheet-wrap').classList.remove('open'); }
+// Close on backdrop tap — check that click didn't originate inside #sheet itself
 document.getElementById('sheet-wrap').addEventListener('click', e => {
-  if (e.target === document.getElementById('sheet-wrap')) closeSheet();
+  if (!document.getElementById('sheet').contains(e.target)) closeSheet();
 });
 
 // ── PROMPT ─────────────────────────────────────────────────────────────────────
