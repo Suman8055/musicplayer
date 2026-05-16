@@ -177,6 +177,35 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:-apple-sy
 #setup-banner{background:#1a1a2e;border:1px solid #fc3c4444;border-radius:12px;margin:12px 16px;padding:14px;font-size:13px;line-height:1.5;color:var(--fg2)}
 #setup-banner strong{color:var(--fg);display:block;margin-bottom:4px}
 #setup-banner code{background:var(--bg3);padding:2px 6px;border-radius:4px;color:var(--red);font-size:12px}
+
+/* Settings tab */
+.settings-section{padding:16px 16px 6px;font-size:12px;font-weight:700;color:var(--fg2);text-transform:uppercase;letter-spacing:.6px}
+.settings-card{margin:0 16px 12px;background:var(--bg2);border-radius:14px;overflow:hidden}
+.settings-row{display:flex;align-items:center;padding:14px 16px;border-bottom:1px solid var(--sep);gap:12px}
+.settings-row:last-child{border-bottom:none}
+.settings-label{flex:1;font-size:15px}
+.settings-label small{display:block;font-size:12px;color:var(--fg2);margin-top:2px}
+.settings-value{font-size:14px;color:var(--fg2)}
+.settings-input{width:calc(100% - 32px);background:var(--bg2);border:none;border-radius:10px;color:var(--fg);font-size:14px;font-family:inherit;padding:12px 14px;outline:none;margin:0 16px 10px;display:block}
+.settings-input:focus{outline:2px solid var(--red)}
+.settings-btn-row{display:flex;gap:10px;padding:0 16px 14px}
+.settings-btn{flex:1;background:var(--red);border:none;color:#fff;font-size:15px;font-weight:600;font-family:inherit;border-radius:12px;padding:12px;cursor:pointer}
+.settings-btn.sec{background:var(--bg2);color:var(--fg)}
+
+/* Log viewer */
+.log-bar{display:flex;align-items:center;justify-content:space-between;padding:6px 16px 10px}
+.log-bar select{background:var(--bg2);border:none;color:var(--fg);font-size:14px;font-family:inherit;padding:6px 10px;border-radius:8px;outline:none}
+.log-actions{display:flex;gap:8px}
+.log-act-btn{background:var(--bg2);border:none;color:var(--fg2);font-size:13px;font-family:inherit;padding:6px 12px;border-radius:8px;cursor:pointer}
+.log-act-btn.danger{color:#ff453a}
+.log-view{margin:0 16px 16px;background:var(--bg2);border-radius:14px;overflow:hidden;max-height:280px;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.log-row{padding:8px 12px;border-bottom:1px solid var(--sep);display:flex;gap:8px;align-items:flex-start}
+.log-row:last-child{border-bottom:none}
+.log-ts{color:var(--fg3);white-space:nowrap;flex-shrink:0;font-size:10px;font-family:'SF Mono',Menlo,monospace;margin-top:1px}
+.log-level{font-weight:700;flex-shrink:0;min-width:54px;font-size:11px;font-family:'SF Mono',Menlo,monospace}
+.log-level.INFO{color:#34c759}.log-level.WARN{color:#ff9f0a}
+.log-level.ERROR{color:#ff453a}.log-level.CRITICAL{color:#ff2d55}
+.log-msg{color:var(--fg);word-break:break-all;font-size:11px;font-family:'SF Mono',Menlo,monospace;line-height:1.4}
 </style>
 </head>
 <body>
@@ -227,6 +256,51 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:-apple-sy
       <div id="pl-view-songs"></div>
     </div>
 
+    <!-- Settings -->
+    <div id="tab-settings" class="tab-pane">
+      <div class="tab-header">Settings</div>
+
+      <div class="settings-section">Worker Setup</div>
+      <div class="settings-card">
+        <div class="settings-row">
+          <div class="settings-label">Worker URL<small>Your Cloudflare Worker endpoint URL</small></div>
+        </div>
+      </div>
+      <input class="settings-input" id="cfg-url" type="url" placeholder="https://musicbox.yourname.workers.dev" autocomplete="off" autocorrect="off" spellcheck="false">
+      <div class="settings-card">
+        <div class="settings-row">
+          <div class="settings-label">Auth Token<small>Matches MB_TOKEN in your Worker's env vars</small></div>
+        </div>
+      </div>
+      <input class="settings-input" id="cfg-token" type="password" placeholder="Your secret token" autocomplete="off">
+      <div class="settings-btn-row">
+        <button class="settings-btn sec" id="cfg-test-btn">Test</button>
+        <button class="settings-btn" id="cfg-save-btn">Save</button>
+      </div>
+
+      <div class="settings-section">About</div>
+      <div class="settings-card">
+        <div class="settings-row"><div class="settings-label">Version</div><div class="settings-value" id="cfg-version"></div></div>
+        <div class="settings-row"><div class="settings-label">Log entries</div><div class="settings-value" id="cfg-logcount"></div></div>
+      </div>
+
+      <div class="settings-section">Diagnostic Logs</div>
+      <div class="log-bar">
+        <select id="log-filter">
+          <option value="">All levels</option>
+          <option value="INFO">INFO</option>
+          <option value="WARN">WARN</option>
+          <option value="ERROR">ERROR</option>
+          <option value="CRITICAL">CRITICAL</option>
+        </select>
+        <div class="log-actions">
+          <button class="log-act-btn" id="log-export-btn">Export</button>
+          <button class="log-act-btn danger" id="log-clear-btn">Clear</button>
+        </div>
+      </div>
+      <div class="log-view" id="log-view"></div>
+    </div>
+
   </div>
 
   <!-- Mini player -->
@@ -266,6 +340,10 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:-apple-sy
     <button class="tab-btn" data-tab="library">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
       <span class="tab-label">Library</span>
+    </button>
+    <button class="tab-btn" data-tab="settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      <span class="tab-label">Settings</span>
     </button>
   </div>
 </div>
@@ -357,13 +435,41 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:-apple-sy
 'use strict';
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-// After deploying your Cloudflare Worker, replace this URL with your worker URL.
-// Example: 'https://musicbox-api.yourname.workers.dev'
-const WORKER = 'YOUR_CLOUDFLARE_WORKER_URL';
-const MB_TOKEN = 'da5dcf15b75a3ad6ca1ef9537cbf5705';
-const MB_HEADERS = { 'X-MB-Token': MB_TOKEN };
+const APP_VERSION = '1.1.0';
+const STORE_KEY   = 'mbx_v2';
+const CFG_KEY     = 'mbx_cfg';
+const LOG_KEY     = 'mbx_logs';
+const LOG_MAX     = 200;
 
-const STORE_KEY = 'mbx_v2';
+// ── LOGGER ─────────────────────────────────────────────────────────────────────
+const Log = {
+  _store: [],
+  init() {
+    try { this._store = JSON.parse(localStorage.getItem(LOG_KEY) || '[]'); } catch { this._store = []; }
+    this.info('App started', { version: APP_VERSION });
+  },
+  _write(level, msg, data) {
+    const entry = { ts: new Date().toISOString(), level, msg, data: data || null };
+    this._store.push(entry);
+    if (this._store.length > LOG_MAX) this._store.shift();
+    try { localStorage.setItem(LOG_KEY, JSON.stringify(this._store)); } catch {}
+    const fn = (level === 'ERROR' || level === 'CRITICAL') ? 'error' : 'log';
+    console[fn](`[MB:${level}]`, msg, ...(data ? [data] : []));
+  },
+  info(msg, data)     { this._write('INFO', msg, data); },
+  warn(msg, data)     { this._write('WARN', msg, data); },
+  error(msg, data)    { this._write('ERROR', msg, data); },
+  critical(msg, data) { this._write('CRITICAL', msg, data); },
+  all()               { return [...this._store]; },
+  clear()             { this._store = []; try { localStorage.removeItem(LOG_KEY); } catch {}; }
+};
+
+// ── RUNTIME CONFIG ─────────────────────────────────────────────────────────────
+let cfg = {};
+function loadCfg() {
+  try { cfg = JSON.parse(localStorage.getItem(CFG_KEY) || '{}'); } catch { cfg = {}; }
+}
+function saveCfg() { try { localStorage.setItem(CFG_KEY, JSON.stringify(cfg)); } catch {} }
 
 // ── STATE ──────────────────────────────────────────────────────────────────────
 let D = loadData();
@@ -391,24 +497,39 @@ function persist() {
 }
 
 // ── API ────────────────────────────────────────────────────────────────────────
-function workerReady() { return WORKER && WORKER !== 'YOUR_CLOUDFLARE_WORKER_URL'; }
+function workerReady() { return !!(cfg.workerUrl); }
+function workerHeaders() { return cfg.workerToken ? { 'X-MB-Token': cfg.workerToken } : {}; }
 
 async function apiSearch(q, limit = 20) {
   if (!workerReady()) throw new Error('worker_not_set');
-  const r = await fetch(`${WORKER}/search?q=${encodeURIComponent(q)}&limit=${limit}`, { headers: MB_HEADERS });
-  if (!r.ok) throw new Error('api_error');
-  const j = await r.json();
-  if (j.error) throw new Error(j.error);
-  return j.songs || [];
+  Log.info('Search', { q, limit });
+  try {
+    const r = await fetch(`${cfg.workerUrl}/search?q=${encodeURIComponent(q)}&limit=${limit}`, { headers: workerHeaders() });
+    if (!r.ok) throw new Error('api_error_' + r.status);
+    const j = await r.json();
+    if (j.error) throw new Error(j.error);
+    Log.info('Search OK', { q, count: (j.songs || []).length });
+    return j.songs || [];
+  } catch (e) {
+    Log.error('Search failed', { q, err: e.message });
+    throw e;
+  }
 }
 
 async function apiStream(id) {
   if (!workerReady()) throw new Error('worker_not_set');
-  const r = await fetch(`${WORKER}/stream?id=${encodeURIComponent(id)}`, { headers: MB_HEADERS });
-  if (!r.ok) throw new Error('stream_error');
-  const j = await r.json();
-  if (j.error) throw new Error(j.error);
-  return j.url;
+  Log.info('Stream fetch', { id });
+  try {
+    const r = await fetch(`${cfg.workerUrl}/stream?id=${encodeURIComponent(id)}`, { headers: workerHeaders() });
+    if (!r.ok) throw new Error('stream_error_' + r.status);
+    const j = await r.json();
+    if (j.error) throw new Error(j.error);
+    Log.info('Stream OK', { id });
+    return j.url;
+  } catch (e) {
+    Log.error('Stream failed', { id, err: e.message });
+    throw e;
+  }
 }
 
 function artUrl(song) { return song.image || ''; }
@@ -443,9 +564,14 @@ async function play(song, newQueue, idx) {
     audio.src = url;
     await audio.play().catch(() => toast('Tap play to start'));
     playing = true;
+    Log.info('Playback started', { name: song.name, artist: song.artist });
   } catch (e) {
-    toast(e.message === 'worker_not_set' ? 'Set up your Cloudflare Worker first' : 'Stream unavailable');
+    const msg = e.message === 'worker_not_set'
+      ? 'Add your Worker URL in Settings tab'
+      : 'Stream unavailable';
+    toast(msg);
     playing = false;
+    Log.error('Playback failed', { name: song.name, err: e.message });
   } finally {
     loadingUrl = false;
     setNPLoading(false);
@@ -484,7 +610,12 @@ audio.addEventListener('play',  () => { playing = true;  refreshPlayBtns(); });
 audio.addEventListener('pause', () => { playing = false; refreshPlayBtns(); });
 audio.addEventListener('ended', next);
 audio.addEventListener('error', () => {
-  if (!loadingUrl) { toast('Could not play this song'); playing = false; refreshPlayBtns(); }
+  if (!loadingUrl) {
+    Log.error('Audio error', { name: nowSong?.name, code: audio.error?.code });
+    toast('Could not play this song');
+    playing = false;
+    refreshPlayBtns();
+  }
 });
 audio.addEventListener('timeupdate', () => {
   if (seeking || !audio.duration) return;
@@ -604,7 +735,8 @@ document.getElementById('tabbar').addEventListener('click', e => {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('on'));
   document.getElementById('tab-' + tab).classList.add('active');
   btn.classList.add('on');
-  if (tab === 'library') renderPlaylists();
+  if (tab === 'library')  renderPlaylists();
+  if (tab === 'settings') renderSettings();
 });
 
 // ── SEARCH ─────────────────────────────────────────────────────────────────────
@@ -638,7 +770,7 @@ async function runSearch(q) {
 
 function setupBanner() {
   return `<div id="setup-banner"><strong>Setup required</strong>
-  Deploy <code>worker.js</code> to Cloudflare Workers (free), then set the <code>WORKER</code> URL in this file.
+  Deploy <code>worker.js</code> to Cloudflare Workers (free), then add your Worker URL in the <code>Settings</code> tab.
   See instructions in the README.</div>`;
 }
 
@@ -924,10 +1056,101 @@ function toast(msg) {
   toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
 }
 
+// ── SETTINGS TAB ──────────────────────────────────────────────────────────────
+function renderSettings() {
+  document.getElementById('cfg-url').value   = cfg.workerUrl   || '';
+  document.getElementById('cfg-token').value = cfg.workerToken || '';
+  document.getElementById('cfg-version').textContent  = 'v' + APP_VERSION;
+  document.getElementById('cfg-logcount').textContent = Log.all().length + ' / ' + LOG_MAX;
+  renderLogs(document.getElementById('log-filter').value);
+}
+
+function renderLogs(filter) {
+  const entries = Log.all().filter(e => !filter || e.level === filter).reverse();
+  const el = document.getElementById('log-view');
+  if (!entries.length) {
+    el.innerHTML = '<div class="log-row"><span class="log-msg" style="color:var(--fg3)">No log entries</span></div>';
+    return;
+  }
+  el.innerHTML = entries.map(e => {
+    const ts   = e.ts.slice(11, 19); // HH:MM:SS
+    const data = e.data ? ' ' + JSON.stringify(e.data) : '';
+    return `<div class="log-row">
+      <span class="log-ts">${esc(ts)}</span>
+      <span class="log-level ${esc(e.level)}">${esc(e.level)}</span>
+      <span class="log-msg">${esc(e.msg + data)}</span>
+    </div>`;
+  }).join('');
+}
+
+document.getElementById('cfg-save-btn').addEventListener('click', () => {
+  const url   = document.getElementById('cfg-url').value.trim().replace(/\/$/, '');
+  const token = document.getElementById('cfg-token').value.trim();
+  if (!url) { toast('Enter your Worker URL first'); return; }
+  cfg.workerUrl   = url;
+  cfg.workerToken = token;
+  saveCfg();
+  Log.info('Config saved', { url });
+  toast('Settings saved');
+  renderSettings();
+  if (workerReady()) {
+    document.getElementById('search-results').innerHTML =
+      '<div class="empty-wrap"><div class="empty-ico">🎵</div><div class="empty-txt">Search for your favourite songs</div></div>';
+  }
+});
+
+document.getElementById('cfg-test-btn').addEventListener('click', async () => {
+  const url   = document.getElementById('cfg-url').value.trim().replace(/\/$/, '');
+  const token = document.getElementById('cfg-token').value.trim();
+  if (!url) { toast('Enter Worker URL first'); return; }
+  toast('Testing…');
+  Log.info('Config test', { url });
+  try {
+    const r = await fetch(url, { headers: token ? { 'X-MB-Token': token } : {} });
+    const j = await r.json();
+    if (j.status) {
+      toast('Connected ✓');
+      Log.info('Config test OK', { url });
+    } else if (j.error === 'Forbidden') {
+      toast('Wrong token — check MB_TOKEN');
+      Log.warn('Config test: forbidden', { url });
+    } else {
+      toast('Worker responded, unexpected format');
+      Log.warn('Config test: unexpected', { url });
+    }
+  } catch (e) {
+    toast('Cannot reach worker');
+    Log.error('Config test failed', { url, err: e.message });
+  }
+  renderSettings();
+});
+
+document.getElementById('log-filter').addEventListener('change', e => {
+  renderLogs(e.target.value);
+});
+
+document.getElementById('log-export-btn').addEventListener('click', () => {
+  const text = Log.all().map(e =>
+    `[${e.ts}] [${e.level}] ${e.msg}${e.data ? ' ' + JSON.stringify(e.data) : ''}`
+  ).join('\n');
+  navigator.clipboard?.writeText(text)
+    .then(() => toast('Logs copied to clipboard'))
+    .catch(() => toast('Copy not supported'));
+});
+
+document.getElementById('log-clear-btn').addEventListener('click', () => {
+  Log.clear();
+  Log.info('Logs cleared by user');
+  renderSettings();
+  toast('Logs cleared');
+});
+
 // ── SERVICE WORKER ─────────────────────────────────────────────────────────────
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 
 // ── INIT ────────────────────────────────────────────────────────────────────────
+Log.init();
+loadCfg();
 buildCategories();
 renderPlaylists();
 if (!workerReady()) {

@@ -1,16 +1,17 @@
 /**
- * MusicBox — Cloudflare Worker
+ * MusicBox — Cloudflare Worker  v1.1.0
  * Proxies JioSaavn API with CORS + decrypts stream URLs
  *
  * Deploy: paste this into Cloudflare Workers dashboard → Save & Deploy
+ * Set environment variable MB_TOKEN to a secret string of your choice.
+ * Use the same value as the "Auth Token" in the MusicBox Settings tab.
+ *
  * Endpoints:
  *   GET /search?q=QUERY&limit=20
  *   GET /stream?id=SONG_ID
  */
 
 'use strict';
-
-const TOKEN = 'da5dcf15b75a3ad6ca1ef9537cbf5705';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -24,10 +25,12 @@ const HEADERS = {
 const DES_KEY = '38346591';
 
 export default {
-  async fetch(req) {
+  async fetch(req, env) {
     if (req.method === 'OPTIONS') return new Response(null, { headers: CORS });
 
-    if (req.headers.get('X-MB-Token') !== TOKEN) {
+    const token = env?.MB_TOKEN || '';
+    if (token && req.headers.get('X-MB-Token') !== token) {
+      console.warn('[MB] Forbidden: bad token from', req.headers.get('CF-Connecting-IP') || 'unknown');
       return new Response(JSON.stringify({ error: 'Forbidden' }), {
         status: 403, headers: { ...CORS, 'Content-Type': 'application/json' },
       });
@@ -38,15 +41,17 @@ export default {
     if (url.pathname === '/search') {
       const q = url.searchParams.get('q') || '';
       const limit = Math.min(parseInt(url.searchParams.get('limit') || '20'), 40);
+      console.log('[MB] Search:', q, 'limit:', limit);
       return handleSearch(q, limit);
     }
 
     if (url.pathname === '/stream') {
       const id = url.searchParams.get('id') || '';
+      console.log('[MB] Stream:', id);
       return handleStream(id);
     }
 
-    return new Response(JSON.stringify({ status: 'MusicBox API OK' }), {
+    return new Response(JSON.stringify({ status: 'MusicBox API OK', version: '1.1.0' }), {
       headers: { ...CORS, 'Content-Type': 'application/json' },
     });
   },
@@ -71,8 +76,10 @@ async function handleSearch(q, limit) {
       image: (s.image || '').replace('50x50', '150x150'),
       duration: parseInt(s.more_info?.duration || 0),
     }));
+    console.log('[MB] Search returned', songs.length, 'songs for:', q);
     return json({ songs });
   } catch (e) {
+    console.error('[MB] Search error:', e.message);
     return json({ error: 'Search failed', songs: [] }, 500);
   }
 }
@@ -92,19 +99,24 @@ async function handleStream(id) {
     if (!song?.encrypted_media_url) return json({ error: 'No stream' }, 404);
 
     const url96 = desDecrypt(song.encrypted_media_url, DES_KEY);
-    if (!url96) return json({ error: 'Decrypt failed' }, 500);
+    if (!url96) {
+      console.error('[MB] Decrypt failed for id:', id);
+      return json({ error: 'Decrypt failed' }, 500);
+    }
 
     const is320 = song['320kbps'] === 'true';
     const streamUrl = is320
       ? url96.replace('_96.', '_320.').replace('_96_p.', '_320_p.').replace(/(_\d{1,3})\.mp4/, '_320.mp4')
       : url96;
 
+    console.log('[MB] Stream ready:', is320 ? '320kbps' : '96kbps', 'for id:', id);
     return json({
       url: streamUrl,
       image: (song.image || '').replace('50x50', '500x500').replace('150x150', '500x500'),
       duration: parseInt(song.duration || 0),
     });
   } catch (e) {
+    console.error('[MB] Stream error:', e.message, 'id:', id);
     return json({ error: 'Stream fetch failed: ' + e.message }, 500);
   }
 }
