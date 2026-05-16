@@ -1,0 +1,12 @@
+{
+  "name": "MusicBox",
+  "short_name": "MusicBox",
+  "description": "Stream JioSaavn music",
+  "start_url": "/musicplayer/",
+  "scope": "/musicplayer/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "orientation": "portrait",
+  "icons": []
+}
