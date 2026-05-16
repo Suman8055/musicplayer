@@ -1,5 +1,5 @@
 'use strict';
-const CACHE = 'mbx-shell-v1.5.0';
+const CACHE = 'mbx-shell-v1.5.1';
 const SHELL = ['/musicplayer/', '/musicplayer/index.html', '/musicplayer/manifest.json'];
 
 self.addEventListener('install', e => {
