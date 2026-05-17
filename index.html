@@ -573,7 +573,7 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:-apple-sy
 'use strict';
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '1.5.8';
+const APP_VERSION = '1.5.9';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -831,7 +831,30 @@ function _wireEQGraph() {
 // initEQ — called from tap/click handlers only.
 // Creates the AudioContext, resumes it (synchronous call = iOS honours the gesture),
 // then wires the graph AFTER the context confirms running state via Promise.
+// ── AIRPLAY GUARD ─────────────────────────────────────────────────────────────
+// createMediaElementSource() routes audio through AudioContext.destination which
+// is always the LOCAL speaker — it bypasses iOS AirPlay routing entirely.
+// When AirPlay is active we must keep the <audio> element unwired so the OS
+// can route it to the AirPlay target.
+function isAirPlayActive() {
+  return !!audio.webkitCurrentPlaybackTargetIsWireless;
+}
+
+audio.addEventListener('webkitcurrentplaybacktargetiswirelesschanged', () => {
+  if (isAirPlayActive() && eqFilters.length > 0) {
+    // AirPlay just turned on — release EQ so audio routes through OS to AirPlay
+    try { eqCtx?.close(); } catch {}
+    eqCtx = null; eqFilters = []; eqCompressor = null;
+    const h = document.getElementById('eq-status');
+    if (h) h.textContent = '';
+    closeEQPanel();
+    Log.info('EQ released for AirPlay');
+    toast('EQ paused — AirPlay active');
+  }
+});
+
 function initEQ() {
+  if (isAirPlayActive()) { toast('EQ is not available during AirPlay'); return; }
   if (eqFilters.length > 0) {
     if (eqCtx?.state === 'suspended') eqCtx.resume().then(() => applyEQ()).catch(() => {});
     return;
