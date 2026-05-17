@@ -12,10 +12,10 @@
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#080808;--bg2:#141414;--bg3:#1e1e1e;--bg4:#282828;
-  --fg:#fff;--fg2:rgba(255,255,255,.55);--fg3:rgba(255,255,255,.28);
-  --red:#ff375f;--red2:#ff7b45;
-  --grad:linear-gradient(135deg,#ff375f,#ff7b45);
+  --bg:#080808;--bg2:#141414;--bg3:#222;--bg4:#2a2a2a;
+  --fg:#fff;--fg2:rgba(255,255,255,.65);--fg3:rgba(255,255,255,.38);
+  --red:#fc3c44;--red2:#ff6b6b;
+  --grad:linear-gradient(135deg,#fc3c44,#ff6b6b);
   --sep:rgba(255,255,255,.09);
   --tab-h:calc(49px + env(safe-area-inset-bottom));
   --mini-h:64px;
@@ -28,7 +28,7 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:-apple-sy
 .tab-pane{position:absolute;inset:0;overflow-y:auto;-webkit-overflow-scrolling:touch;
   padding-top:var(--safe-top);padding-bottom:calc(var(--mini-h) + var(--tab-h) + 16px);display:none}
 .tab-pane.active{display:block}
-.tab-header{padding:20px 16px 4px;font-size:30px;font-weight:800;letter-spacing:-.5px}
+.tab-header{padding:20px 16px 4px;font-size:32px;font-weight:800;letter-spacing:-.6px}
 
 /* Search */
 .search-wrap{padding:8px 16px 12px;position:sticky;top:0;
@@ -42,18 +42,18 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:-apple-sy
 .song-list{padding:0 0 8px}
 .song-item{display:flex;align-items:center;padding:9px 8px 9px 16px;gap:12px;cursor:pointer;border-radius:12px;margin:0 8px}
 .song-item:active{background:rgba(255,255,255,.06)}
-.song-art{width:52px;height:52px;border-radius:10px;object-fit:cover;background:var(--bg3);flex-shrink:0;box-shadow:0 4px 12px rgba(0,0,0,.35)}
+.song-art{width:54px;height:54px;border-radius:11px;object-fit:cover;background:var(--bg3);flex-shrink:0;box-shadow:0 4px 14px rgba(0,0,0,.4)}
 .song-info{flex:1;min-width:0}
-.song-title{font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-.1px}
+.song-title{font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-.15px}
 .song-title.now{background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
-.song-meta{font-size:13px;color:var(--fg2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+.song-meta{font-size:13px;color:var(--fg2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
 .song-more{color:var(--fg3);font-size:22px;padding:8px 10px;flex-shrink:0;line-height:1}
 
 /* Browse */
 .cat-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:8px 16px 4px}
 .cat-card{border-radius:14px;padding:14px;height:88px;display:flex;align-items:flex-end;cursor:pointer;font-size:15px;font-weight:700;line-height:1.2}
 .cat-card:active{opacity:.8}
-.section-title{padding:20px 16px 8px;font-size:20px;font-weight:700}
+.section-title{padding:20px 16px 8px;font-size:22px;font-weight:800;letter-spacing:-.3px}
 
 /* Library */
 .new-pl-row{display:flex;align-items:center;gap:14px;padding:12px 16px;cursor:pointer;color:var(--red)}
@@ -98,8 +98,9 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:-apple-sy
 .tab-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
   padding:8px 0;cursor:pointer;gap:3px;color:var(--fg3);background:none;border:none;font-family:inherit;height:49px}
 .tab-btn.on{color:var(--red)}
-.tab-btn svg{width:22px;height:22px}
+.tab-btn svg{width:23px;height:23px}
 .tab-label{font-size:10px;font-weight:500;letter-spacing:.2px}
+.tab-btn.on .tab-label{font-weight:700}
 
 /* Now Playing */
 #np{position:fixed;top:0;left:0;right:0;bottom:var(--tab-h);z-index:100;transform:translateY(100%);transition:transform .42s cubic-bezier(.32,.72,0,1);display:flex;flex-direction:column}
@@ -111,17 +112,17 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:-apple-sy
 .np-circle{background:rgba(255,255,255,.12);border:none;color:var(--fg);width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:15px;flex-shrink:0}
 #np-label{font-size:13px;font-weight:600;color:var(--fg2);text-align:center}
 #np-art-wrap{flex:1;display:flex;align-items:center;justify-content:center;padding:12px 36px}
-#np-art{width:100%;max-width:300px;aspect-ratio:1;border-radius:18px;object-fit:cover;box-shadow:0 24px 64px rgba(0,0,0,.7);background:var(--bg3);transform:scale(.9);transition:transform .35s ease}
+#np-art{width:100%;max-width:320px;aspect-ratio:1;border-radius:22px;object-fit:cover;box-shadow:0 28px 72px rgba(0,0,0,.75);background:var(--bg3);transform:scale(.88);transition:transform .4s cubic-bezier(.34,1.56,.64,1)}
 #np-art.playing{transform:scale(1)}
 #np-info{display:flex;align-items:center;gap:12px;padding:8px 28px 12px}
 #np-texts{flex:1;min-width:0}
-#np-song{font-size:20px;font-weight:700;letter-spacing:-.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#np-artist{font-size:15px;color:var(--fg2);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#np-song{font-size:24px;font-weight:800;letter-spacing:-.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#np-artist{font-size:17px;color:var(--fg2);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #np-quality{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.5px;color:var(--red);border:1px solid var(--red);border-radius:4px;padding:1px 5px;margin-top:4px;opacity:0;transition:opacity .3s}
 #np-quality.visible{opacity:1}
 #np-like{background:none;border:none;font-size:28px;cursor:pointer;padding:4px;flex-shrink:0;line-height:1}
 #np-seek-wrap{padding:0 28px}
-#np-seek{width:100%;height:5px;-webkit-appearance:none;appearance:none;background:linear-gradient(to right,#ff375f var(--pct,0%),rgba(255,255,255,.18) var(--pct,0%));border-radius:3px;outline:none;cursor:pointer;display:block}
+#np-seek{width:100%;height:5px;-webkit-appearance:none;appearance:none;background:linear-gradient(to right,#fc3c44 var(--pct,0%),rgba(255,255,255,.18) var(--pct,0%));border-radius:3px;outline:none;cursor:pointer;display:block}
 #np-seek::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#fff;margin-top:-7px;box-shadow:0 2px 8px rgba(0,0,0,.4)}
 #np-seek::-webkit-slider-runnable-track{height:5px;border-radius:3px}
 #np-times{display:flex;justify-content:space-between;padding:6px 0 2px;font-size:11px;color:var(--fg3);font-variant-numeric:tabular-nums}
@@ -260,9 +261,9 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:-apple-sy
 .h-scroll::-webkit-scrollbar{display:none}
 
 /* Content cards - premium */
-.content-card{flex-shrink:0;width:148px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.content-card{flex-shrink:0;width:154px;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .content-card:active{opacity:.82}
-.content-card-art{position:relative;width:148px;height:148px;border-radius:14px;overflow:hidden;background:var(--bg3)}
+.content-card-art{position:relative;width:154px;height:154px;border-radius:15px;overflow:hidden;background:var(--bg3)}
 .content-card-img{width:100%;height:100%;object-fit:cover;display:block}
 .content-card-shine{position:absolute;inset:0;background:linear-gradient(145deg,rgba(255,255,255,.07) 0%,transparent 60%)}
 .content-card-title{font-size:12px;font-weight:700;margin-top:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-.1px}
@@ -592,6 +593,7 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:-apple-sy
 
 <div id="toast"></div>
 <audio id="audio" preload="none" crossorigin="anonymous"></audio>
+<audio id="audio-preload" preload="none" crossorigin="anonymous" style="display:none"></audio>
 
 <script>
 'use strict';
@@ -642,7 +644,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '1.5.11';
+const APP_VERSION = '1.6.1';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -802,17 +804,20 @@ function decodeHtml(s){return String(s).replace(/&quot;/g,'"').replace(/&#039;/g
 let D = loadData();
 const songCache = {};      // id → song object (name, artist, image)
 
-let nowSong    = null;
-let queue      = [];
-let qIdx       = 0;
-let playing    = false;
-let loadingUrl = false;    // true while fetching stream URL
-let shuffleOn  = false;
-let repeatMode = 0;        // 0=off 1=all 2=one
-let seeking    = false;
-let openPlId   = null;
+let nowSong      = null;
+let queue        = [];
+let qIdx         = 0;
+let playing      = false;
+let loadingUrl   = false;   // true while fetching stream URL
+let shuffleOn    = false;
+let shuffledQueue = [];     // shuffled index array into queue[]
+let shufflePos   = 0;       // current position in shuffledQueue
+let repeatMode   = 0;       // 0=off 1=all 2=one
+let seeking      = false;
+let openPlId     = null;
 
-const audio = document.getElementById('audio');
+const audio        = document.getElementById('audio');
+const audioPreload = document.getElementById('audio-preload');
 
 // ── WEB AUDIO EQ ───────────────────────────────────────────────────────────────
 const EQ_BANDS  = [60, 250, 1000, 4000, 12000]; // Hz
@@ -994,28 +999,75 @@ function persist() {
 }
 
 // ── API (no backend — direct JioSaavn via CORS proxy + in-browser decrypt) ─────
-async function apiSearch(q, limit = 20) {
-  Log.info('Search', { q, limit });
+
+// Fallback: JioSaavn autocomplete via CORS proxy
+async function _apiSearchFallback(q, limit = 20) {
+  const r = await proxyFetch(
+    `https://www.jiosaavn.com/api.php?__call=autocomplete.get&query=${encodeURIComponent(q)}&_format=json&_marker=0&ctx=wap6dot0`
+  );
+  const data = await r.json();
+  return (data?.songs?.data || []).slice(0, limit).map(s => ({
+    id:       s.id,
+    name:     decodeHtml(s.title || ''),
+    artist:   decodeHtml(s.more_info?.primary_artists || s.more_info?.singers || ''),
+    album:    decodeHtml(s.album || ''),
+    image:    (s.image || '').replace('50x50', '150x150'),
+    duration: parseInt(s.more_info?.duration || 0),
+  }));
+}
+
+async function searchSongs(q, limit = 20) {
+  try {
+    const r = await fetch(
+      `${SAAVN_API}/api/search/songs?query=${encodeURIComponent(q)}&limit=${limit}`,
+      { signal: AbortSignal.timeout(5000) }
+    );
+    if (r.ok) {
+      const data = await r.json();
+      if (data.status === 'SUCCESS' && data.data?.results?.length) {
+        Log.info('Search OK (fast)', { q, count: data.data.results.length });
+        return data.data.results.map(normSaavnSong);
+      }
+    }
+  } catch {}
+  // Fallback to CORS proxy
+  Log.info('Search fallback', { q });
+  return _apiSearchFallback(q, limit);
+}
+
+async function searchPlaylists(q, limit = 5) {
+  // Try fast direct API first
+  try {
+    const r = await fetch(
+      `${SAAVN_API}/api/search/playlists?query=${encodeURIComponent(q)}&limit=${limit}`,
+      { signal: AbortSignal.timeout(5000) }
+    );
+    if (r.ok) {
+      const data = await r.json();
+      if (data.status === 'SUCCESS' && data.data?.results?.length) {
+        return data.data.results.map(pl => ({
+          id:       pl.id,
+          name:     pl.name || pl.title || 'Playlist',
+          subtitle: pl.songCount ? `${pl.songCount} songs` : (pl.language || 'Playlist'),
+          image:    bestImg(pl.image, '150x150'),
+        }));
+      }
+    }
+  } catch {}
+  // Fallback: JioSaavn autocomplete also returns playlists
   try {
     const r = await proxyFetch(
       `https://www.jiosaavn.com/api.php?__call=autocomplete.get&query=${encodeURIComponent(q)}&_format=json&_marker=0&ctx=wap6dot0`
     );
     const data = await r.json();
-    const raw = (data?.songs?.data || []).slice(0, limit);
-    const songs = raw.map(s => ({
-      id:       s.id,
-      name:     decodeHtml(s.title || ''),
-      artist:   decodeHtml(s.more_info?.primary_artists || s.more_info?.singers || ''),
-      album:    decodeHtml(s.album || ''),
-      image:    (s.image || '').replace('50x50', '150x150'),
-      duration: parseInt(s.more_info?.duration || 0),
+    return (data?.playlists?.data || []).slice(0, limit).map(pl => ({
+      id:       pl.id,
+      name:     decodeHtml(pl.title || ''),
+      subtitle: pl.more_info?.song_count ? `${pl.more_info.song_count} songs` : (pl.more_info?.language || 'Playlist'),
+      image:    (pl.image || '').replace('50x50', '150x150'),
     }));
-    Log.info('Search OK', { q, count: songs.length });
-    return songs;
-  } catch (e) {
-    Log.error('Search failed', { q, err: e.message });
-    throw e;
-  }
+  } catch {}
+  return [];
 }
 
 // Stream URL cache — keyed by song id, capped at 15 entries
@@ -1104,7 +1156,12 @@ function cacheSongs(arr) { arr.forEach(cacheSong); }
 
 // ── PLAYER ─────────────────────────────────────────────────────────────────────
 async function play(song, newQueue, idx) {
-  if (newQueue !== undefined) { queue = newQueue; qIdx = idx; }
+  audioPreload.src = '';  // cancel any in-progress preload
+  if (newQueue !== undefined) {
+    queue = newQueue;
+    qIdx  = idx;
+    if (shuffleOn) createShuffledQueue();
+  }
   nowSong = song;
   cacheSong(song);
 
@@ -1125,7 +1182,7 @@ async function play(song, newQueue, idx) {
     await audio.play().catch(() => toast('Tap play to start'));
     playing = true;
     Log.info('Playback started', { name: song.name, artist: song.artist });
-    preloadNext();
+    setTimeout(preloadNext, 1500); // delay so current fetch wins bandwidth
   } catch (e) {
     toast('Stream unavailable — try another song');
     playing = false;
@@ -1148,42 +1205,93 @@ function togglePlay() {
 }
 
 function prev() {
+  if (loadingUrl) return;
   if (audio.currentTime > 3) { audio.currentTime = 0; return; }
+  if (shuffleOn && shufflePos > 0) {
+    shufflePos--;
+    qIdx = shuffledQueue[shufflePos];
+    play(queue[qIdx]);
+    return;
+  }
   if (qIdx > 0) { qIdx--; play(queue[qIdx]); }
 }
 
 function next() {
+  if (loadingUrl) return;
   if (repeatMode === 2) { audio.currentTime = 0; audio.play(); return; }
-  let ni = shuffleOn ? Math.floor(Math.random() * queue.length) : qIdx + 1;
-  if (ni >= queue.length) {
-    if (repeatMode === 1) ni = 0;
-    else { playing = false; refreshPlayBtns(); return; }
+  let ni;
+  if (shuffleOn) {
+    const nextPos = shufflePos + 1;
+    if (nextPos >= shuffledQueue.length) {
+      if (repeatMode === 1) { createShuffledQueue(); ni = shuffledQueue[shufflePos]; }
+      else { playing = false; refreshPlayBtns(); return; }
+    } else {
+      shufflePos = nextPos;
+      ni = shuffledQueue[shufflePos];
+    }
+  } else {
+    ni = qIdx + 1;
+    if (ni >= queue.length) {
+      if (repeatMode === 1) ni = 0;
+      else { playing = false; refreshPlayBtns(); return; }
+    }
   }
   qIdx = ni;
   play(queue[qIdx]);
 }
 
-// Silently prefetch the next song's stream URL so it plays instantly
+// Silently prefetch next song's stream URL AND buffer its audio bytes
 async function preloadNext() {
-  if (!queue.length || qIdx >= queue.length - 1) return;
-  const next = queue[qIdx + 1];
-  if (!next || streamCache.has(next.id)) return;
+  if (!queue.length) return;
+  let nextIdx;
+  if (shuffleOn) {
+    if (shufflePos >= shuffledQueue.length - 1) return;
+    nextIdx = shuffledQueue[shufflePos + 1];
+  } else {
+    if (qIdx >= queue.length - 1) return;
+    nextIdx = qIdx + 1;
+  }
+  const nextSong = queue[nextIdx];
+  if (!nextSong) return;
   try {
-    const result = await fetchStream(next.id);
-    streamCache.set(next.id, result);
-    Log.info('Preloaded next', { id: next.id, name: next.name });
+    let result;
+    if (streamCache.has(nextSong.id)) {
+      result = streamCache.get(nextSong.id);
+    } else {
+      result = await fetchStream(nextSong.id);
+      streamCache.set(nextSong.id, result);
+      if (streamCache.size > 15) streamCache.delete(streamCache.keys().next().value);
+    }
+    // Buffer audio data in the hidden preload element
+    if (audioPreload.src !== result.url) {
+      audioPreload.src = result.url;
+      audioPreload.load();
+    }
+    Log.info('Preloaded next', { id: nextSong.id, name: nextSong.name });
   } catch { /* silent — best effort only */ }
 }
 
 // ── AUDIO EVENTS ───────────────────────────────────────────────────────────────
-audio.addEventListener('play',  () => { playing = true;  refreshPlayBtns(); });
-audio.addEventListener('pause', () => { playing = false; refreshPlayBtns(); });
+audio.addEventListener('play', () => {
+  playing = true;
+  audioPreload.src = ''; // release iOS audio session slot — only one element active at a time
+  refreshPlayBtns();
+});
+audio.addEventListener('pause',   () => { playing = false; refreshPlayBtns(); });
+audio.addEventListener('playing', () => { setNPLoading(false); });  // buffering done
+audio.addEventListener('waiting', () => { if (!loadingUrl) setNPLoading(true); });  // re-buffering
+audio.addEventListener('stalled', () => {
+  Log.warn('Audio stalled', { name: nowSong?.name, t: audio.currentTime });
+  if (!loadingUrl) setNPLoading(true);
+});
 audio.addEventListener('ended', next);
 audio.addEventListener('error', () => {
   if (!loadingUrl) {
-    Log.error('Audio error', { name: nowSong?.name, code: audio.error?.code });
+    const MEDIA_ERR = { 1:'ABORTED', 2:'NETWORK', 3:'DECODE', 4:'SRC_NOT_SUPPORTED' };
+    Log.error('Audio error', { name: nowSong?.name, code: audio.error?.code, type: MEDIA_ERR[audio.error?.code] });
     toast('Could not play this song');
     playing = false;
+    setNPLoading(false);
     refreshPlayBtns();
   }
 });
@@ -1196,6 +1304,16 @@ audio.addEventListener('timeupdate', () => {
   document.getElementById('mini-bar').style.width = (pct * 100) + '%';
   document.getElementById('np-elapsed').textContent = fmt(audio.currentTime);
   document.getElementById('np-remain').textContent  = '−' + fmt(audio.duration - audio.currentTime);
+  // Keep CarPlay / Bluetooth seek bar in sync
+  if ('setPositionState' in navigator.mediaSession && isFinite(audio.duration)) {
+    try {
+      navigator.mediaSession.setPositionState({
+        duration: audio.duration,
+        playbackRate: audio.playbackRate || 1,
+        position: audio.currentTime,
+      });
+    } catch {}
+  }
 });
 
 const seekEl = document.getElementById('np-seek');
@@ -1273,12 +1391,12 @@ function updateMediaSession() {
     album:  nowSong.album  || '',
     artwork,
   });
-  navigator.mediaSession.setActionHandler('play',          () => audio.play());
+  navigator.mediaSession.setActionHandler('play',          () => audio.play().catch(e => Log.warn('MediaSession play failed', {err: e.message})));
   navigator.mediaSession.setActionHandler('pause',         () => audio.pause());
   navigator.mediaSession.setActionHandler('previoustrack', prev);
   navigator.mediaSession.setActionHandler('nexttrack',     next);
-  navigator.mediaSession.setActionHandler('seekbackward',  () => { audio.currentTime = Math.max(0, audio.currentTime - 10); });
-  navigator.mediaSession.setActionHandler('seekforward',   () => { audio.currentTime = Math.min(audio.duration || 0, audio.currentTime + 10); });
+  navigator.mediaSession.setActionHandler('seekbackward',  ({seekOffset = 10} = {}) => { audio.currentTime = Math.max(0, audio.currentTime - seekOffset); });
+  navigator.mediaSession.setActionHandler('seekforward',   ({seekOffset = 10} = {}) => { if (isFinite(audio.duration)) audio.currentTime = Math.min(audio.duration, audio.currentTime + seekOffset); });
 }
 
 // ── NOW PLAYING ────────────────────────────────────────────────────────────────
@@ -1305,8 +1423,10 @@ document.getElementById('np-like').addEventListener('click', () => {
 
 document.getElementById('np-shuffle-btn').addEventListener('click', () => {
   shuffleOn = !shuffleOn;
+  if (shuffleOn && queue.length) createShuffledQueue();
   document.getElementById('np-shuffle-btn').classList.toggle('accent', shuffleOn);
   document.getElementById('np-shuffle-btn').classList.toggle('dim', !shuffleOn);
+  toast(shuffleOn ? 'Shuffle on' : 'Shuffle off');
 });
 
 document.getElementById('np-repeat-btn').addEventListener('click', () => {
@@ -1393,23 +1513,85 @@ document.getElementById('search-input').addEventListener('input', e => {
 async function runSearch(q) {
   const mySeq = ++searchSeq;
   if (searchCache.has(q)) {
-    if (mySeq === searchSeq) {
-      cacheSongs(searchCache.get(q));
-      renderSongList(searchCache.get(q), 'search-results');
-    }
+    if (mySeq !== searchSeq) return;
+    const cached = searchCache.get(q);
+    cacheSongs(cached.songs);
+    renderSearchResults(cached.songs, cached.playlists);
     return;
   }
   try {
-    const songs = await apiSearch(q);
+    const [songs, playlists] = await Promise.all([searchSongs(q), searchPlaylists(q)]);
     if (mySeq !== searchSeq) return;
-    searchCache.set(q, songs);
+    searchCache.set(q, { songs, playlists });
     if (searchCache.size > 10) searchCache.delete(searchCache.keys().next().value);
     cacheSongs(songs);
-    renderSongList(songs, 'search-results');
+    renderSearchResults(songs, playlists);
   } catch {
     if (mySeq !== searchSeq) return;
     document.getElementById('search-results').innerHTML =
       '<div class="empty-wrap"><div class="empty-ico">⚠️</div><div class="empty-txt">Could not connect — check your internet</div></div>';
+  }
+}
+
+function renderSearchResults(songs, playlists) {
+  const el = document.getElementById('search-results');
+  el.innerHTML = '';
+  if (!songs.length && !playlists.length) {
+    el.innerHTML = '<div class="empty-wrap"><div class="empty-ico">🔍</div><div class="empty-txt">No results found</div></div>';
+    return;
+  }
+  if (playlists.length) {
+    const hdr = document.createElement('div');
+    hdr.className = 'section-title';
+    hdr.style.paddingTop = '16px';
+    hdr.textContent = 'Playlists & Charts';
+    el.appendChild(hdr);
+    const list = document.createElement('div');
+    list.className = 'song-list';
+    playlists.forEach(pl => {
+      const row = document.createElement('div');
+      row.className = 'song-item';
+      row.innerHTML = `
+        ${pl.image
+          ? `<img class="song-art" src="${esc(pl.image)}" alt="" loading="lazy" onerror="this.style.opacity='.2'">`
+          : `<div class="song-art" style="display:flex;align-items:center;justify-content:center;font-size:24px;background:var(--bg4)">🎵</div>`}
+        <div class="song-info">
+          <div class="song-title">${esc(pl.name)}</div>
+          <div class="song-meta">${esc(pl.subtitle || 'Playlist')}</div>
+        </div>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="color:var(--fg3);flex-shrink:0;margin-right:4px"><polyline points="9 18 15 12 9 6"/></svg>
+      `;
+      row.addEventListener('click', () => openBrowseDetail(pl.id, 'playlist', pl.name));
+      list.appendChild(row);
+    });
+    el.appendChild(list);
+  }
+  if (songs.length) {
+    if (playlists.length) {
+      const hdr = document.createElement('div');
+      hdr.className = 'section-title';
+      hdr.style.paddingTop = '8px';
+      hdr.textContent = 'Songs';
+      el.appendChild(hdr);
+    }
+    const list = document.createElement('div');
+    list.className = 'song-list';
+    songs.forEach((song, i) => {
+      const row = document.createElement('div');
+      row.className = 'song-item';
+      row.innerHTML = `
+        <img class="song-art" src="${esc(artUrl(song))}" alt="" loading="lazy" onerror="this.style.opacity='.25'">
+        <div class="song-info">
+          <div class="song-title${nowSong?.id === song.id ? ' now' : ''}">${esc(song.name || '')}</div>
+          <div class="song-meta">${esc(song.artist || '')}</div>
+        </div>
+        <div class="song-more">···</div>
+      `;
+      row.querySelector('.song-more').addEventListener('click', ev => { ev.stopPropagation(); showSongSheet(song); });
+      row.addEventListener('click', () => play(song, [...songs], i));
+      list.appendChild(row);
+    });
+    el.appendChild(list);
   }
 }
 
@@ -1434,15 +1616,29 @@ function bestImg(images, quality = '150x150') {
 }
 
 function normSaavnSong(s) {
-  const artist = (s.artists?.primary || s.primaryArtists || []).map(a => a.name).join(', ') || '';
+  const pa = s.artists?.primary || [];
+  let artist = Array.isArray(pa) && pa.length
+    ? pa.map(a => a.name).join(', ')
+    : (typeof s.primaryArtists === 'string' ? decodeHtml(s.primaryArtists) : '');
   return {
     id:       s.id,
-    name:     s.name || 'Unknown',
+    name:     decodeHtml(s.name || s.title || 'Unknown'),
     artist,
-    album:    s.album?.name || '',
+    album:    s.album?.name || (typeof s.album === 'string' ? s.album : '') || '',
     image:    bestImg(s.image, '150x150'),
-    duration: s.duration || 0,
+    duration: parseInt(s.duration || 0),
   };
+}
+
+function createShuffledQueue() {
+  const indices = [...Array(queue.length).keys()];
+  indices.splice(qIdx, 1);
+  for (let i = indices.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [indices[i], indices[j]] = [indices[j], indices[i]];
+  }
+  shuffledQueue = [qIdx, ...indices];
+  shufflePos = 0;
 }
 
 function createContentCard(title, sub, imgUrl, onClick, rank) {
