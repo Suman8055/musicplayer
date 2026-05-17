@@ -275,9 +275,33 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:-apple-sy
 .sub-label{padding:4px 16px 6px;font-size:12px;font-weight:700;color:var(--fg3);text-transform:uppercase;letter-spacing:.7px}
 #browse-detail{position:absolute;inset:0;background:var(--bg);transform:translateX(100%);transition:transform .32s cubic-bezier(.32,.72,0,1);overflow-y:auto;-webkit-overflow-scrolling:touch;z-index:22}
 #browse-detail.open{transform:translateX(0)}
+/* ── Access Gate ── */
+#gate{position:fixed;inset:0;z-index:99999;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;padding:40px 32px;transition:opacity .3s}
+#gate.gone{opacity:0;pointer-events:none}
+#gate-icon{font-size:52px;margin-bottom:20px}
+#gate-title{font-size:22px;font-weight:700;color:var(--fg);margin-bottom:6px;letter-spacing:-.3px}
+#gate-sub{font-size:14px;color:var(--fg2);margin-bottom:32px;text-align:center}
+#gate-input{width:100%;background:var(--bg3);border:1.5px solid transparent;border-radius:14px;padding:14px 18px;color:var(--fg);font-size:17px;font-family:inherit;outline:none;text-align:center;letter-spacing:3px;transition:border-color .2s}
+#gate-input:focus{border-color:var(--red)}
+#gate-input.shake{animation:gate-shake .35s ease}
+@keyframes gate-shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-8px)}40%{transform:translateX(8px)}60%{transform:translateX(-6px)}80%{transform:translateX(6px)}}
+#gate-btn{margin-top:16px;width:100%;background:var(--red);border:none;border-radius:14px;padding:15px;color:#fff;font-size:17px;font-weight:600;font-family:inherit;cursor:pointer;letter-spacing:-.2px}
+#gate-btn:active{opacity:.8}
+#gate-err{margin-top:12px;font-size:13px;color:var(--red);min-height:18px;text-align:center}
 </style>
 </head>
 <body>
+
+<!-- ── Access Gate ── -->
+<div id="gate">
+  <div id="gate-icon">🎵</div>
+  <div id="gate-title">MusicPlayer</div>
+  <div id="gate-sub">Private access — enter your passcode</div>
+  <input id="gate-input" type="password" placeholder="••••••••" autocomplete="off" inputmode="text">
+  <button id="gate-btn">Unlock</button>
+  <div id="gate-err"></div>
+</div>
+
 <div id="app">
 
   <div id="content">
@@ -572,8 +596,53 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:-apple-sy
 <script>
 'use strict';
 
+// ── ACCESS GATE ────────────────────────────────────────────────────────────────
+// SHA-256 of the passcode. To change passcode:
+//   1. Run in terminal: printf "yournewcode" | shasum -a 256
+//   2. Paste the hash below, push to GitHub — everyone is locked out immediately
+// Current passcode: music@2025
+const ACCESS_HASH = 'a49a8d4d4c562aa30387db5d128eeb30c6dd233e8e24a62a70f1f05932dadb78';
+const GATE_KEY    = 'mbx_gate';
+
+async function _sha256(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+(function initGate() {
+  const gate  = document.getElementById('gate');
+  const input = document.getElementById('gate-input');
+  const btn   = document.getElementById('gate-btn');
+  const err   = document.getElementById('gate-err');
+
+  function dismiss() {
+    gate.classList.add('gone');
+    setTimeout(() => gate.remove(), 350);
+  }
+
+  // Already unlocked with the current passcode hash → let straight in
+  if (localStorage.getItem(GATE_KEY) === ACCESS_HASH) { dismiss(); return; }
+
+  async function tryUnlock() {
+    const hash = await _sha256(input.value.trim());
+    if (hash === ACCESS_HASH) {
+      localStorage.setItem(GATE_KEY, ACCESS_HASH);
+      dismiss();
+    } else {
+      err.textContent = 'Incorrect passcode';
+      input.classList.add('shake');
+      input.addEventListener('animationend', () => input.classList.remove('shake'), { once: true });
+      input.value = '';
+    }
+  }
+
+  btn.addEventListener('click', tryUnlock);
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') tryUnlock(); });
+  err.addEventListener('click',  () => { err.textContent = ''; });
+})();
+
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '1.5.9';
+const APP_VERSION = '1.5.10';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
