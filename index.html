@@ -642,7 +642,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '1.5.10';
+const APP_VERSION = '1.5.11';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -1261,15 +1261,24 @@ function refreshPlayBtns() {
 
 function updateMediaSession() {
   if (!('mediaSession' in navigator) || !nowSong) return;
+  const img = nowSong.image || '';
+  // CarPlay needs multiple standard sizes — derive smaller variant from the 500x500 URL
+  const artwork = img ? [
+    { src: img.replace(/\d+x\d+/, '150x150'), sizes: '128x128',  type: 'image/jpeg' },
+    { src: img.replace(/\d+x\d+/, '500x500'), sizes: '512x512',  type: 'image/jpeg' },
+  ] : [];
   navigator.mediaSession.metadata = new MediaMetadata({
-    title:   nowSong.name   || '',
-    artist:  nowSong.artist || '',
-    artwork: nowSong.image  ? [{ src: nowSong.image, sizes: '500x500', type: 'image/jpeg' }] : []
+    title:  nowSong.name   || '',
+    artist: nowSong.artist || '',
+    album:  nowSong.album  || '',
+    artwork,
   });
   navigator.mediaSession.setActionHandler('play',          () => audio.play());
   navigator.mediaSession.setActionHandler('pause',         () => audio.pause());
   navigator.mediaSession.setActionHandler('previoustrack', prev);
   navigator.mediaSession.setActionHandler('nexttrack',     next);
+  navigator.mediaSession.setActionHandler('seekbackward',  () => { audio.currentTime = Math.max(0, audio.currentTime - 10); });
+  navigator.mediaSession.setActionHandler('seekforward',   () => { audio.currentTime = Math.min(audio.duration || 0, audio.currentTime + 10); });
 }
 
 // ── NOW PLAYING ────────────────────────────────────────────────────────────────
