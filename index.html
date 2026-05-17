@@ -522,7 +522,7 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:-apple-sy
 
     <!-- EQ Panel (slides up inside NP) -->
     <div id="eq-panel">
-      <h3>Equalizer</h3>
+      <h3>Equalizer <span id="eq-status" style="font-size:10px;opacity:.6"></span></h3>
       <div class="eq-presets">
         <button class="eq-preset active" data-preset="flat">Flat</button>
         <button class="eq-preset" data-preset="bass">Bass Boost</button>
@@ -567,13 +567,13 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:-apple-sy
 </div>
 
 <div id="toast"></div>
-<audio id="audio" preload="none"></audio>
+<audio id="audio" preload="none" crossorigin="anonymous"></audio>
 
 <script>
 'use strict';
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '1.5.4';
+const APP_VERSION = '1.5.8';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -757,25 +757,22 @@ const EQ_PRESETS = {
 };
 let eqCtx = null, eqFilters = [], eqCompressor = null;
 let eqGains = [0, 0, 0, 0, 0], eqCompOn = false, eqPreset = 'flat';
+let _eqWiring = false;
+let eqUseProxy = false; // true after CORS silent-output detected — routes audio via corsproxy.io
 
-// iOS rule: AudioContext must be created + resumed SYNCHRONOUSLY inside a user gesture.
-// Async/await breaks the gesture chain, so we create the context on the very first touch
-// before any async work, then wire the graph lazily on first play.
-function _createAudioContext() {
-  if (eqCtx) return;
+// Wire the audio graph. Must only run when AudioContext is already 'running'.
+function _wireEQGraph() {
+  if (eqFilters.length > 0 || _eqWiring || !eqCtx) return;
+  if (eqCtx.state !== 'running') return;
+  _eqWiring = true;
+  const wasPlaying = !audio.paused;
+  const refTime    = audio.currentTime;
   try {
-    eqCtx = new (window.AudioContext || window.webkitAudioContext)();
-    eqCtx.resume(); // synchronous call — still inside the gesture
-  } catch (e) {}
-}
-document.addEventListener('touchstart', _createAudioContext, { once: true, passive: true });
-document.addEventListener('mousedown',  _createAudioContext, { once: true, passive: true });
-
-// Wire the audio graph once AudioContext exists. Safe to call after awaits.
-function initEQ() {
-  if (!eqCtx || eqFilters.length > 0) return; // no context yet, or already wired
-  try {
-    const src = eqCtx.createMediaElementSource(audio);
+    const src      = eqCtx.createMediaElementSource(audio);
+    // Headroom node: reduce input by ~1.5dB so EQ boosts don't clip at destination
+    const headroom = eqCtx.createGain();
+    headroom.gain.value = 0.85;
+    src.connect(headroom);
     eqFilters = EQ_BANDS.map((freq, i) => {
       const f = eqCtx.createBiquadFilter();
       f.type = i === 0 ? 'lowshelf' : i === 4 ? 'highshelf' : 'peaking';
@@ -786,16 +783,73 @@ function initEQ() {
     eqCompressor = eqCtx.createDynamicsCompressor();
     eqCompressor.attack.value = 0.003;
     eqCompressor.release.value = 0.25;
-    let node = src;
+    let node = headroom;
     eqFilters.forEach(f => { node.connect(f); node = f; });
     node.connect(eqCompressor);
     eqCompressor.connect(eqCtx.destination);
     applyEQ();
-  } catch (e) { Log.warn('EQ init failed', { err: e.message }); }
+    Log.info('EQ wired', { state: eqCtx.state });
+    // Show "LIVE" dot in panel header
+    const h = document.getElementById('eq-status');
+    if (h) { h.textContent = '●'; h.style.color = 'var(--red)'; }
+    // Safety net: AnalyserNode checks for actual zero-signal output after 600ms.
+    // crossOrigin="anonymous" on <audio> prevents this in normal operation, but keeps
+    // us protected against edge cases (e.g. CDN returns audio without CORS headers).
+    const analyser = eqCtx.createAnalyser();
+    analyser.fftSize = 256;
+    eqCompressor.connect(analyser);
+    if (wasPlaying) {
+      setTimeout(() => {
+        if (!eqCtx || eqCtx.state !== 'running' || audio.paused) return;
+        const data = new Uint8Array(analyser.frequencyBinCount);
+        analyser.getByteFrequencyData(data);
+        // Only trigger if audio is actively playing but Web Audio output is silent.
+        // (All-zero bins in a real audio environment = EQ graph muted the output.)
+        if (!data.some(v => v > 0) && !audio.paused && audio.currentTime > 0) {
+          // Release EQ context so audio reverts to default output, then resume.
+          Log.warn('EQ silent output — releasing EQ, restoring audio');
+          try { eqCtx.close(); } catch {}
+          eqCtx = null; eqFilters = []; eqCompressor = null; _eqWiring = false;
+          const hx = document.getElementById('eq-status');
+          if (hx) hx.textContent = '';
+          audio.play().catch(() => {});
+          toast('EQ unavailable for this stream — playing without EQ');
+        }
+      }, 600);
+    }
+  } catch (e) {
+    eqFilters = [];
+    try { eqCtx.close(); } catch {}
+    eqCtx = null;
+    Log.warn('EQ unavailable', { err: e.message });
+    toast('EQ not available on this source');
+    if (wasPlaying) audio.play().catch(() => {});
+  }
+  _eqWiring = false;
+}
+
+// initEQ — called from tap/click handlers only.
+// Creates the AudioContext, resumes it (synchronous call = iOS honours the gesture),
+// then wires the graph AFTER the context confirms running state via Promise.
+function initEQ() {
+  if (eqFilters.length > 0) {
+    if (eqCtx?.state === 'suspended') eqCtx.resume().then(() => applyEQ()).catch(() => {});
+    return;
+  }
+  if (!eqCtx) {
+    try { eqCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch (e) { return; }
+  }
+  // Wire immediately if already running (e.g. reopening panel)
+  if (eqCtx.state === 'running') { _wireEQGraph(); return; }
+  // Otherwise resume and wire once the Promise resolves (context confirmed running)
+  eqCtx.resume()
+    .then(() => _wireEQGraph())
+    .catch(e => Log.warn('EQ resume failed', { err: e.message }));
 }
 
 function applyEQ() {
-  if (!eqCtx) return;
+  if (!eqCtx || !eqCompressor) return;
   eqFilters.forEach((f, i) => { f.gain.value = eqGains[i]; });
   // Bypass compressor via ratio=1 — no graph changes, no silence
   eqCompressor.ratio.value     = eqCompOn ? 5  : 1;
@@ -975,7 +1029,6 @@ async function play(song, newQueue, idx) {
     if (stream.image) nowSong.image = stream.image;
     if (stream.quality) nowSong.quality = stream.quality;
     refreshMini(); refreshNP();
-    initEQ();
     audio.src = stream.url;
     await audio.play().catch(() => toast('Tap play to start'));
     playing = true;
@@ -999,8 +1052,6 @@ function setNPLoading(on) {
 
 function togglePlay() {
   if (!nowSong || loadingUrl) return;
-  if (eqCtx?.state === 'suspended') eqCtx.resume();
-  initEQ();
   if (playing) audio.pause(); else audio.play().catch(() => {});
 }
 
@@ -1179,10 +1230,11 @@ eqBtn.addEventListener('click', () =>
   eqPanel.classList.contains('open') ? closeEQPanel() : openEQPanel());
 
 document.querySelectorAll('.eq-preset').forEach(btn =>
-  btn.addEventListener('click', () => setEQPreset(btn.dataset.preset)));
+  btn.addEventListener('click', () => { initEQ(); setEQPreset(btn.dataset.preset); }));
 
 document.querySelectorAll('.eq-slider').forEach(sl => {
   sl.addEventListener('input', () => {
+    initEQ();
     const i = +sl.dataset.band;
     eqGains[i] = +sl.value;
     sl.closest('.eq-band').querySelector('.eq-gain-val').textContent =
@@ -1195,6 +1247,7 @@ document.querySelectorAll('.eq-slider').forEach(sl => {
 });
 
 document.getElementById('eq-comp-btn').addEventListener('click', function () {
+  initEQ();
   eqCompOn = !eqCompOn;
   this.classList.toggle('on', eqCompOn);
   this.setAttribute('aria-checked', String(eqCompOn));
