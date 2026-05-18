@@ -574,6 +574,10 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:-apple-sy
         <span>Dynamic Compressor</span>
         <button class="comp-toggle" id="eq-comp-btn" aria-checked="false" role="switch"><div class="comp-thumb"></div></button>
       </div>
+      <div class="eq-comp-row">
+        <span>Loudness</span>
+        <button class="comp-toggle" id="eq-loud-btn" aria-checked="false" role="switch"><div class="comp-thumb"></div></button>
+      </div>
     </div>
     <div id="np-footer">
       <button class="np-foot" id="np-add-pl-btn">
@@ -662,7 +666,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '1.6.4';
+const APP_VERSION = '1.6.5';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -847,8 +851,8 @@ const EQ_PRESETS = {
   pop:       [2,  4,  5,  3,  1],
   classical: [4,  2, -2,  2,  5],
 };
-let eqCtx = null, eqFilters = [], eqCompressor = null;
-let eqGains = [0, 0, 0, 0, 0], eqCompOn = false, eqPreset = 'flat';
+let eqCtx = null, eqFilters = [], eqCompressor = null, eqLoudnessNodes = [];
+let eqGains = [0, 0, 0, 0, 0], eqCompOn = false, eqLoudness = false, eqPreset = 'flat';
 let _eqWiring = false;
 let eqUseProxy = false; // true after CORS taint detected — routes audio via corsproxy.io for EQ
 let rawStreamUrl = '';  // original CDN URL before any proxy wrapping
@@ -866,6 +870,12 @@ function _wireEQGraph() {
     const headroom = eqCtx.createGain();
     headroom.gain.value = 0.85;
     src.connect(headroom);
+    // Loudness compensation nodes (always in chain; gain=0 when off)
+    const lLow = eqCtx.createBiquadFilter();
+    lLow.type = 'lowshelf'; lLow.frequency.value = 80;
+    const lHigh = eqCtx.createBiquadFilter();
+    lHigh.type = 'highshelf'; lHigh.frequency.value = 10000;
+    eqLoudnessNodes = [lLow, lHigh];
     eqFilters = EQ_BANDS.map((freq, i) => {
       const f = eqCtx.createBiquadFilter();
       f.type = i === 0 ? 'lowshelf' : i === 4 ? 'highshelf' : 'peaking';
@@ -877,6 +887,7 @@ function _wireEQGraph() {
     eqCompressor.attack.value = 0.003;
     eqCompressor.release.value = 0.25;
     let node = headroom;
+    eqLoudnessNodes.forEach(f => { node.connect(f); node = f; });
     eqFilters.forEach(f => { node.connect(f); node = f; });
     node.connect(eqCompressor);
     eqCompressor.connect(eqCtx.destination);
@@ -902,7 +913,7 @@ function _wireEQGraph() {
           // Release EQ context so audio reverts to default output, then resume.
           Log.warn('EQ silent output — releasing EQ, restoring audio');
           try { eqCtx.close(); } catch {}
-          eqCtx = null; eqFilters = []; eqCompressor = null; _eqWiring = false;
+          eqCtx = null; eqFilters = []; eqCompressor = null; eqLoudnessNodes = []; _eqWiring = false;
           const hx = document.getElementById('eq-status');
           if (hx) hx.textContent = '';
           audio.play().catch(() => {});
@@ -911,7 +922,7 @@ function _wireEQGraph() {
       }, 600);
     }
   } catch (e) {
-    eqFilters = [];
+    eqFilters = []; eqLoudnessNodes = [];
     Log.warn('EQ wire failed', { err: e.message, name: e.name });
     if (!eqUseProxy && rawStreamUrl && (e.name === 'NotSupportedError' || e.name === 'InvalidStateError')) {
       // CORS-tainted stream — reload via proxy and retry EQ
@@ -957,7 +968,7 @@ audio.addEventListener('webkitcurrentplaybacktargetiswirelesschanged', () => {
   if (isAirPlayActive() && eqFilters.length > 0) {
     // AirPlay just turned on — release EQ so audio routes through OS to AirPlay
     try { eqCtx?.close(); } catch {}
-    eqCtx = null; eqFilters = []; eqCompressor = null;
+    eqCtx = null; eqFilters = []; eqCompressor = null; eqLoudnessNodes = [];
     const h = document.getElementById('eq-status');
     if (h) h.textContent = '';
     closeEQPanel();
@@ -987,6 +998,10 @@ function initEQ() {
 function applyEQ() {
   if (!eqCtx || !eqCompressor) return;
   eqFilters.forEach((f, i) => { f.gain.value = eqGains[i]; });
+  if (eqLoudnessNodes.length === 2) {
+    eqLoudnessNodes[0].gain.value = eqLoudness ? 5  : 0;  // 80Hz lowshelf
+    eqLoudnessNodes[1].gain.value = eqLoudness ? 3  : 0;  // 10kHz highshelf
+  }
   // Bypass compressor via ratio=1 — no graph changes, no silence
   eqCompressor.ratio.value     = eqCompOn ? 5  : 1;
   eqCompressor.threshold.value = eqCompOn ? -24 : 0;
@@ -994,7 +1009,7 @@ function applyEQ() {
 }
 
 function saveEQState() {
-  localStorage.setItem('mbx_eq', JSON.stringify({ preset: eqPreset, gains: eqGains, comp: eqCompOn }));
+  localStorage.setItem('mbx_eq', JSON.stringify({ preset: eqPreset, gains: eqGains, comp: eqCompOn, loud: eqLoudness }));
 }
 
 function syncEQUI() {
@@ -1005,9 +1020,12 @@ function syncEQUI() {
   });
   document.querySelectorAll('.eq-preset').forEach(b =>
     b.classList.toggle('active', b.dataset.preset === eqPreset));
-  const btn = document.getElementById('eq-comp-btn');
-  btn.classList.toggle('on', eqCompOn);
-  btn.setAttribute('aria-checked', String(eqCompOn));
+  const compBtn = document.getElementById('eq-comp-btn');
+  compBtn.classList.toggle('on', eqCompOn);
+  compBtn.setAttribute('aria-checked', String(eqCompOn));
+  const loudBtn = document.getElementById('eq-loud-btn');
+  loudBtn.classList.toggle('on', eqLoudness);
+  loudBtn.setAttribute('aria-checked', String(eqLoudness));
 }
 
 function setEQPreset(name) {
@@ -1023,6 +1041,7 @@ function loadEQState() {
     const s = JSON.parse(localStorage.getItem('mbx_eq') || '{}');
     if (Array.isArray(s.gains) && s.gains.length === 5) eqGains = s.gains;
     eqCompOn  = !!s.comp;
+    eqLoudness = !!s.loud;
     eqPreset  = s.preset || 'flat';
   } catch {}
   syncEQUI();
@@ -1548,6 +1567,15 @@ document.getElementById('eq-comp-btn').addEventListener('click', function () {
   eqCompOn = !eqCompOn;
   this.classList.toggle('on', eqCompOn);
   this.setAttribute('aria-checked', String(eqCompOn));
+  applyEQ();
+  saveEQState();
+});
+
+document.getElementById('eq-loud-btn').addEventListener('click', function () {
+  initEQ();
+  eqLoudness = !eqLoudness;
+  this.classList.toggle('on', eqLoudness);
+  this.setAttribute('aria-checked', String(eqLoudness));
   applyEQ();
   saveEQState();
 });
