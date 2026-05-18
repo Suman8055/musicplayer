@@ -111,7 +111,7 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:-apple-sy
 #np-topbar{display:flex;align-items:center;justify-content:space-between;padding:8px 20px 4px}
 .np-circle{background:rgba(255,255,255,.12);border:none;color:var(--fg);width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:15px;flex-shrink:0}
 #np-label{font-size:13px;font-weight:600;color:var(--fg2);text-align:center}
-#np-art-wrap{flex:1;display:flex;align-items:center;justify-content:center;padding:12px 36px}
+#np-art-wrap{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:12px 36px}
 #np-art{width:100%;max-width:320px;aspect-ratio:1;border-radius:22px;object-fit:cover;box-shadow:0 28px 72px rgba(0,0,0,.75);background:var(--bg3);transform:scale(.88);transition:transform .4s cubic-bezier(.34,1.56,.64,1)}
 #np-art.playing{transform:scale(1)}
 #np-info{display:flex;align-items:center;gap:12px;padding:8px 28px 12px}
@@ -135,13 +135,13 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:-apple-sy
 .vol-ico{color:var(--fg3);font-size:14px;flex-shrink:0}
 #np-vol{flex:1;height:4px;-webkit-appearance:none;appearance:none;background:rgba(255,255,255,.2);border-radius:2px;outline:none;cursor:pointer}
 #np-vol::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:#fff;margin-top:-5px}
-#np-footer{display:flex;justify-content:space-around;padding:4px 20px 0}
+#np-footer{display:flex;justify-content:space-around;padding:4px 20px 0;flex-shrink:0}
 .np-foot{background:none;border:none;color:var(--fg3);font-size:13px;cursor:pointer;font-family:inherit;padding:8px 12px;display:flex;align-items:center;gap:5px}
 .np-foot.active{color:var(--red)}
 
-/* ── EQ Panel — slides up, stops above footer so EQ button stays tappable ── */
-#eq-panel{position:absolute;left:0;right:0;bottom:52px;background:var(--bg2);border-radius:20px 20px 0 0;padding:14px 20px 18px;transform:translateY(calc(100% + 52px));transition:transform .35s cubic-bezier(.32,1,.6,1);z-index:10;max-height:68%;overflow-y:auto}
-#eq-panel.open{transform:translateY(0)}
+/* ── EQ Panel — in-flow flex child, expands above footer, fits any device ── */
+#eq-panel{overflow:hidden;max-height:0;padding:0 20px;background:var(--bg2);border-radius:20px 20px 0 0;flex-shrink:0;transition:max-height .35s cubic-bezier(.32,1,.6,1),padding .28s ease}
+#eq-panel.open{max-height:45vh;padding:14px 20px 16px;overflow-y:auto}
 #eq-panel h3{text-align:center;font-size:13px;font-weight:600;color:var(--fg2);margin:0 0 12px;letter-spacing:.5px;text-transform:uppercase}
 .eq-presets{display:flex;gap:7px;flex-wrap:wrap;justify-content:center;margin-bottom:14px}
 .eq-preset{background:var(--bg3);border:none;color:var(--fg2);font-size:12px;font-weight:600;padding:5px 13px;border-radius:20px;cursor:pointer;font-family:inherit;transition:background .15s,color .15s}
@@ -533,19 +533,7 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:-apple-sy
       <input id="np-vol" type="range" min="0" max="1" step="0.02" value="1">
       <span class="vol-ico">🔊</span>
     </div>
-    <div id="np-footer">
-      <button class="np-foot" id="np-add-pl-btn">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Playlist
-      </button>
-      <button class="np-foot" id="np-eq-btn">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>EQ
-      </button>
-      <button class="np-foot" id="np-queue-btn">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>Queue
-      </button>
-    </div>
-
-    <!-- EQ Panel (slides up inside NP) -->
+    <!-- EQ Panel (expands in-flow above footer, works on any device) -->
     <div id="eq-panel">
       <h3>Equalizer <span id="eq-status" style="font-size:10px;opacity:.6"></span></h3>
       <div class="eq-presets">
@@ -567,6 +555,17 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:-apple-sy
         <span>Dynamic Compressor</span>
         <button class="comp-toggle" id="eq-comp-btn" aria-checked="false" role="switch"><div class="comp-thumb"></div></button>
       </div>
+    </div>
+    <div id="np-footer">
+      <button class="np-foot" id="np-add-pl-btn">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Playlist
+      </button>
+      <button class="np-foot" id="np-eq-btn">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>EQ
+      </button>
+      <button class="np-foot" id="np-queue-btn">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>Queue
+      </button>
     </div>
   </div>
 </div>
@@ -644,7 +643,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '1.6.1';
+const APP_VERSION = '1.6.2';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
