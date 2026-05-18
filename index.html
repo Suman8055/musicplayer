@@ -643,7 +643,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '1.6.2';
+const APP_VERSION = '1.6.3';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -831,7 +831,8 @@ const EQ_PRESETS = {
 let eqCtx = null, eqFilters = [], eqCompressor = null;
 let eqGains = [0, 0, 0, 0, 0], eqCompOn = false, eqPreset = 'flat';
 let _eqWiring = false;
-let eqUseProxy = false; // true after CORS silent-output detected — routes audio via corsproxy.io
+let eqUseProxy = false; // true after CORS taint detected — routes audio via corsproxy.io for EQ
+let rawStreamUrl = '';  // original CDN URL before any proxy wrapping
 
 // Wire the audio graph. Must only run when AudioContext is already 'running'.
 function _wireEQGraph() {
@@ -892,13 +893,33 @@ function _wireEQGraph() {
     }
   } catch (e) {
     eqFilters = [];
-    try { eqCtx.close(); } catch {}
-    eqCtx = null;
-    Log.warn('EQ unavailable', { err: e.message });
-    toast('EQ not available on this source');
-    if (wasPlaying) audio.play().catch(() => {});
+    Log.warn('EQ wire failed', { err: e.message, name: e.name });
+    if (!eqUseProxy && rawStreamUrl && (e.name === 'NotSupportedError' || e.name === 'InvalidStateError')) {
+      // CORS-tainted stream — reload via proxy and retry EQ
+      _reloadAudioForEQ(wasPlaying, refTime);
+    } else {
+      try { if (eqCtx) eqCtx.close(); } catch {}
+      eqCtx = null;
+      toast('EQ not available on this source');
+      if (wasPlaying) audio.play().catch(() => {});
+    }
   }
   _eqWiring = false;
+}
+
+async function _reloadAudioForEQ(wasPlaying, savedTime) {
+  eqUseProxy = true;
+  Log.info('EQ: reloading via CORS proxy', { url: rawStreamUrl });
+  toast('EQ: reloading stream…');
+  const proxied = `https://corsproxy.io/?${encodeURIComponent(rawStreamUrl)}`;
+  audio.src = proxied;
+  if (wasPlaying) {
+    try {
+      await audio.play();
+      if (savedTime > 1) audio.currentTime = savedTime;
+    } catch {}
+  }
+  setTimeout(initEQ, 900);
 }
 
 // initEQ — called from tap/click handlers only.
@@ -1177,7 +1198,10 @@ async function play(song, newQueue, idx) {
     if (stream.image) nowSong.image = stream.image;
     if (stream.quality) nowSong.quality = stream.quality;
     refreshMini(); refreshNP();
-    audio.src = stream.url;
+    rawStreamUrl = stream.url;
+    audio.src = eqUseProxy
+      ? `https://corsproxy.io/?${encodeURIComponent(stream.url)}`
+      : stream.url;
     await audio.play().catch(() => toast('Tap play to start'));
     playing = true;
     Log.info('Playback started', { name: song.name, artist: song.artist });
