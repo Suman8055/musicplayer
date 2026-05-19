@@ -719,7 +719,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '1.8.2';
+const APP_VERSION = '1.8.3';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -2306,13 +2306,19 @@ async function openBrowseDetail(id, type, title) {
     const item = data?.data;
     if (!item) throw new Error('Not found');
 
-    const songs = (item.songs || []).map(normSaavnSong);
+    const allSongs = (item.songs || []).map(normSaavnSong);
+    // JioSaavn injects a fake "This is a sample trailer - testing" track for
+    // DRM-protected / unlicensed albums. Filter those out.
+    const songs = allSongs.filter(s => {
+      const n = (s.name || '').toLowerCase();
+      return !(n.includes('sample trailer') || n.includes('sample') && s.duration > 0 && s.duration <= 30);
+    });
     document.getElementById('browse-detail-sub').textContent = `${songs.length} songs`;
     cacheSongs(songs);
 
     if (!songs.length) {
       document.getElementById('browse-detail-songs').innerHTML =
-        '<div class="empty-wrap"><div class="empty-ico">🎵</div><div class="empty-txt">No songs found</div></div>';
+        '<div class="empty-wrap"><div class="empty-ico">🔒</div><div class="empty-txt">Album not available for streaming</div></div>';
       return;
     }
     renderSongList(songs, 'browse-detail-songs');
