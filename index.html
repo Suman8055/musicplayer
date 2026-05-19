@@ -719,7 +719,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '1.8.1';
+const APP_VERSION = '1.8.2';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -1600,8 +1600,13 @@ audio.addEventListener('play', () => {
   playing = true;
   audioPreload.src = ''; // release iOS audio session slot — only one element active at a time
   refreshPlayBtns();
+  if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
 });
-audio.addEventListener('pause',   () => { playing = false; refreshPlayBtns(); });
+audio.addEventListener('pause', () => {
+  playing = false;
+  refreshPlayBtns();
+  if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
+});
 audio.addEventListener('playing', () => { setNPLoading(false); });  // buffering done
 audio.addEventListener('waiting', () => { if (!loadingUrl) setNPLoading(true); });  // re-buffering
 audio.addEventListener('stalled', () => {
@@ -1715,12 +1720,14 @@ function updateMediaSession() {
     album:  nowSong.album  || '',
     artwork,
   });
-  navigator.mediaSession.setActionHandler('play',          () => audio.play().catch(e => Log.warn('MediaSession play failed', {err: e.message})));
-  navigator.mediaSession.setActionHandler('pause',         () => audio.pause());
+  navigator.mediaSession.playbackState = 'playing';
+  navigator.mediaSession.setActionHandler('play',          () => { audio.play().catch(e => Log.warn('MediaSession play failed', {err: e.message})); });
+  navigator.mediaSession.setActionHandler('pause',         () => { audio.pause(); });
   navigator.mediaSession.setActionHandler('previoustrack', prev);
   navigator.mediaSession.setActionHandler('nexttrack',     next);
   navigator.mediaSession.setActionHandler('seekbackward',  ({seekOffset = 10} = {}) => { audio.currentTime = Math.max(0, audio.currentTime - seekOffset); });
   navigator.mediaSession.setActionHandler('seekforward',   ({seekOffset = 10} = {}) => { if (isFinite(audio.duration)) audio.currentTime = Math.min(audio.duration, audio.currentTime + seekOffset); });
+  try { navigator.mediaSession.setActionHandler('seekto', ({seekTime}) => { if (isFinite(seekTime)) audio.currentTime = seekTime; }); } catch {}
 }
 
 // ── NOW PLAYING ────────────────────────────────────────────────────────────────
