@@ -314,6 +314,14 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Poppins'
 .sub-label{padding:4px 16px 6px;font-size:12px;font-weight:700;color:var(--fg3);text-transform:uppercase;letter-spacing:.7px}
 #browse-detail{position:absolute;inset:0;background:var(--bg);transform:translateX(100%);transition:transform .32s cubic-bezier(.32,.72,0,1);overflow-y:auto;-webkit-overflow-scrolling:touch;z-index:22}
 #browse-detail.open{transform:translateX(0)}
+/* Download dot badge */
+.dl-dot{width:8px;height:8px;border-radius:50%;background:var(--red);flex-shrink:0;margin-right:2px}
+/* Offline storage meter */
+.storage-meter{background:var(--bg3);border-radius:6px;height:6px;overflow:hidden;margin-top:8px;width:100%}
+.storage-meter-fill{height:100%;background:var(--grad);border-radius:6px;transition:width .5s}
+/* Download progress indicator in song row */
+.dl-spinner{width:14px;height:14px;border:2px solid rgba(0,230,230,.3);border-top-color:var(--red);border-radius:50%;animation:spin .8s linear infinite;flex-shrink:0;margin-right:4px}
+
 /* ── Access Gate ── */
 #gate{position:fixed;inset:0;z-index:99999;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;padding:40px 32px;transition:opacity .3s}
 #gate.gone{opacity:0;pointer-events:none}
@@ -462,6 +470,18 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Poppins'
       <div class="settings-btn-row">
         <button class="settings-btn sec" id="gh-save-btn">Save Token</button>
         <button class="settings-btn" id="gh-upload-btn">Upload Now</button>
+      </div>
+
+      <div class="settings-section">Offline Storage</div>
+      <div class="settings-card">
+        <div class="settings-row">
+          <div class="settings-label">Downloaded Songs<small id="dl-count-label">—</small></div>
+          <button class="settings-btn sec" id="clear-downloads-btn" style="flex-shrink:0;margin:0;padding:8px 16px;font-size:13px;border-radius:10px">Clear All</button>
+        </div>
+        <div class="settings-row" style="flex-direction:column;align-items:flex-start;gap:4px">
+          <div class="settings-label" style="font-size:13px" id="storage-label">Calculating…</div>
+          <div class="storage-meter"><div class="storage-meter-fill" id="storage-meter-fill" style="width:0%"></div></div>
+        </div>
       </div>
 
       <div class="settings-section">Diagnostic Logs</div>
@@ -692,7 +712,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '1.7.2';
+const APP_VERSION = '1.8.0';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -851,6 +871,9 @@ function decodeHtml(s){return String(s).replace(/&quot;/g,'"').replace(/&#039;/g
 // ── STATE ──────────────────────────────────────────────────────────────────────
 let D = loadData();
 const songCache = {};      // id → song object (name, artist, image)
+
+const downloadedIds = new Set(); // song IDs with offline blob in IndexedDB
+let offlineBlobUrl  = null;      // current objectURL for offline playback (revoke on next play)
 
 let nowSong      = null;
 let queue        = [];
@@ -1082,6 +1105,69 @@ function persist() {
   try { localStorage.setItem(STORE_KEY, JSON.stringify(D)); } catch {}
 }
 
+// ── INDEXEDDB (offline blobs) ──────────────────────────────────────────────────
+const IDB_NAME  = 'mbx_offline';
+const IDB_STORE = 'songs';
+let _idb = null;
+
+function openIDB() {
+  if (_idb) return Promise.resolve(_idb);
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = e => e.target.result.createObjectStore(IDB_STORE, { keyPath: 'id' });
+    req.onsuccess = e => { _idb = e.target.result; resolve(_idb); };
+    req.onerror   = () => reject(req.error);
+  });
+}
+
+async function idbGet(id) {
+  const db = await openIDB();
+  return new Promise((res, rej) => {
+    const req = db.transaction(IDB_STORE, 'readonly').objectStore(IDB_STORE).get(id);
+    req.onsuccess = () => res(req.result || null);
+    req.onerror   = () => rej(req.error);
+  });
+}
+
+async function idbSave(record) {
+  const db = await openIDB();
+  return new Promise((res, rej) => {
+    const tx = db.transaction(IDB_STORE, 'readwrite');
+    tx.objectStore(IDB_STORE).put(record);
+    tx.oncomplete = res;
+    tx.onerror    = () => rej(tx.error);
+  });
+}
+
+async function idbDelete(id) {
+  const db = await openIDB();
+  return new Promise((res, rej) => {
+    const tx = db.transaction(IDB_STORE, 'readwrite');
+    tx.objectStore(IDB_STORE).delete(id);
+    tx.oncomplete = res;
+    tx.onerror    = () => rej(tx.error);
+  });
+}
+
+async function idbGetAll() {
+  const db = await openIDB();
+  return new Promise((res, rej) => {
+    const req = db.transaction(IDB_STORE, 'readonly').objectStore(IDB_STORE).getAll();
+    req.onsuccess = () => res(req.result || []);
+    req.onerror   = () => rej(req.error);
+  });
+}
+
+async function idbClear() {
+  const db = await openIDB();
+  return new Promise((res, rej) => {
+    const tx = db.transaction(IDB_STORE, 'readwrite');
+    tx.objectStore(IDB_STORE).clear();
+    tx.oncomplete = res;
+    tx.onerror    = () => rej(tx.error);
+  });
+}
+
 // ── API (no backend — direct JioSaavn via CORS proxy + in-browser decrypt) ─────
 
 // Fallback: JioSaavn autocomplete via CORS proxy
@@ -1267,6 +1353,92 @@ async function apiStream(id) {
   }
 }
 
+// ── OFFLINE DOWNLOAD ───────────────────────────────────────────────────────────
+const activeDownloads = new Set(); // song IDs currently being downloaded
+
+async function downloadSong(song) {
+  if (activeDownloads.has(song.id)) { toast('Already downloading…'); return; }
+  if (downloadedIds.has(song.id))   { toast('Already downloaded'); return; }
+
+  activeDownloads.add(song.id);
+  updateSongRowDownloadState(song.id, 'downloading');
+  toast('Starting download…');
+
+  try {
+    // Request persistent storage so iOS doesn't evict our blobs
+    if (navigator.storage?.persist) navigator.storage.persist().catch(() => {});
+
+    const stream = await apiStream(song.id);
+    const resp   = await fetch(stream.url);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+
+    // Stream with progress updates
+    const total   = parseInt(resp.headers.get('content-length') || '0');
+    const reader  = resp.body.getReader();
+    const chunks  = [];
+    let   loaded  = 0;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      loaded += value.byteLength;
+      if (total) toast(`Downloading… ${Math.round(loaded / total * 100)}%`);
+    }
+
+    const blob = new Blob(chunks, { type: 'audio/mpeg' });
+    await idbSave({
+      id:           song.id,
+      name:         song.name,
+      artist:       song.artist,
+      album:        song.album  || '',
+      image:        song.image  || stream.image,
+      quality:      song.quality || stream.quality,
+      duration:     song.duration || stream.duration,
+      blob,
+      downloadedAt: Date.now(),
+    });
+
+    downloadedIds.add(song.id);
+    Log.info('Downloaded', { id: song.id, name: song.name, bytes: blob.size });
+    toast('Downloaded: ' + (song.name || 'Song'));
+    updateSongRowDownloadState(song.id, 'done');
+    if (document.querySelector('#tab-library.active')) renderPlaylists();
+  } catch (e) {
+    Log.error('Download failed', { id: song.id, err: e.message });
+    toast('Download failed — try again');
+    updateSongRowDownloadState(song.id, 'none');
+  } finally {
+    activeDownloads.delete(song.id);
+  }
+}
+
+async function removeDownload(song) {
+  await idbDelete(song.id);
+  downloadedIds.delete(song.id);
+  if (offlineBlobUrl && nowSong?.id === song.id) {
+    URL.revokeObjectURL(offlineBlobUrl);
+    offlineBlobUrl = null;
+  }
+  Log.info('Download removed', { id: song.id });
+  toast('Download removed');
+  updateSongRowDownloadState(song.id, 'none');
+  if (document.querySelector('#tab-library.active')) renderPlaylists();
+}
+
+// Update the dl-dot/spinner on any visible song row for this id
+function updateSongRowDownloadState(id, state) {
+  document.querySelectorAll(`.song-row-dl[data-id="${CSS.escape(id)}"]`).forEach(el => {
+    if (state === 'downloading') {
+      el.innerHTML = '<div class="dl-spinner"></div>';
+    } else if (state === 'done') {
+      el.innerHTML = '<div class="dl-dot"></div>';
+    } else {
+      el.innerHTML = '';
+    }
+  });
+}
+
 function artUrl(song) { return song.image || ''; }
 function fmt(sec) {
   if (!sec || isNaN(sec)) return '0:00';
@@ -1295,10 +1467,25 @@ async function play(song, newQueue, idx) {
   refreshMini();
   refreshNP();
 
-  // Fetch stream URL
+  // Fetch stream URL (offline first, then network)
   loadingUrl = true;
   setNPLoading(true);
   try {
+    // Check IndexedDB for offline blob
+    const offline = await idbGet(song.id);
+    if (offline?.blob) {
+      if (nowSong?.id !== song.id) return;
+      if (offline.image)   nowSong.image   = offline.image;
+      if (offline.quality) nowSong.quality = offline.quality;
+      refreshMini(); refreshNP();
+      if (offlineBlobUrl) { URL.revokeObjectURL(offlineBlobUrl); offlineBlobUrl = null; }
+      offlineBlobUrl = URL.createObjectURL(offline.blob);
+      rawStreamUrl   = offlineBlobUrl;
+      audio.src      = offlineBlobUrl;
+      await audio.play().catch(() => toast('Tap play to start'));
+      playing = true;
+      Log.info('Playback (offline)', { name: song.name });
+    } else {
     const stream = await apiStream(song.id);
     if (nowSong?.id !== song.id) return; // song changed while fetching
     if (stream.image) nowSong.image = stream.image;
@@ -1311,6 +1498,7 @@ async function play(song, newQueue, idx) {
     await audio.play().catch(() => toast('Tap play to start'));
     playing = true;
     Log.info('Playback started', { name: song.name, artist: song.artist });
+    }
     setTimeout(preloadNext, 1500); // delay so current fetch wins bandwidth
   } catch (e) {
     toast('Stream unavailable — try another song');
@@ -2066,12 +2254,15 @@ function renderSongList(songs, containerId, append = false) {
   songs.forEach((song, i) => {
     const row = document.createElement('div');
     row.className = 'song-item';
+    const dlState = activeDownloads.has(song.id) ? 'spinner'
+                  : downloadedIds.has(song.id)   ? 'dot' : '';
     row.innerHTML = `
       <img class="song-art" src="${esc(artUrl(song))}" alt="" loading="lazy" onerror="this.style.opacity='.25'">
       <div class="song-info">
         <div class="song-title${nowSong?.id === song.id ? ' now' : ''}">${esc(song.name || '')}</div>
         <div class="song-meta">${esc(song.artist || '')}</div>
       </div>
+      <div class="song-row-dl" data-id="${esc(song.id)}">${dlState === 'dot' ? '<div class="dl-dot"></div>' : dlState === 'spinner' ? '<div class="dl-spinner"></div>' : ''}</div>
       <div class="song-more">···</div>
     `;
     row.querySelector('.song-more').addEventListener('click', ev => { ev.stopPropagation(); showSongSheet(song); });
@@ -2085,23 +2276,83 @@ function renderSongList(songs, containerId, append = false) {
 function renderPlaylists() {
   const container = document.getElementById('pl-list');
   const all = [
-    { id: '__liked__', name: 'Liked Songs', songs: D.liked, ico: '♥', sys: true },
+    { id: '__downloads__', name: 'Downloaded', ico: '⬇', sys: true, count: downloadedIds.size },
+    { id: '__liked__',     name: 'Liked Songs', songs: D.liked, ico: '♥', sys: true },
     ...D.playlists
   ];
-  container.innerHTML = all.map(pl => `
+  container.innerHTML = all.map(pl => {
+    const cnt = pl.count !== undefined ? pl.count : pl.songs.length;
+    return `
     <div class="pl-item" data-plid="${esc(pl.id)}">
       <div class="pl-icon-box" style="${pl.sys ? 'color:var(--red)' : ''}">${pl.ico || '♪'}</div>
       <div class="pl-info">
         <div class="pl-name">${esc(pl.name)}</div>
-        <div class="pl-count">${pl.songs.length} song${pl.songs.length !== 1 ? 's' : ''}</div>
+        <div class="pl-count">${cnt} song${cnt !== 1 ? 's' : ''}</div>
       </div>
       <span style="color:var(--fg3);font-size:18px">›</span>
     </div>
     <div class="sep"></div>
-  `).join('');
-  container.querySelectorAll('.pl-item').forEach(el =>
-    el.addEventListener('click', () => openPlaylist(el.dataset.plid))
-  );
+  `;}).join('');
+  container.querySelectorAll('.pl-item').forEach(el => {
+    el.addEventListener('click', () => {
+      const id = el.dataset.plid;
+      if (id === '__downloads__') openDownloads();
+      else openPlaylist(id);
+    });
+  });
+}
+
+async function openDownloads() {
+  openPlId = '__downloads__';
+  document.getElementById('pl-view-title').textContent = 'Downloaded';
+  document.getElementById('pl-view-count').textContent = 'Loading…';
+  document.getElementById('pl-edit-btn').style.display = 'none';
+  const container = document.getElementById('pl-view-songs');
+  container.innerHTML = '<div class="loading-wrap"><div class="spinner"></div></div>';
+  document.getElementById('pl-view').classList.add('open');
+
+  const songs = await idbGetAll().catch(() => []);
+  document.getElementById('pl-view-count').textContent = `${songs.length} song${songs.length !== 1 ? 's' : ''}`;
+
+  if (!songs.length) {
+    container.innerHTML = '<div class="empty-wrap"><div class="empty-ico">⬇</div><div class="empty-txt">No downloaded songs yet — tap ⬇ on any song</div></div>';
+    return;
+  }
+
+  const list = document.createElement('div');
+  list.className = 'song-list';
+  songs.forEach((song, i) => {
+    const row = document.createElement('div');
+    row.className = 'song-item';
+    row.innerHTML = `
+      <img class="song-art" src="${esc(song.image || '')}" alt="" loading="lazy" onerror="this.style.opacity='.25'">
+      <div class="song-info">
+        <div class="song-title${nowSong?.id === song.id ? ' now' : ''}">${esc(song.name || '')}</div>
+        <div class="song-meta">${esc(song.artist || '')}</div>
+      </div>
+      <div class="dl-dot" style="margin-right:2px"></div>
+      <div class="song-more">···</div>
+    `;
+    row.querySelector('.song-more').addEventListener('click', ev => {
+      ev.stopPropagation();
+      showDownloadedSongSheet(song, i, songs);
+    });
+    row.addEventListener('click', () => play(song, [...songs], i));
+    list.appendChild(row);
+  });
+  container.innerHTML = '';
+  container.appendChild(list);
+}
+
+function showDownloadedSongSheet(song, idx, songs) {
+  showSheet(song.name || '', [
+    { label: '▶  Play', action: () => play(song, [...songs], idx) },
+    { label: '＋  Add to Playlist', action: () => showAddToPlaylist(song) },
+    { label: '🗑  Remove Download', danger: true, action: async () => {
+      await removeDownload(song);
+      openDownloads();
+    }},
+  ]);
 }
 
 function openPlaylist(id) {
@@ -2193,12 +2444,18 @@ function showAddToPlaylist(song) {
 }
 
 function showPlaylistSongSheet(song, plId, idx) {
+  const isDl   = downloadedIds.has(song.id);
+  const dlBusy = activeDownloads.has(song.id);
   showSheet(song.name || '', [
     { label: '▶  Play', action: () => {
       const songs = plId === '__liked__' ? D.liked : (D.playlists.find(p => p.id === plId)?.songs || []);
       play(song, [...songs], idx);
     }},
     { label: '＋  Add to Another Playlist', action: () => showAddToPlaylist(song) },
+    dlBusy ? { label: '⏳  Downloading…', action: () => {} }
+           : isDl
+             ? { label: '🗑  Remove Download', danger: true, action: () => removeDownload(song) }
+             : { label: '⬇  Download for Offline', action: () => downloadSong(song) },
     { label: '🗑  Remove from Playlist', danger: true, action: () => {
       if (plId === '__liked__') D.liked.splice(idx, 1);
       else { const pl = D.playlists.find(p => p.id === plId); if (pl) pl.songs.splice(idx, 1); }
@@ -2211,7 +2468,9 @@ function showPlaylistSongSheet(song, plId, idx) {
 
 // ── SONG SHEET ─────────────────────────────────────────────────────────────────
 function showSongSheet(song) {
-  const liked = D.liked.some(s => s.id === song.id);
+  const liked  = D.liked.some(s => s.id === song.id);
+  const isDl   = downloadedIds.has(song.id);
+  const dlBusy = activeDownloads.has(song.id);
   showSheet(song.name || '', [
     { label: liked ? '♥  Unlike' : '♡  Like', action: () => {
       const i = D.liked.findIndex(s => s.id === song.id);
@@ -2225,6 +2484,10 @@ function showSongSheet(song) {
       queue.splice(qIdx + 1, 0, song);
       toast('Playing next: ' + (song.name || ''));
     }},
+    dlBusy ? { label: '⏳  Downloading…', action: () => {} }
+           : isDl
+             ? { label: '🗑  Remove Download', danger: true, action: () => removeDownload(song) }
+             : { label: '⬇  Download for Offline', action: () => downloadSong(song) },
   ]);
 }
 
@@ -2300,7 +2563,38 @@ function renderSettings() {
   if (toggle) toggle.checked = !!cfg.autoUpload;
   renderGhStatus();
   renderLogs(document.getElementById('log-filter').value);
+  renderStorageMeter();
 }
+
+function renderStorageMeter() {
+  const countEl = document.getElementById('dl-count-label');
+  if (countEl) countEl.textContent = `${downloadedIds.size} song${downloadedIds.size !== 1 ? 's' : ''} offline`;
+  if (!navigator.storage?.estimate) {
+    const lbl = document.getElementById('storage-label');
+    if (lbl) lbl.textContent = 'Storage info not available';
+    return;
+  }
+  navigator.storage.estimate().then(({ quota, usage }) => {
+    const usedMB  = (usage  / 1024 / 1024).toFixed(1);
+    const totalGB = (quota  / 1024 / 1024 / 1024).toFixed(2);
+    const pct     = Math.min(100, (usage / quota) * 100).toFixed(1);
+    const lbl  = document.getElementById('storage-label');
+    const fill = document.getElementById('storage-meter-fill');
+    if (lbl)  lbl.textContent  = `${usedMB} MB used of ~${totalGB} GB available`;
+    if (fill) fill.style.width = pct + '%';
+  }).catch(() => {});
+}
+
+document.getElementById('clear-downloads-btn').addEventListener('click', async () => {
+  if (!downloadedIds.size) { toast('No downloaded songs'); return; }
+  await idbClear();
+  downloadedIds.clear();
+  if (offlineBlobUrl) { URL.revokeObjectURL(offlineBlobUrl); offlineBlobUrl = null; }
+  Log.info('All downloads cleared');
+  toast('All downloads removed');
+  renderStorageMeter();
+  if (document.querySelector('#tab-library.active')) renderPlaylists();
+});
 
 function renderLogs(filter) {
   const entries = Log.all().filter(e => !filter || e.level === filter).reverse();
@@ -2409,7 +2703,13 @@ if ('serviceWorker' in navigator) {
 Log.init();
 loadEQState();
 buildDiscover();
-renderPlaylists();
+
+// Seed downloadedIds from IndexedDB so badges & sheet options are correct immediately
+idbGetAll().then(songs => {
+  songs.forEach(s => downloadedIds.add(s.id));
+  renderPlaylists(); // re-render with correct Downloaded count
+}).catch(() => renderPlaylists());
+
 
 // auto-upload on start, then every 30 min (mirrors SW update cadence)
 (function scheduleLogUpload() {
