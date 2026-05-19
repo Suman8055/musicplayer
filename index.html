@@ -371,6 +371,7 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Poppins'
         <div class="search-chips" id="search-chips" style="display:none">
           <button class="chip active" data-filter="all">All</button>
           <button class="chip" data-filter="songs">Songs</button>
+          <button class="chip" data-filter="artists">Artists</button>
           <button class="chip" data-filter="albums">Albums</button>
           <button class="chip" data-filter="playlists">Playlists</button>
         </div>
@@ -719,7 +720,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '1.8.3';
+const APP_VERSION = '1.8.4';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -1862,11 +1863,49 @@ chipsEl.addEventListener('click', e => {
   activeFilter = chip.dataset.filter;
   chipsEl.querySelectorAll('.chip').forEach(c => c.classList.toggle('active', c === chip));
   const q = document.getElementById('search-input').value.trim();
-  if (q && searchCache.has(q)) {
-    const { songs, albums, playlists } = searchCache.get(q);
-    renderSearchResults(songs, albums, playlists);
-  }
+  if (q && searchCache.has(q)) renderSearchResults(searchCache.get(q));
 });
+
+// Normalise the unified /api/search result schemas (different from /api/search/songs schema)
+function normUniSearchSong(s) {
+  const pa = s.artists?.primary || [];
+  const artist = Array.isArray(pa) && pa.length
+    ? pa.map(a => a.name).join(', ')
+    : decodeHtml(s.primaryArtists || s.singers || '');
+  return {
+    id:       s.id,
+    name:     decodeHtml(s.name || s.title || 'Unknown'),
+    artist,
+    album:    s.album?.name || (typeof s.album === 'string' ? decodeHtml(s.album) : ''),
+    image:    bestImg(s.image, '150x150'),
+    duration: parseInt(s.duration || 0),
+  };
+}
+function normUniSearchAlbum(al) {
+  return {
+    id:       al.id,
+    name:     decodeHtml(al.title || al.name || ''),
+    subtitle: decodeHtml(al.artist || al.description || ''),
+    image:    bestImg(al.image, '150x150'),
+    songIds:  al.songIds || '',
+  };
+}
+function normUniSearchArtist(a) {
+  return {
+    id:       a.id,
+    name:     decodeHtml(a.title || a.name || ''),
+    subtitle: decodeHtml(a.description || 'Artist'),
+    image:    bestImg(a.image, '150x150'),
+  };
+}
+function normUniSearchPlaylist(pl) {
+  return {
+    id:       pl.id,
+    name:     decodeHtml(pl.title || pl.name || ''),
+    subtitle: pl.description || 'Playlist',
+    image:    bestImg(pl.image, '150x150'),
+  };
+}
 
 async function runSearch(q) {
   const mySeq = ++searchSeq;
@@ -1875,25 +1914,50 @@ async function runSearch(q) {
     const cached = searchCache.get(q);
     cacheSongs(cached.songs);
     showChips();
-    renderSearchResults(cached.songs, cached.albums, cached.playlists);
+    renderSearchResults(cached);
     return;
   }
   try {
-    const [songs, albums, playlists] = await Promise.all([
-      searchSongs(q),
-      searchAlbums(q),
-      searchPlaylists(q),
-    ]);
+    // Single unified call — returns topQuery + all sections in one round-trip
+    const r = await fetch(
+      `${SAAVN_API}/api/search?query=${encodeURIComponent(q)}`,
+      { signal: AbortSignal.timeout(8000) }
+    );
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
     if (mySeq !== searchSeq) return;
-    searchCache.set(q, { songs, albums, playlists });
+
+    const topHit  = data.topQuery?.results?.[0]   || null;
+    const songs   = (data.songs?.results     || []).map(normUniSearchSong);
+    const albums  = (data.albums?.results    || []).map(normUniSearchAlbum);
+    const artists = (data.artists?.results   || []).map(normUniSearchArtist);
+    const playlists = (data.playlists?.results || []).map(normUniSearchPlaylist);
+
+    const result = { topHit, songs, albums, artists, playlists };
+    searchCache.set(q, result);
     if (searchCache.size > 10) searchCache.delete(searchCache.keys().next().value);
     cacheSongs(songs);
     showChips();
-    renderSearchResults(songs, albums, playlists);
-  } catch {
-    if (mySeq !== searchSeq) return;
-    document.getElementById('search-results').innerHTML =
-      '<div class="empty-wrap"><div class="empty-ico">⚠️</div><div class="empty-txt">Could not connect — check your internet</div></div>';
+    renderSearchResults(result);
+  } catch (err) {
+    // Fallback: three parallel endpoint calls (old behaviour)
+    Log.warn('Unified search failed, trying fallback', { err: err.message });
+    try {
+      const [songs, albums, playlists] = await Promise.all([
+        searchSongs(q), searchAlbums(q), searchPlaylists(q),
+      ]);
+      if (mySeq !== searchSeq) return;
+      const result = { topHit: null, songs, albums, artists: [], playlists };
+      searchCache.set(q, result);
+      if (searchCache.size > 10) searchCache.delete(searchCache.keys().next().value);
+      cacheSongs(songs);
+      showChips();
+      renderSearchResults(result);
+    } catch {
+      if (mySeq !== searchSeq) return;
+      document.getElementById('search-results').innerHTML =
+        '<div class="empty-wrap"><div class="empty-ico">⚠️</div><div class="empty-txt">Could not connect — check your internet</div></div>';
+    }
   }
 }
 
@@ -1920,81 +1984,74 @@ function sortByRelevance(items, q) {
   });
 }
 
-// Returns the single best-matching result (album preferred over song) for a "Top Hit" card
-function getTopHit(sortedAlbums, sortedSongs, q) {
-  const ql = q.toLowerCase().trim();
-  const nameScore = name => {
-    const n = (name || '').toLowerCase();
-    return n === ql ? 3 : n.startsWith(ql) ? 2 : 0;
-  };
-  for (const al of sortedAlbums) {
-    if (nameScore(al.name) >= 2) return { type: 'album', item: al };
-  }
-  for (const sg of sortedSongs) {
-    if (nameScore(sg.name) >= 2) return { type: 'song', item: sg };
-  }
-  return null;
-}
-
-function renderSearchResults(songs, albums, playlists) {
+function renderSearchResults({ topHit, songs, albums, artists, playlists }) {
   const el = document.getElementById('search-results');
   el.innerHTML = '';
   const q = (document.getElementById('search-input').value || '').trim();
 
-  // Sort by relevance client-side so exact/prefix matches always surface first
-  const sortedAlbums = sortByRelevance(albums, q);
-  const sortedSongs  = sortByRelevance(songs,  q);
+  // Client-side relevance sort keeps exact/prefix matches at the top
+  const sortedAlbums  = sortByRelevance(albums,  q);
+  const sortedSongs   = sortByRelevance(songs,   q);
+  const sortedArtists = sortByRelevance(artists || [], q);
 
   const visibleSongs     = (activeFilter === 'all' || activeFilter === 'songs')     ? sortedSongs     : [];
   const visibleAlbums    = (activeFilter === 'all' || activeFilter === 'albums')    ? sortedAlbums    : [];
+  const visibleArtists   = (activeFilter === 'all' || activeFilter === 'artists')   ? sortedArtists   : [];
   const visiblePlaylists = (activeFilter === 'all' || activeFilter === 'playlists') ? playlists        : [];
 
-  if (!visibleSongs.length && !visibleAlbums.length && !visiblePlaylists.length) {
+  if (!visibleSongs.length && !visibleAlbums.length && !visibleArtists.length && !visiblePlaylists.length) {
     el.innerHTML = '<div class="empty-wrap"><div class="empty-ico">🔍</div><div class="empty-txt">No results found</div></div>';
     return;
   }
 
-  // ── Top Hit (Apple Music-style best match, only in "All" filter) ───────────
-  if (activeFilter === 'all') {
-    const hit = getTopHit(sortedAlbums, sortedSongs, q);
-    if (hit) {
-      const hdr = document.createElement('div');
-      hdr.className = 'section-hdr';
-      hdr.innerHTML = '<div class="section-title">Top Hit</div>';
-      el.appendChild(hdr);
+  // ── Top Hit — uses the API's own topQuery result (more accurate than client-side guessing) ──
+  if (activeFilter === 'all' && topHit) {
+    const type     = topHit.type || 'album';
+    const name     = decodeHtml(topHit.title || topHit.name || '');
+    const imgSrc   = bestImg(topHit.image, '150x150');
+    const subText  = type === 'song'
+      ? decodeHtml(topHit.primaryArtists || topHit.singers || '')
+      : decodeHtml(topHit.artist || topHit.description || '');
+    const typeLabel = type === 'song' ? 'Song' : type === 'artist' ? 'Artist' : 'Album';
 
-      const card = document.createElement('div');
-      card.className = 'top-hit-card';
-      const isAlbum = hit.type === 'album';
-      const imgSrc  = isAlbum ? hit.item.image : artUrl(hit.item);
-      const subText = isAlbum ? (hit.item.subtitle || 'Album') : (hit.item.artist || '');
-      card.innerHTML = `
-        ${imgSrc
-          ? `<img class="top-hit-art" src="${esc(imgSrc)}" alt="" loading="lazy" onerror="this.style.opacity='.2'">`
-          : `<div class="top-hit-art" style="background:var(--bg4);display:flex;align-items:center;justify-content:center;font-size:28px">${isAlbum ? '💿' : '🎵'}</div>`}
-        <div class="top-hit-info">
-          <div class="top-hit-type">${isAlbum ? 'Album' : 'Song'}</div>
-          <div class="top-hit-name">${esc(hit.item.name)}</div>
-          <div class="top-hit-sub">${esc(subText)}</div>
-        </div>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="color:var(--fg3);flex-shrink:0"><polyline points="9 18 15 12 9 6"/></svg>
-      `;
-      card.addEventListener('click', () => {
-        if (isAlbum) openBrowseDetail(hit.item.id, 'album', hit.item.name);
-        else {
-          const idx = sortedSongs.indexOf(hit.item);
-          play(hit.item, [...sortedSongs], idx >= 0 ? idx : 0);
-        }
-      });
-      el.appendChild(card);
-    }
+    const hdr = document.createElement('div');
+    hdr.className = 'section-hdr';
+    hdr.innerHTML = '<div class="section-title">Top Hit</div>';
+    el.appendChild(hdr);
+
+    const card = document.createElement('div');
+    card.className = 'top-hit-card';
+    card.innerHTML = `
+      ${imgSrc
+        ? `<img class="top-hit-art" src="${esc(imgSrc)}" alt="" loading="lazy" onerror="this.style.opacity='.2'">`
+        : `<div class="top-hit-art" style="background:var(--bg4);display:flex;align-items:center;justify-content:center;font-size:28px">💿</div>`}
+      <div class="top-hit-info">
+        <div class="top-hit-type">${typeLabel}</div>
+        <div class="top-hit-name">${esc(name)}</div>
+        <div class="top-hit-sub">${esc(subText)}</div>
+      </div>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="color:var(--fg3);flex-shrink:0"><polyline points="9 18 15 12 9 6"/></svg>
+    `;
+    card.addEventListener('click', () => {
+      if (type === 'song') {
+        // Find in sorted songs and play it
+        const match = sortedSongs.find(s => s.id === topHit.id);
+        if (match) play(match, [...sortedSongs], sortedSongs.indexOf(match));
+        else play(normUniSearchSong(topHit), [normUniSearchSong(topHit)], 0);
+      } else {
+        // Find matching album in results to get its songIds
+        const alMatch = sortedAlbums.find(a => a.id === topHit.id);
+        openBrowseDetail(topHit.id, 'album', name, alMatch?.songIds || '');
+      }
+    });
+    el.appendChild(card);
   }
 
   // ── Albums (horizontal scroll cards) ──────────────────────────────────────
   if (visibleAlbums.length) {
     const hdr = document.createElement('div');
     hdr.className = 'section-hdr';
-    hdr.innerHTML = `<div class="section-title">Albums</div>`;
+    hdr.innerHTML = '<div class="section-title">Albums</div>';
     el.appendChild(hdr);
 
     const scroll = document.createElement('div');
@@ -2009,17 +2066,45 @@ function renderSearchResults(songs, albums, playlists) {
         <div class="album-card-name">${esc(al.name)}</div>
         <div class="album-card-sub">${esc(al.subtitle || 'Album')}</div>
       `;
-      card.addEventListener('click', () => openBrowseDetail(al.id, 'album', al.name));
+      card.addEventListener('click', () => openBrowseDetail(al.id, 'album', al.name, al.songIds || ''));
       scroll.appendChild(card);
     });
     el.appendChild(scroll);
+  }
+
+  // ── Artists ────────────────────────────────────────────────────────────────
+  if (visibleArtists.length) {
+    const hdr = document.createElement('div');
+    hdr.className = 'section-hdr';
+    hdr.innerHTML = '<div class="section-title">Artists</div>';
+    el.appendChild(hdr);
+
+    const list = document.createElement('div');
+    list.className = 'song-list';
+    visibleArtists.forEach(ar => {
+      const row = document.createElement('div');
+      row.className = 'song-item';
+      row.innerHTML = `
+        ${ar.image
+          ? `<img class="song-art" src="${esc(ar.image)}" alt="" loading="lazy" onerror="this.style.opacity='.2'" style="border-radius:50%">`
+          : `<div class="song-art" style="display:flex;align-items:center;justify-content:center;font-size:24px;background:var(--bg4);border-radius:50%">🎤</div>`}
+        <div class="song-info">
+          <div class="song-title">${esc(ar.name)}</div>
+          <div class="song-meta">${esc(ar.subtitle || 'Artist')}</div>
+        </div>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="color:var(--fg3);flex-shrink:0;margin-right:4px"><polyline points="9 18 15 12 9 6"/></svg>
+      `;
+      row.addEventListener('click', () => openBrowseDetail(ar.id, 'artist', ar.name, ''));
+      list.appendChild(row);
+    });
+    el.appendChild(list);
   }
 
   // ── Playlists ──────────────────────────────────────────────────────────────
   if (visiblePlaylists.length) {
     const hdr = document.createElement('div');
     hdr.className = 'section-hdr';
-    hdr.innerHTML = `<div class="section-title">Playlists</div>`;
+    hdr.innerHTML = '<div class="section-title">Playlists</div>';
     el.appendChild(hdr);
 
     const list = document.createElement('div');
@@ -2037,7 +2122,7 @@ function renderSearchResults(songs, albums, playlists) {
         </div>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="color:var(--fg3);flex-shrink:0;margin-right:4px"><polyline points="9 18 15 12 9 6"/></svg>
       `;
-      row.addEventListener('click', () => openBrowseDetail(pl.id, 'playlist', pl.name));
+      row.addEventListener('click', () => openBrowseDetail(pl.id, 'playlist', pl.name, ''));
       list.appendChild(row);
     });
     el.appendChild(list);
@@ -2047,7 +2132,7 @@ function renderSearchResults(songs, albums, playlists) {
   if (visibleSongs.length) {
     const hdr = document.createElement('div');
     hdr.className = 'section-hdr';
-    hdr.innerHTML = `<div class="section-title">Songs</div>`;
+    hdr.innerHTML = '<div class="section-title">Songs</div>';
     el.appendChild(hdr);
 
     const list = document.createElement('div');
@@ -2291,34 +2376,52 @@ function buildHeroCard(id, type, title, imgUrl, sub) {
   document.getElementById('hero-card-inner').addEventListener('click', () => openBrowseDetail(id, type, title));
 }
 
-async function openBrowseDetail(id, type, title) {
+async function openBrowseDetail(id, type, title, songIds) {
   document.getElementById('browse-detail-title').textContent = title;
   document.getElementById('browse-detail-sub').textContent   = '';
   document.getElementById('browse-detail-songs').innerHTML   = '<div class="loading-wrap"><div class="spinner"></div></div>';
   document.getElementById('browse-detail').classList.add('open');
 
   try {
-    const url = type === 'album'
-      ? `${SAAVN_API}/api/albums?id=${encodeURIComponent(id)}`
-      : `${SAAVN_API}/api/playlists?id=${encodeURIComponent(id)}&limit=50`;
-    const resp = await saavnFetch(url);
-    const data = await resp.json();
-    const item = data?.data;
-    if (!item) throw new Error('Not found');
+    let songs = [];
 
-    const allSongs = (item.songs || []).map(normSaavnSong);
-    // JioSaavn injects a fake "This is a sample trailer - testing" track for
-    // DRM-protected / unlicensed albums. Filter those out.
-    const songs = allSongs.filter(s => {
+    if (type === 'album' && songIds) {
+      // Direct batch fetch by song IDs — bypasses the DRM/sample-trailer issue
+      // because we're fetching the actual songs, not the album container
+      const ids = songIds.split(',').map(s => s.trim()).filter(Boolean).join(',');
+      const resp = await saavnFetch(`${SAAVN_API}/api/songs?ids=${encodeURIComponent(ids)}`);
+      const data = await resp.json();
+      songs = (Array.isArray(data?.data) ? data.data : []).map(normSaavnSong);
+    } else if (type === 'album') {
+      const resp = await saavnFetch(`${SAAVN_API}/api/albums?id=${encodeURIComponent(id)}`);
+      const data = await resp.json();
+      const item = data?.data;
+      if (!item) throw new Error('Not found');
+      songs = (item.songs || []).map(normSaavnSong);
+    } else if (type === 'playlist') {
+      const resp = await saavnFetch(`${SAAVN_API}/api/playlists?id=${encodeURIComponent(id)}&limit=50`);
+      const data = await resp.json();
+      const item = data?.data;
+      if (!item) throw new Error('Not found');
+      songs = (item.songs || []).map(normSaavnSong);
+    } else if (type === 'artist') {
+      const resp = await saavnFetch(`${SAAVN_API}/api/artists/${encodeURIComponent(id)}/songs`);
+      const data = await resp.json();
+      songs = (data?.data?.songs || data?.data?.results || []).map(normSaavnSong);
+    }
+
+    // Filter JioSaavn DRM placeholder tracks regardless of fetch path
+    songs = songs.filter(s => {
       const n = (s.name || '').toLowerCase();
-      return !(n.includes('sample trailer') || n.includes('sample') && s.duration > 0 && s.duration <= 30);
+      return !(n.includes('sample trailer') || (n.includes('sample') && s.duration > 0 && s.duration <= 30));
     });
+
     document.getElementById('browse-detail-sub').textContent = `${songs.length} songs`;
     cacheSongs(songs);
 
     if (!songs.length) {
       document.getElementById('browse-detail-songs').innerHTML =
-        '<div class="empty-wrap"><div class="empty-ico">🔒</div><div class="empty-txt">Album not available for streaming</div></div>';
+        '<div class="empty-wrap"><div class="empty-ico">🔒</div><div class="empty-txt">Not available for streaming</div></div>';
       return;
     }
     renderSongList(songs, 'browse-detail-songs');
