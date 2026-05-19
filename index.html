@@ -278,11 +278,15 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Poppins'
 .lang-pill.active{background:var(--grad);border-color:transparent;color:#fff}
 
 /* Horizontal scroll */
-.h-scroll{overflow-x:auto;display:flex;gap:12px;padding:2px 16px 14px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.h-scroll{overflow-x:auto;display:flex;gap:12px;padding:2px 16px 14px;-webkit-overflow-scrolling:touch;scrollbar-width:none;scroll-snap-type:x mandatory}
 .h-scroll::-webkit-scrollbar{display:none}
 
+/* Scroll fade-hint wrapper */
+.scroll-fade-wrap{position:relative}
+.scroll-fade-wrap::after{content:'';position:absolute;top:0;right:0;bottom:14px;width:44px;background:linear-gradient(to right,transparent,var(--bg));pointer-events:none;z-index:1}
+
 /* Content cards - premium */
-.content-card{flex-shrink:0;width:154px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.content-card{flex-shrink:0;width:154px;cursor:pointer;-webkit-tap-highlight-color:transparent;scroll-snap-align:start}
 .content-card:active{opacity:.82}
 .content-card-art{position:relative;width:154px;height:154px;border-radius:15px;overflow:hidden;background:var(--bg3)}
 .content-card-img{width:100%;height:100%;object-fit:cover;display:block}
@@ -292,6 +296,19 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Poppins'
 
 /* Chart rank badge on cards */
 .chart-rank{position:absolute;bottom:6px;left:8px;font-size:24px;font-weight:900;color:rgba(255,255,255,.9);text-shadow:0 2px 8px rgba(0,0,0,.6);line-height:1;letter-spacing:-1px}
+
+/* Hayasaka-style ranked chart list */
+.chart-list{display:flex;flex-direction:column;padding:0 16px 12px}
+.chart-row{display:flex;align-items:center;gap:14px;padding:9px 0;cursor:pointer;-webkit-tap-highlight-color:transparent;border-bottom:1px solid var(--sep)}
+.chart-row:last-child{border-bottom:none}
+.chart-row:active .chart-row-art{opacity:.75}
+.chart-row-rank{font-size:16px;font-weight:800;color:var(--fg3);min-width:20px;text-align:center;font-variant-numeric:tabular-nums;flex-shrink:0}
+.chart-row-rank.top3{color:var(--red);font-size:18px}
+.chart-row-art{width:58px;height:58px;border-radius:11px;object-fit:cover;background:var(--bg3);flex-shrink:0;box-shadow:0 3px 12px rgba(0,0,0,.4);transition:opacity .15s}
+.chart-row-info{flex:1;min-width:0}
+.chart-row-title{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chart-row-sub{font-size:12px;color:var(--fg2);margin-top:2px;text-transform:capitalize}
+.chart-row-arrow{color:var(--fg3);flex-shrink:0;display:flex;align-items:center}
 
 /* Subsection label */
 .sub-label{padding:4px 16px 6px;font-size:12px;font-weight:700;color:var(--fg3);text-transform:uppercase;letter-spacing:.7px}
@@ -363,7 +380,7 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Poppins'
       <div class="disc-hd">
         <span class="disc-hd-title">🔥 Trending India</span>
       </div>
-      <div class="h-scroll" id="browse-charts-row">
+      <div class="chart-list" id="browse-charts-row">
         <div style="padding:16px;color:var(--fg2);font-size:14px">Loading…</div>
       </div>
 
@@ -373,9 +390,9 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Poppins'
           <span class="disc-hd-title" id="lang-content-title"></span>
         </div>
         <div class="sub-label">New Releases</div>
-        <div class="h-scroll" id="lang-albums"></div>
+        <div class="scroll-fade-wrap"><div class="h-scroll" id="lang-albums"></div></div>
         <div class="sub-label" style="padding-top:8px">Featured Playlists</div>
-        <div class="h-scroll" id="lang-playlists"></div>
+        <div class="scroll-fade-wrap"><div class="h-scroll" id="lang-playlists"></div></div>
       </div>
     </div>
 
@@ -675,7 +692,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '1.7.0';
+const APP_VERSION = '1.7.1';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -1836,6 +1853,24 @@ function createContentCard(title, sub, imgUrl, onClick, rank) {
   return card;
 }
 
+function createChartRow(rank, title, sub, imgUrl, onClick) {
+  const row = document.createElement('div');
+  row.className = 'chart-row';
+  row.innerHTML = `
+    <div class="chart-row-rank${rank <= 3 ? ' top3' : ''}">${rank}</div>
+    <img class="chart-row-art" src="${esc(imgUrl || '')}" alt="" loading="lazy" onerror="this.style.opacity='.2'">
+    <div class="chart-row-info">
+      <div class="chart-row-title">${esc(title || '')}</div>
+      <div class="chart-row-sub">${esc(sub || '')}</div>
+    </div>
+    <div class="chart-row-arrow">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+    </div>
+  `;
+  row.addEventListener('click', onClick);
+  return row;
+}
+
 const LANG_TILES = [
   { lang: 'hindi',     label: 'Hindi',     color: '#c0392b', emoji: '🇮🇳' },
   { lang: 'punjabi',   label: 'Punjabi',   color: '#1e7e34', emoji: '🎵' },
@@ -1937,13 +1972,13 @@ async function loadBrowseCharts() {
     if (data.status !== 'SUCCESS') throw new Error('API error');
     const charts = data.data.charts || [];
     wrap.innerHTML = '';
-    charts.slice(0, 24).forEach((chart, i) => {
-      wrap.appendChild(createContentCard(
+    charts.slice(0, 10).forEach((chart, i) => {
+      wrap.appendChild(createChartRow(
+        i + 1,
         chart.title,
         chart.language || chart.subtitle || '',
-        bestImg(chart.image, '500x500'),
-        () => openBrowseDetail(chart.id, 'playlist', chart.title),
-        i < 10 ? i + 1 : null
+        bestImg(chart.image, '150x150'),
+        () => openBrowseDetail(chart.id, 'playlist', chart.title)
       ));
     });
     // Build hero from first chart
