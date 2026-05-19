@@ -9,20 +9,23 @@
 <meta name="theme-color" content="#000000">
 <title>MusicBox</title>
 <link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#080808;--bg2:#141414;--bg3:#222;--bg4:#2a2a2a;
+  --bg:#000814;--bg2:#071020;--bg3:#0f1f35;--bg4:#162842;
   --fg:#fff;--fg2:rgba(255,255,255,.65);--fg3:rgba(255,255,255,.38);
-  --red:#fc3c44;--red2:#ff6b6b;
-  --grad:linear-gradient(135deg,#fc3c44,#ff6b6b);
+  --red:#00e6e6;--red2:#22d3ee;
+  --grad:linear-gradient(135deg,#00e6e6,#22d3ee);
   --sep:rgba(255,255,255,.09);
   --tab-h:calc(49px + env(safe-area-inset-bottom));
   --mini-h:64px;
   --safe-top:env(safe-area-inset-top);
   --safe-bot:env(safe-area-inset-bottom);
 }
-html,body{height:100%;background:var(--bg);color:var(--fg);font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif;-webkit-tap-highlight-color:transparent;overscroll-behavior:none;user-select:none;-webkit-user-select:none}
+html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Poppins',-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif;-webkit-tap-highlight-color:transparent;overscroll-behavior:none;user-select:none;-webkit-user-select:none}
 #app{height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden}
 #content{flex:1;overflow:hidden;position:relative}
 .tab-pane{position:absolute;inset:0;overflow-y:auto;-webkit-overflow-scrolling:touch;
@@ -125,8 +128,8 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:-apple-sy
 .np-circle{background:rgba(255,255,255,.12);border:none;color:var(--fg);width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:15px;flex-shrink:0}
 #np-label{font-size:13px;font-weight:600;color:var(--fg2);text-align:center}
 #np-art-wrap{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:12px 36px}
-#np-art{width:100%;max-width:320px;aspect-ratio:1;border-radius:22px;object-fit:cover;box-shadow:0 28px 72px rgba(0,0,0,.75);background:var(--bg3);transform:scale(.88);transition:transform .4s cubic-bezier(.34,1.56,.64,1)}
-#np-art.playing{transform:scale(1)}
+#np-art{width:100%;max-width:320px;aspect-ratio:1;border-radius:22px;object-fit:cover;box-shadow:0 28px 72px rgba(0,0,0,.75);background:var(--bg3);transition:box-shadow .4s ease;animation:vinyl-spin 28s linear infinite;animation-play-state:paused}
+#np-art.playing{animation-play-state:running;box-shadow:0 28px 72px rgba(0,0,0,.75),0 0 64px rgba(0,230,230,0.28)}
 #np-info{display:flex;align-items:center;gap:12px;padding:8px 28px 12px}
 #np-texts{flex:1;min-width:0}
 #np-song{font-size:24px;font-weight:800;letter-spacing:-.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -135,7 +138,7 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:-apple-sy
 #np-quality.visible{opacity:1}
 #np-like{background:none;border:none;font-size:28px;cursor:pointer;padding:4px;flex-shrink:0;line-height:1}
 #np-seek-wrap{padding:0 28px}
-#np-seek{width:100%;height:5px;-webkit-appearance:none;appearance:none;background:linear-gradient(to right,#fc3c44 var(--pct,0%),rgba(255,255,255,.18) var(--pct,0%));border-radius:3px;outline:none;cursor:pointer;display:block}
+#np-seek{width:100%;height:5px;-webkit-appearance:none;appearance:none;background:linear-gradient(to right,var(--red) var(--pct,0%),rgba(255,255,255,.18) var(--pct,0%));border-radius:3px;outline:none;cursor:pointer;display:block}
 #np-seek::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#fff;margin-top:-7px;box-shadow:0 2px 8px rgba(0,0,0,.4)}
 #np-seek::-webkit-slider-runnable-track{height:5px;border-radius:3px}
 #np-times{display:flex;justify-content:space-between;padding:6px 0 2px;font-size:11px;color:var(--fg3);font-variant-numeric:tabular-nums}
@@ -208,12 +211,13 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:-apple-sy
 .loading-wrap{display:flex;justify-content:center;padding:48px}
 .spinner{width:30px;height:30px;border:3px solid var(--bg3);border-top-color:var(--red);border-radius:50%;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
+@keyframes vinyl-spin{from{transform:scale(1) rotate(0deg)}to{transform:scale(1) rotate(360deg)}}
 .empty-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:56px 32px;gap:10px;text-align:center}
 .empty-ico{font-size:44px}
 .empty-txt{font-size:15px;color:var(--fg2)}
 
 /* Setup banner */
-#setup-banner{background:#1a1a2e;border:1px solid #fc3c4444;border-radius:12px;margin:12px 16px;padding:14px;font-size:13px;line-height:1.5;color:var(--fg2)}
+#setup-banner{background:#071a2e;border:1px solid rgba(0,230,230,0.25);border-radius:12px;margin:12px 16px;padding:14px;font-size:13px;line-height:1.5;color:var(--fg2)}
 #setup-banner strong{color:var(--fg);display:block;margin-bottom:4px}
 #setup-banner code{background:var(--bg3);padding:2px 6px;border-radius:4px;color:var(--red);font-size:12px}
 
@@ -257,6 +261,10 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:-apple-sy
 .hero-card-title{font-size:21px;font-weight:800;letter-spacing:-.4px;line-height:1.15;color:#fff}
 .hero-card-sub{font-size:13px;color:rgba(255,255,255,.65);margin-top:3px}
 .hero-play-btn{position:absolute;top:14px;right:14px;width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.18);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:none;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer}
+
+/* Hayasaka-style teal hero gradient on Browse tab */
+#browse-hero-grad{height:180px;background:linear-gradient(180deg,rgba(0,200,210,.22) 0%,transparent 100%);pointer-events:none;margin-bottom:-180px;position:relative;z-index:0}
+#tab-browse .tab-header{position:relative;z-index:1;background:transparent}
 
 /* Section headers */
 .disc-hd{display:flex;align-items:center;justify-content:space-between;padding:20px 16px 10px}
@@ -342,6 +350,7 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:-apple-sy
 
     <!-- Discover -->
     <div id="tab-browse" class="tab-pane">
+      <div id="browse-hero-grad"></div>
       <div class="tab-header">Discover</div>
 
       <!-- Hero — top India chart -->
@@ -666,7 +675,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '1.6.5';
+const APP_VERSION = '1.7.0';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
