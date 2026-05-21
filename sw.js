@@ -1,6 +1,6 @@
 'use strict';
-const CACHE = 'mbx-shell-v1.8.4';
-const SHELL = ['/musicplayer/', '/musicplayer/index.html', '/musicplayer/manifest.json'];
+const CACHE = 'mbx-shell-v1.8.5';
+const SHELL = ['/', '/index.html', '/manifest.json'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
