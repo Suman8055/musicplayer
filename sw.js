@@ -1,5 +1,5 @@
 'use strict';
-const CACHE = 'mbx-shell-v1.8.6';
+const CACHE = 'mbx-shell-v1.8.7';
 const SHELL = ['/', '/index.html', '/manifest.json'];
 
 self.addEventListener('install', e => {
