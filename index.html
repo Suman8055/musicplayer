@@ -2503,9 +2503,17 @@ function intelSave(d) {
   try { localStorage.setItem(INTEL_KEY, JSON.stringify(d)); } catch {}
 }
 
+// Derive a stable artist key that works even when no API artist ID is available.
+// Songs from the JioSaavn autocomplete fallback only have a name string.
+function _artistKey(song) {
+  return song.artistId || ('n:' + (song.artist || '').toLowerCase().trim());
+}
+
 // Called after every song advances (natural end = ratio 1.0, skip = fraction).
 function intelTrackPlay(song, completionRatio) {
-  if (!song?.id || !song?.artistId) return;
+  if (!song?.id) return;                    // only need song ID — artist name is enough
+  const key = _artistKey(song);
+  if (!key || key === 'n:') return;         // no artist info at all — skip
   const d = intelLoad();
 
   const sr = d.songs[song.id] || { plays: 0, skips: 0, lastPlayed: 0 };
@@ -2514,29 +2522,33 @@ function intelTrackPlay(song, completionRatio) {
   sr.lastPlayed = Date.now();
   d.songs[song.id] = sr;
 
-  const ar = d.artists[song.artistId] || { name: song.artist || '', score: 0, plays: 0 };
+  const ar = d.artists[key] || { name: song.artist || '', id: song.artistId || '', score: 0, plays: 0 };
   ar.name = song.artist || ar.name;
+  if (song.artistId) ar.id = song.artistId; // upgrade to real ID whenever we get one
   if (completionRatio >= 0.8) { ar.score += 3; ar.plays++; }
   else if (completionRatio >= 0.3) { ar.score += 1; ar.plays++; }
   else if (completionRatio < 0.2) { ar.score = Math.max(0, ar.score - 1); }
-  d.artists[song.artistId] = ar;
+  d.artists[key] = ar;
 
   if (song.language) {
     d.languages[song.language] = (d.languages[song.language] || 0) + (completionRatio >= 0.3 ? 1 : 0);
   }
   intelSave(d);
-  _forYouCache = null; // invalidate so next open rebuilds
+  _forYouCache = null;
 }
 
 // Called when the user taps the like heart.
 function intelTrackLike(song) {
-  if (!song?.id || !song?.artistId) return;
+  if (!song?.id) return;
+  const key = _artistKey(song);
+  if (!key || key === 'n:') return;
   const d = intelLoad();
-  const ar = d.artists[song.artistId] || { name: song.artist || '', score: 0, plays: 0 };
+  const ar = d.artists[key] || { name: song.artist || '', id: song.artistId || '', score: 0, plays: 0 };
   ar.name = song.artist || ar.name;
+  if (song.artistId) ar.id = song.artistId;
   ar.score += 4;
   ar.plays = (ar.plays || 0) + 1;
-  d.artists[song.artistId] = ar;
+  d.artists[key] = ar;
   intelSave(d);
   _forYouCache = null;
 }
@@ -2547,7 +2559,8 @@ function intelGetTopArtists(n = 3) {
     .filter(([, a]) => a.score > 0)
     .sort(([, a], [, b]) => b.score - a.score)
     .slice(0, n)
-    .map(([id, a]) => ({ id, name: a.name, score: a.score, plays: a.plays }));
+    // Expose real API id (ar.id) separately from the storage key
+    .map(([key, a]) => ({ key, id: a.id || '', name: a.name, score: a.score, plays: a.plays }));
 }
 
 function intelTotalPlays() {
@@ -2574,7 +2587,16 @@ async function buildForYouRows() {
 
   await Promise.all(topArtists.map(async artist => {
     try {
-      const resp = await saavnFetch(`${SAAVN_API}/api/artists/${encodeURIComponent(artist.id)}/songs?limit=30`);
+      // Resolve real artist ID if we only stored a name-based key
+      let apiId = artist.id;
+      if (!apiId) {
+        const sr = await saavnFetch(`${SAAVN_API}/api/search?query=${encodeURIComponent(artist.name)}`);
+        const sd = await sr.json();
+        apiId = sd.data?.artists?.results?.[0]?.id || '';
+      }
+      if (!apiId) return; // can't resolve — skip
+
+      const resp = await saavnFetch(`${SAAVN_API}/api/artists/${encodeURIComponent(apiId)}/songs?limit=30`);
       const data = await resp.json();
       const songs = (data.data?.songs || [])
         .map(normSaavnSong)
@@ -2663,7 +2685,15 @@ async function smartQueueFill() {
 
   try {
     const artist = topArtists[0];
-    const resp = await saavnFetch(`${SAAVN_API}/api/artists/${encodeURIComponent(artist.id)}/songs?limit=30`);
+    let apiId = artist.id;
+    if (!apiId) {
+      const sr = await saavnFetch(`${SAAVN_API}/api/search?query=${encodeURIComponent(artist.name)}`);
+      const sd = await sr.json();
+      apiId = sd.data?.artists?.results?.[0]?.id || '';
+    }
+    if (!apiId) { smartQueueActive = false; refreshSmartQueueBadge(); return false; }
+
+    const resp = await saavnFetch(`${SAAVN_API}/api/artists/${encodeURIComponent(apiId)}/songs?limit=30`);
     const data = await resp.json();
     const played = intelPlayedIds();
     const songs = (data.data?.songs || [])
