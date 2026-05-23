@@ -5,10 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="MusicBox">
-<meta name="theme-color" content="#000000">
-<title>MusicBox</title>
+<meta name="apple-mobile-web-app-title" content="MusicPlayer">
+<meta name="theme-color" content="#000814">
+<title>MusicPlayer</title>
 <link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -212,6 +213,8 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Poppins'
 /* Toast */
 #toast{position:fixed;bottom:calc(var(--tab-h) + var(--mini-h) + 12px);left:50%;transform:translateX(-50%) translateY(16px);background:rgba(50,50,52,.96);color:var(--fg);padding:10px 20px;border-radius:20px;font-size:14px;font-weight:500;white-space:nowrap;opacity:0;transition:opacity .2s,transform .2s;z-index:400;pointer-events:none}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#net-banner{position:fixed;top:0;left:0;right:0;z-index:9998;background:#1c1c1e;color:var(--fg2);text-align:center;font-size:13px;font-weight:500;letter-spacing:.1px;padding:0;max-height:0;overflow:hidden;transition:max-height .35s ease,padding .35s ease}
+#net-banner.show{padding:9px 16px;max-height:40px}
 
 /* States */
 .loading-wrap{display:flex;justify-content:center;padding:48px}
@@ -344,6 +347,8 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Poppins'
 </style>
 </head>
 <body>
+
+<div id="net-banner">No internet connection — showing offline content</div>
 
 <!-- ── Access Gate ── -->
 <div id="gate">
@@ -719,7 +724,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '1.8.9';
+const APP_VERSION = '1.9.0';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -1195,29 +1200,25 @@ async function _apiSearchFallback(q, limit = 20) {
 
 async function searchSongs(q, limit = 20) {
   try {
-    const r = await fetch(
+    const r = await apiFetch(
       `${SAAVN_API}/api/search/songs?query=${encodeURIComponent(q)}&limit=${limit}`,
-      { signal: AbortSignal.timeout(5000) }
+      { timeout: 7000, retries: 1 }
     );
-    if (r.ok) {
-      const data = await r.json();
-      if (data.status === 'SUCCESS' && data.data?.results?.length) {
-        Log.info('Search OK (fast)', { q, count: data.data.results.length });
-        return data.data.results.map(normSaavnSong);
-      }
+    const data = await r.json();
+    if (data.status === 'SUCCESS' && data.data?.results?.length) {
+      Log.info('Search OK', { q, count: data.data.results.length });
+      return data.data.results.map(normSaavnSong);
     }
   } catch {}
-  // Fallback to CORS proxy
   Log.info('Search fallback', { q });
   return _apiSearchFallback(q, limit);
 }
 
 async function searchPlaylists(q, limit = 5) {
-  // Try fast direct API first
   try {
-    const r = await fetch(
+    const r = await apiFetch(
       `${SAAVN_API}/api/search/playlists?query=${encodeURIComponent(q)}&limit=${limit}`,
-      { signal: AbortSignal.timeout(5000) }
+      { timeout: 7000, retries: 1 }
     );
     if (r.ok) {
       const data = await r.json();
@@ -1249,9 +1250,9 @@ async function searchPlaylists(q, limit = 5) {
 
 async function searchAlbums(q, limit = 15) {
   try {
-    const r = await fetch(
+    const r = await apiFetch(
       `${SAAVN_API}/api/search/albums?query=${encodeURIComponent(q)}&limit=${limit}`,
-      { signal: AbortSignal.timeout(5000) }
+      { timeout: 7000, retries: 1 }
     );
     if (r.ok) {
       const data = await r.json();
@@ -2162,11 +2163,30 @@ const SIGMA_API = 'https://jiosaavn-api-sigma-sandy.vercel.app';
 const LYRA_API  = 'https://hayasaka.8man.in';
 const SAAVN_API = 'https://saavn.8man.dev';
 
+// Resilient fetch: exponential backoff + jitter, skips retry on 4xx client errors
+async function apiFetch(url, { timeout = 8000, retries = 2 } = {}) {
+  let lastErr;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    if (attempt > 0) {
+      const delay = 600 * Math.pow(2, attempt - 1) + Math.random() * 300;
+      await new Promise(r => setTimeout(r, delay));
+    }
+    try {
+      const r = await fetch(url, { signal: AbortSignal.timeout(timeout) });
+      if (r.ok) return r;
+      lastErr = new Error('HTTP ' + r.status);
+      if (r.status >= 400 && r.status < 500) break;
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw lastErr || new Error('Request failed');
+}
+
+// Network-aware fetch: tries direct API with retry, falls back to CORS proxy
 async function saavnFetch(url) {
   try {
-    const r = await fetch(url, { signal: AbortSignal.timeout(5000) });
-    if (r.ok) return r;
-    throw new Error('status_' + r.status);
+    return await apiFetch(url, { timeout: 7000, retries: 1 });
   } catch {
     return proxyFetch(url);
   }
@@ -2893,6 +2913,23 @@ if ('serviceWorker' in navigator) {
     setInterval(() => reg.update(), 30 * 60 * 1000);
   }).catch(() => {});
 }
+
+// ── NETWORK AWARENESS ────────────────────────────────────────────────────────────
+(function initNetworkAwareness() {
+  const banner = document.getElementById('net-banner');
+  if (!banner) return;
+  const update = () => {
+    if (navigator.onLine) {
+      banner.classList.remove('show');
+    } else {
+      banner.classList.add('show');
+      Log.warn('Network offline');
+    }
+  };
+  window.addEventListener('online',  () => { update(); Log.info('Network online'); });
+  window.addEventListener('offline', update);
+  update();
+})();
 
 // ── INIT ────────────────────────────────────────────────────────────────────────
 Log.init();
