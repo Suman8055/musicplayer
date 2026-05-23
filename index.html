@@ -136,7 +136,7 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Poppins'
 #np-topbar{display:flex;align-items:center;justify-content:space-between;padding:8px 20px 4px}
 .np-circle{background:rgba(255,255,255,.12);border:none;color:var(--fg);width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:15px;flex-shrink:0}
 #np-label{font-size:13px;font-weight:600;color:var(--fg2);text-align:center}
-#np-art-wrap{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:12px 36px}
+#np-art-wrap{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:12px 36px;max-height:500px;overflow:hidden;transition:max-height .32s cubic-bezier(.32,1,.6,1),padding .28s ease,opacity .28s ease}
 #np-art{width:100%;max-width:320px;aspect-ratio:1;border-radius:22px;object-fit:cover;box-shadow:0 28px 72px rgba(0,0,0,.75);background:var(--bg3);transition:box-shadow .4s ease}
 #np-art.playing{box-shadow:0 28px 72px rgba(0,0,0,.75),0 0 64px rgba(0,230,230,0.28)}
 #np-info{display:flex;align-items:center;gap:12px;padding:8px 28px 12px}
@@ -166,7 +166,11 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Poppins'
 
 /* ── EQ Panel — in-flow flex child, expands above footer, fits any device ── */
 #eq-panel{overflow:hidden;max-height:0;padding:0 20px;background:var(--bg2);border-radius:20px 20px 0 0;flex-shrink:0;transition:max-height .35s cubic-bezier(.32,1,.6,1),padding .28s ease}
-#eq-panel.open{max-height:70vh;padding:14px 20px 16px;overflow-y:auto}
+#eq-panel.open{max-height:800px;padding:14px 20px;padding-bottom:calc(max(16px,env(safe-area-inset-bottom)) + 8px);overflow-y:auto;-webkit-overflow-scrolling:touch}
+/* When EQ is open — collapse art, hide vol row, allow NP inner to scroll */
+#np.eq-open #np-art-wrap{max-height:0;padding:0;opacity:0;pointer-events:none}
+#np.eq-open #np-vol-wrap{display:none}
+#np.eq-open #np-inner{overflow-y:auto;-webkit-overflow-scrolling:touch}
 #eq-panel h3{text-align:center;font-size:13px;font-weight:600;color:var(--fg2);margin:0 0 12px;letter-spacing:.5px;text-transform:uppercase}
 .eq-presets{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-bottom:12px}
 .eq-preset{background:var(--bg3);border:none;color:var(--fg2);font-size:11px;font-weight:600;padding:5px 11px;border-radius:20px;cursor:pointer;font-family:inherit;transition:background .15s,color .15s}
@@ -2071,8 +2075,21 @@ document.getElementById('np-queue-btn').addEventListener('click', showQueueSheet
 const eqPanel = document.getElementById('eq-panel');
 const eqBtn   = document.getElementById('np-eq-btn');
 
-function openEQPanel()  { initEQ(); eqPanel.classList.add('open');    eqBtn.classList.add('active'); startSpectrum(); }
-function closeEQPanel() { stopSpectrum(); eqPanel.classList.remove('open'); eqBtn.classList.remove('active'); }
+function openEQPanel() {
+  initEQ();
+  eqPanel.classList.add('open');
+  eqBtn.classList.add('active');
+  document.getElementById('np').classList.add('eq-open');
+  startSpectrum();
+  // Scroll the EQ into view after the panel finishes expanding
+  setTimeout(() => eqPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 360);
+}
+function closeEQPanel() {
+  stopSpectrum();
+  eqPanel.classList.remove('open');
+  eqBtn.classList.remove('active');
+  document.getElementById('np').classList.remove('eq-open');
+}
 
 eqBtn.addEventListener('click', () =>
   eqPanel.classList.contains('open') ? closeEQPanel() : openEQPanel());
