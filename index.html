@@ -810,7 +810,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '2.3.0';
+const APP_VERSION = '2.3.1';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -3043,6 +3043,22 @@ async function openBrowseDetail(id, type, title, songIds) {
       const item = data?.data;
       if (!item) throw new Error('Not found');
       songs = (item.songs || []).map(normSaavnSong);
+      // Fallback: new/regional albums often return empty songs via album endpoint;
+      // search by title to get songIds and fetch directly
+      if (!songs.length && title) {
+        try {
+          const sr = await saavnFetch(`${SAAVN_API}/api/search?query=${encodeURIComponent(title)}`);
+          const sd = await sr.json();
+          const results = sd?.albums?.results || [];
+          const match = results.find(a => a.id === id) || results[0];
+          if (match?.songIds) {
+            const ids = match.songIds.split(',').map(s => s.trim()).filter(Boolean).join(',');
+            const r2 = await saavnFetch(`${SAAVN_API}/api/songs?ids=${encodeURIComponent(ids)}`);
+            const d2 = await r2.json();
+            songs = (Array.isArray(d2?.data) ? d2.data : []).map(normSaavnSong);
+          }
+        } catch {}
+      }
     } else if (type === 'playlist') {
       const resp = await saavnFetch(`${SAAVN_API}/api/playlists?id=${encodeURIComponent(id)}&limit=50`);
       const data = await resp.json();
