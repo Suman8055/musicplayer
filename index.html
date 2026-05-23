@@ -357,6 +357,11 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Poppins'
 #gate-btn{margin-top:16px;width:100%;background:var(--red);border:none;border-radius:14px;padding:15px;color:#fff;font-size:17px;font-weight:600;font-family:inherit;cursor:pointer;letter-spacing:-.2px}
 #gate-btn:active{opacity:.8}
 #gate-err{margin-top:12px;font-size:13px;color:var(--red);min-height:18px;text-align:center}
+/* For You section */
+.for-you-empty{padding:12px 16px 20px;color:var(--fg2);font-size:13px;text-align:center;line-height:1.7}
+.for-you-artist-row{margin-bottom:4px}
+/* Smart Queue badge in mini player */
+#sq-badge{display:none;align-items:center;gap:4px;position:absolute;bottom:calc(var(--tab-h) + var(--mini-h) + 4px);left:50%;transform:translateX(-50%);background:rgba(0,230,230,.18);border:1px solid rgba(0,230,230,.35);border-radius:20px;padding:3px 10px 3px 8px;font-size:11px;font-weight:600;color:var(--red);white-space:nowrap;pointer-events:none;z-index:30;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
 </style>
 </head>
 <body>
@@ -405,6 +410,14 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Poppins'
 
       <!-- Hero — top India chart -->
       <div id="disc-hero"></div>
+
+      <!-- For You — personalized recommendations -->
+      <div id="for-you-section" style="display:none">
+        <div class="disc-hd">
+          <span class="disc-hd-title">✨ For You</span>
+        </div>
+        <div id="for-you-rows"></div>
+      </div>
 
       <!-- Language pills -->
       <div class="lang-pills" id="lang-pills"></div>
@@ -550,6 +563,12 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Poppins'
       </div>
     </div>
     <div id="mini-bar"></div>
+  </div>
+
+  <!-- Smart Queue badge (floats above mini player) -->
+  <div id="sq-badge">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3a9 9 0 1 0 0 18A9 9 0 0 0 12 3zm-1 13V8l6 4-6 4z"/></svg>
+    Smart Queue
   </div>
 
   <!-- Tab bar -->
@@ -946,6 +965,7 @@ let shufflePos   = 0;       // current position in shuffledQueue
 let repeatMode   = 0;       // 0=off 1=all 2=one
 let seeking      = false;
 let openPlId     = null;
+let _intelNaturalEnd = false; // true when song ends naturally (vs. user skip)
 
 const audio        = document.getElementById('audio');
 const audioPreload = document.getElementById('audio-preload');
@@ -1726,6 +1746,9 @@ async function play(song, newQueue, idx) {
   nowSong = song;
   cacheSong(song);
 
+  // Clear smart queue badge when a new song is explicitly started
+  if (!smartQueueActive) refreshSmartQueueBadge();
+
   // Show immediately in UI
   refreshMini();
   refreshNP();
@@ -1787,6 +1810,8 @@ function togglePlay() {
 function prev() {
   if (loadingUrl) return;
   if (audio.currentTime > 3) { audio.currentTime = 0; return; }
+  // Going back past start = user rejected this song — track as skip
+  if (nowSong && audio.duration > 0) intelTrackPlay(nowSong, audio.currentTime / audio.duration);
   if (shuffleOn && shufflePos > 0) {
     shufflePos--;
     qIdx = shuffledQueue[shufflePos];
@@ -1797,6 +1822,13 @@ function prev() {
 }
 
 function next() {
+  // Track play completion before advancing
+  if (nowSong) {
+    const ratio = _intelNaturalEnd ? 1.0 : (audio.duration > 0 ? audio.currentTime / audio.duration : 0);
+    intelTrackPlay(nowSong, ratio);
+  }
+  _intelNaturalEnd = false;
+
   if (loadingUrl) return;
   if (repeatMode === 2) { audio.currentTime = 0; audio.play(); return; }
   let ni;
@@ -1804,7 +1836,11 @@ function next() {
     const nextPos = shufflePos + 1;
     if (nextPos >= shuffledQueue.length) {
       if (repeatMode === 1) { createShuffledQueue(); ni = shuffledQueue[shufflePos]; }
-      else { playing = false; refreshPlayBtns(); return; }
+      else {
+        // Queue exhausted in shuffle — try smart fill
+        smartQueueFill().then(filled => { if (!filled) { playing = false; refreshPlayBtns(); } });
+        return;
+      }
     } else {
       shufflePos = nextPos;
       ni = shuffledQueue[shufflePos];
@@ -1813,7 +1849,11 @@ function next() {
     ni = qIdx + 1;
     if (ni >= queue.length) {
       if (repeatMode === 1) ni = 0;
-      else { playing = false; refreshPlayBtns(); return; }
+      else {
+        // Queue exhausted — try smart fill
+        smartQueueFill().then(filled => { if (!filled) { playing = false; refreshPlayBtns(); } });
+        return;
+      }
     }
   }
   qIdx = ni;
@@ -1869,7 +1909,7 @@ audio.addEventListener('stalled', () => {
   Log.warn('Audio stalled', { name: nowSong?.name, t: audio.currentTime });
   if (!loadingUrl) setNPLoading(true);
 });
-audio.addEventListener('ended', next);
+audio.addEventListener('ended', () => { _intelNaturalEnd = true; next(); });
 audio.addEventListener('error', () => {
   if (!loadingUrl) {
     const MEDIA_ERR = { 1:'ABORTED', 2:'NETWORK', 3:'DECODE', 4:'SRC_NOT_SUPPORTED' };
@@ -2003,7 +2043,7 @@ document.getElementById('np-like').addEventListener('click', () => {
   if (!nowSong) return;
   const i = D.liked.findIndex(s => s.id === nowSong.id);
   if (i >= 0) { D.liked.splice(i, 1); toast('Removed from Liked Songs'); }
-  else        { D.liked.push({ ...nowSong }); toast('Added to Liked Songs'); }
+  else        { D.liked.push({ ...nowSong }); intelTrackLike(nowSong); toast('Added to Liked Songs'); }
   persist();
   refreshNP();
 });
@@ -2123,6 +2163,7 @@ document.getElementById('tabbar').addEventListener('click', e => {
   if (tab === 'library')  renderPlaylists();
   if (tab === 'settings') renderSettings();
   if (tab === 'browse' && !browseChartsLoaded) { browseChartsLoaded = true; loadBrowseCharts(); }
+  if (tab === 'browse') renderForYouSection();
 });
 
 // ── SEARCH ─────────────────────────────────────────────────────────────────────
@@ -2164,6 +2205,8 @@ function normUniSearchSong(s) {
     id:       s.id,
     name:     decodeHtml(s.name || s.title || 'Unknown'),
     artist,
+    artistId: (Array.isArray(pa) && pa[0]?.id) || '',
+    language: s.language || '',
     album:    s.album?.name || (typeof s.album === 'string' ? decodeHtml(s.album) : ''),
     image:    bestImg(s.image, '150x150'),
     duration: parseInt(s.duration || 0),
@@ -2446,6 +2489,204 @@ function renderSearchResults({ topHit, songs, albums, artists, playlists }) {
 
 
 
+// ── INTEL — listening tracker + recommendation engine ─────────────────────────
+// Tracks plays, skips, likes per song/artist/language in localStorage.
+// Builds personalised "For You" rows and powers the Smart Queue.
+
+const INTEL_KEY = 'mbx_intel_v1';
+
+function intelLoad() {
+  try { const s = localStorage.getItem(INTEL_KEY); if (s) return JSON.parse(s); } catch {}
+  return { artists: {}, languages: {}, songs: {} };
+}
+function intelSave(d) {
+  try { localStorage.setItem(INTEL_KEY, JSON.stringify(d)); } catch {}
+}
+
+// Called after every song advances (natural end = ratio 1.0, skip = fraction).
+function intelTrackPlay(song, completionRatio) {
+  if (!song?.id || !song?.artistId) return;
+  const d = intelLoad();
+
+  const sr = d.songs[song.id] || { plays: 0, skips: 0, lastPlayed: 0 };
+  if (completionRatio >= 0.8) sr.plays++;
+  else if (completionRatio < 0.2) sr.skips++;
+  sr.lastPlayed = Date.now();
+  d.songs[song.id] = sr;
+
+  const ar = d.artists[song.artistId] || { name: song.artist || '', score: 0, plays: 0 };
+  ar.name = song.artist || ar.name;
+  if (completionRatio >= 0.8) { ar.score += 3; ar.plays++; }
+  else if (completionRatio >= 0.3) { ar.score += 1; ar.plays++; }
+  else if (completionRatio < 0.2) { ar.score = Math.max(0, ar.score - 1); }
+  d.artists[song.artistId] = ar;
+
+  if (song.language) {
+    d.languages[song.language] = (d.languages[song.language] || 0) + (completionRatio >= 0.3 ? 1 : 0);
+  }
+  intelSave(d);
+  _forYouCache = null; // invalidate so next open rebuilds
+}
+
+// Called when the user taps the like heart.
+function intelTrackLike(song) {
+  if (!song?.id || !song?.artistId) return;
+  const d = intelLoad();
+  const ar = d.artists[song.artistId] || { name: song.artist || '', score: 0, plays: 0 };
+  ar.name = song.artist || ar.name;
+  ar.score += 4;
+  ar.plays = (ar.plays || 0) + 1;
+  d.artists[song.artistId] = ar;
+  intelSave(d);
+  _forYouCache = null;
+}
+
+function intelGetTopArtists(n = 3) {
+  const d = intelLoad();
+  return Object.entries(d.artists)
+    .filter(([, a]) => a.score > 0)
+    .sort(([, a], [, b]) => b.score - a.score)
+    .slice(0, n)
+    .map(([id, a]) => ({ id, name: a.name, score: a.score, plays: a.plays }));
+}
+
+function intelTotalPlays() {
+  const d = intelLoad();
+  return Object.values(d.songs).reduce((s, r) => s + (r.plays || 0), 0);
+}
+
+function intelPlayedIds() {
+  return new Set(Object.keys(intelLoad().songs));
+}
+
+// ── FOR YOU — UI ───────────────────────────────────────────────────────────────
+let _forYouCache = null;           // { rows, ts }
+const _FOR_YOU_TTL = 30 * 60 * 1000;
+
+async function buildForYouRows() {
+  if (_forYouCache && (Date.now() - _forYouCache.ts) < _FOR_YOU_TTL) return _forYouCache.rows;
+
+  const topArtists = intelGetTopArtists(3);
+  if (!topArtists.length) return [];
+
+  const played = intelPlayedIds();
+  const rows = [];
+
+  await Promise.all(topArtists.map(async artist => {
+    try {
+      const resp = await saavnFetch(`${SAAVN_API}/api/artists/${encodeURIComponent(artist.id)}/songs?limit=30`);
+      const data = await resp.json();
+      const songs = (data.data?.songs || [])
+        .map(normSaavnSong)
+        .filter(s => s.id && !played.has(s.id))
+        .sort(() => Math.random() - 0.5)
+        .slice(0, 10);
+      if (songs.length >= 2) rows.push({ artist, songs });
+    } catch { /* silent — skip this artist */ }
+  }));
+
+  rows.sort((a, b) => b.artist.score - a.artist.score);
+  _forYouCache = { rows, ts: Date.now() };
+  return rows;
+}
+
+async function renderForYouSection() {
+  const section = document.getElementById('for-you-section');
+  const rowsEl  = document.getElementById('for-you-rows');
+  if (!section || !rowsEl) return;
+
+  const totalPlays = intelTotalPlays();
+  section.style.display = 'block';
+
+  if (totalPlays < 5) {
+    rowsEl.innerHTML = `<div class="for-you-empty">
+      Keep listening to build your personal mix<br>
+      <span style="font-size:11px;opacity:.55">${totalPlays} of 5 plays needed</span>
+    </div>`;
+    return;
+  }
+
+  rowsEl.innerHTML = '<div style="padding:4px 16px 12px"><div class="spinner" style="margin:0;width:22px;height:22px;border-width:2px"></div></div>';
+
+  try {
+    const rows = await buildForYouRows();
+    rowsEl.innerHTML = '';
+
+    if (!rows.length) {
+      rowsEl.innerHTML = '<div class="for-you-empty">Explore more music to unlock recommendations</div>';
+      return;
+    }
+
+    rows.forEach(({ artist, songs }) => {
+      const wrap = document.createElement('div');
+      wrap.className = 'for-you-artist-row';
+
+      const hdr = document.createElement('div');
+      hdr.className = 'disc-hd';
+      hdr.innerHTML = `<span class="disc-hd-title" style="font-size:16px">Because you play <span style="background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent">${esc(artist.name)}</span></span>`;
+      wrap.appendChild(hdr);
+
+      const fadeWrap = document.createElement('div');
+      fadeWrap.className = 'scroll-fade-wrap';
+      const scroll = document.createElement('div');
+      scroll.className = 'h-scroll';
+
+      songs.forEach((song, i) => {
+        scroll.appendChild(createContentCard(song.name, song.artist, song.image, () => {
+          play(song, [...songs], i);
+        }));
+      });
+
+      fadeWrap.appendChild(scroll);
+      wrap.appendChild(fadeWrap);
+      rowsEl.appendChild(wrap);
+    });
+  } catch {
+    rowsEl.innerHTML = '<div class="for-you-empty">Could not load — check connection</div>';
+  }
+}
+
+// ── SMART QUEUE — auto-fill queue from top artist when it runs out ──────────────
+let smartQueueActive = false;
+
+function refreshSmartQueueBadge() {
+  const b = document.getElementById('sq-badge');
+  if (b) b.style.display = smartQueueActive ? 'flex' : 'none';
+}
+
+async function smartQueueFill() {
+  const topArtists = intelGetTopArtists(1);
+  if (!topArtists.length) return false;
+
+  smartQueueActive = true;
+  refreshSmartQueueBadge();
+
+  try {
+    const artist = topArtists[0];
+    const resp = await saavnFetch(`${SAAVN_API}/api/artists/${encodeURIComponent(artist.id)}/songs?limit=30`);
+    const data = await resp.json();
+    const played = intelPlayedIds();
+    const songs = (data.data?.songs || [])
+      .map(normSaavnSong)
+      .filter(s => s.id && !played.has(s.id))
+      .sort(() => Math.random() - 0.5)
+      .slice(0, 10);
+
+    if (!songs.length) { smartQueueActive = false; refreshSmartQueueBadge(); return false; }
+
+    const startIdx = queue.length;
+    queue.push(...songs);
+    qIdx = startIdx;
+    toast(`Smart Queue — ${artist.name}`);
+    play(queue[qIdx]);
+    return true;
+  } catch {
+    smartQueueActive = false;
+    refreshSmartQueueBadge();
+    return false;
+  }
+}
+
 // ── BROWSE (JioSaavn-style) ────────────────────────────────────────────────────
 const SIGMA_API = 'https://jiosaavn-api-sigma-sandy.vercel.app';
 const LYRA_API  = 'https://hayasaka.8man.in';
@@ -2495,6 +2736,8 @@ function normSaavnSong(s) {
     id:       s.id,
     name:     decodeHtml(s.name || s.title || 'Unknown'),
     artist,
+    artistId: (Array.isArray(pa) && pa[0]?.id) || '',
+    language: s.language || '',
     album:    s.album?.name || (typeof s.album === 'string' ? s.album : '') || '',
     image:    bestImg(s.image, '150x150'),
     duration: parseInt(s.duration || 0),
@@ -2581,6 +2824,8 @@ function buildDiscover() {
   });
   // load first language by default after a beat
   setTimeout(() => loadBrowseLang(LANG_TILES[0].lang, LANG_TILES[0].label), 100);
+  // Render For You if user already has history
+  if (intelTotalPlays() > 0) renderForYouSection();
 }
 
 async function loadBrowseLang(lang, label) {
