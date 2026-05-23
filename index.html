@@ -514,6 +514,21 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Poppins'
         <button class="settings-btn" id="gh-upload-btn">Upload Now</button>
       </div>
 
+      <div class="settings-section">Memory</div>
+      <div class="settings-card">
+        <div class="settings-row">
+          <div class="settings-label">App data (localStorage)<small id="ls-usage-label">—</small></div>
+        </div>
+        <div class="settings-row">
+          <div class="settings-label">Listening history<small id="intel-stats-label">—</small></div>
+          <button class="settings-btn sec" id="reset-intel-btn" style="flex-shrink:0;margin:0;padding:8px 14px;font-size:13px;border-radius:10px">Reset</button>
+        </div>
+        <div class="settings-row">
+          <div class="settings-label">In-memory caches<small id="cache-stats-label">—</small></div>
+          <button class="settings-btn sec" id="clear-cache-btn" style="flex-shrink:0;margin:0;padding:8px 14px;font-size:13px;border-radius:10px">Clear</button>
+        </div>
+      </div>
+
       <div class="settings-section">Offline Storage</div>
       <div class="settings-card">
         <div class="settings-row">
@@ -953,7 +968,7 @@ function decodeHtml(s){return String(s).replace(/&quot;/g,'"').replace(/&#039;/g
 
 // ── STATE ──────────────────────────────────────────────────────────────────────
 let D = loadData();
-const songCache = {};      // id → song object (name, artist, image)
+const songCache = new Map(); // id → song object, capped at 300 (LRU)
 
 const downloadedIds = new Set(); // song IDs with offline blob in IndexedDB
 let offlineBlobUrl  = null;      // current objectURL for offline playback (revoke on next play)
@@ -1736,7 +1751,12 @@ function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-function cacheSong(s) { if (s?.id) songCache[s.id] = s; }
+function cacheSong(s) {
+  if (!s?.id) return;
+  songCache.delete(s.id);                              // refresh insertion order
+  songCache.set(s.id, s);
+  if (songCache.size > 300) songCache.delete(songCache.keys().next().value); // evict oldest
+}
 function cacheSongs(arr) { arr.forEach(cacheSong); }
 
 // ── PLAYER ─────────────────────────────────────────────────────────────────────
@@ -2520,6 +2540,30 @@ function intelSave(d) {
   try { localStorage.setItem(INTEL_KEY, JSON.stringify(d)); } catch {}
 }
 
+// Run once per session: drop songs older than 90 days, enforce hard caps.
+let _intelPruned = false;
+function intelPrune() {
+  if (_intelPruned) return;
+  _intelPruned = true;
+  const d = intelLoad();
+  const CUT = Date.now() - 90 * 24 * 60 * 60 * 1000; // 90 days
+
+  // Keep songs played recently, cap at 500
+  const songs = Object.entries(d.songs)
+    .filter(([, s]) => (s.lastPlayed || 0) > CUT || (s.plays || 0) > 3)
+    .sort(([, a], [, b]) => (b.lastPlayed || 0) - (a.lastPlayed || 0))
+    .slice(0, 500);
+  d.songs = Object.fromEntries(songs);
+
+  // Keep top 100 artists by score
+  const artists = Object.entries(d.artists)
+    .sort(([, a], [, b]) => b.score - a.score)
+    .slice(0, 100);
+  d.artists = Object.fromEntries(artists);
+
+  intelSave(d);
+}
+
 // Derive a stable artist key that works even when no API artist ID is available.
 // Songs from the JioSaavn autocomplete fallback only have a name string.
 function _artistKey(song) {
@@ -2922,6 +2966,7 @@ async function loadBrowseLang(lang, label) {
       ));
     });
 
+    if (langCache.size >= 8) langCache.delete(langCache.keys().next().value); // evict oldest
     langCache.set(lang, { albumsHTML: albumsEl.innerHTML, playlistsHTML: playlistEl.innerHTML });
   } catch (err) {
     Log.warn('Browse lang failed', { lang, err: err.message });
@@ -3350,6 +3395,33 @@ function toast(msg) {
 }
 
 // ── SETTINGS TAB ──────────────────────────────────────────────────────────────
+function lsUsageKB() {
+  let bytes = 0;
+  try {
+    for (const k of Object.keys(localStorage)) {
+      bytes += (k.length + (localStorage.getItem(k) || '').length) * 2; // UTF-16
+    }
+  } catch {}
+  return (bytes / 1024).toFixed(1);
+}
+
+function renderMemoryCard() {
+  // localStorage usage
+  const lsEl = document.getElementById('ls-usage-label');
+  if (lsEl) lsEl.textContent = lsUsageKB() + ' KB used';
+
+  // Intel stats
+  const d = intelLoad();
+  const songCount   = Object.keys(d.songs).length;
+  const artistCount = Object.keys(d.artists).length;
+  const intelEl = document.getElementById('intel-stats-label');
+  if (intelEl) intelEl.textContent = `${songCount} songs · ${artistCount} artists tracked`;
+
+  // In-memory cache stats
+  const cacheEl = document.getElementById('cache-stats-label');
+  if (cacheEl) cacheEl.textContent = `songs ${songCache.size}/300 · langs ${langCache.size}/8 · streams ${streamCache.size}/15`;
+}
+
 function renderSettings() {
   document.getElementById('cfg-version').textContent  = 'v' + APP_VERSION;
   document.getElementById('cfg-logcount').textContent = Log.all().length + ' / ' + LOG_MAX;
@@ -3359,6 +3431,7 @@ function renderSettings() {
   renderGhStatus();
   renderLogs(document.getElementById('log-filter').value);
   renderStorageMeter();
+  renderMemoryCard();
 }
 
 function renderStorageMeter() {
@@ -3379,6 +3452,25 @@ function renderStorageMeter() {
     if (fill) fill.style.width = pct + '%';
   }).catch(() => {});
 }
+
+document.getElementById('reset-intel-btn').addEventListener('click', () => {
+  try { localStorage.removeItem(INTEL_KEY); } catch {}
+  _forYouCache = null;
+  _intelPruned = false;
+  const section = document.getElementById('for-you-section');
+  if (section) section.style.display = 'none';
+  renderMemoryCard();
+  toast('Listening history reset');
+});
+
+document.getElementById('clear-cache-btn').addEventListener('click', () => {
+  songCache.clear();
+  langCache.clear();
+  streamCache.clear();
+  _forYouCache = null;
+  renderMemoryCard();
+  toast('In-memory caches cleared');
+});
 
 document.getElementById('clear-downloads-btn').addEventListener('click', async () => {
   if (!downloadedIds.size) { toast('No downloaded songs'); return; }
@@ -3513,6 +3605,7 @@ if ('serviceWorker' in navigator) {
 
 // ── INIT ────────────────────────────────────────────────────────────────────────
 Log.init();
+intelPrune(); // trim stale listening history once per session
 loadEQState();
 buildDiscover();
 
