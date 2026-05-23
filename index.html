@@ -9,7 +9,9 @@
 <meta name="theme-color" content="#000814">
 <title>MusicPlayer</title>
 <link rel="manifest" href="manifest.json">
-<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="apple-touch-icon" sizes="152x152" href="apple-touch-icon.png">
+<link rel="apple-touch-icon" sizes="120x120" href="apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -713,11 +715,16 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Poppins'
 </div>
 
 <div id="toast"></div>
-<audio id="audio" preload="none" crossorigin="anonymous"></audio>
-<audio id="audio-preload" preload="none" crossorigin="anonymous" style="display:none"></audio>
+<audio id="audio" preload="none" crossorigin="anonymous" playsinline webkit-playsinline x-webkit-airplay="allow"></audio>
+<audio id="audio-preload" preload="none" crossorigin="anonymous" playsinline webkit-playsinline x-webkit-airplay="allow" style="display:none"></audio>
 
 <script>
 'use strict';
+
+// Polyfill for iOS < 15.4 which lacks AbortSignal.timeout()
+if (!AbortSignal.timeout) {
+  AbortSignal.timeout = ms => { const c = new AbortController(); setTimeout(() => c.abort(new DOMException('TimeoutError', 'TimeoutError')), ms); return c.signal; };
+}
 
 // ── ACCESS GATE ────────────────────────────────────────────────────────────────
 // SHA-256 of the passcode. To change passcode:
@@ -1121,6 +1128,22 @@ audio.addEventListener('webkitcurrentplaybacktargetiswirelesschanged', () => {
   }
 });
 
+// iOS phone-call / Siri interruption recovery.
+// When the OS resumes the audio session after a call, AudioContext transitions
+// interrupted → suspended. Resume it so EQ keeps working without user action.
+function _onEQCtxStateChange() {
+  if (!eqCtx || isAirPlayActive()) return;
+  if (eqCtx.state === 'suspended') eqCtx.resume().catch(() => {});
+}
+
+// Resume AudioContext when user switches back to the app from the home screen
+// or another app — iOS suspends the context on backgrounding.
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && eqCtx?.state === 'suspended' && !isAirPlayActive()) {
+    eqCtx.resume().catch(() => {});
+  }
+});
+
 function initEQ() {
   if (isAirPlayActive()) { toast('EQ is not available during AirPlay'); return; }
   if (eqFilters.length > 0) {
@@ -1128,7 +1151,10 @@ function initEQ() {
     return;
   }
   if (!eqCtx) {
-    try { eqCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+    try {
+      eqCtx = new (window.AudioContext || window.webkitAudioContext)();
+      eqCtx.addEventListener('statechange', _onEQCtxStateChange);
+    }
     catch (e) { return; }
   }
   // Wire immediately if already running (e.g. reopening panel)
