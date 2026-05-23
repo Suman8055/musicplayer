@@ -659,6 +659,10 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Poppins'
         <span>Loudness</span>
         <button class="comp-toggle" id="eq-loud-btn" aria-checked="false" role="switch"><div class="comp-thumb"></div></button>
       </div>
+      <div class="eq-comp-row">
+        <span>Stereo Width</span>
+        <button class="comp-toggle" id="eq-wide-btn" aria-checked="false" role="switch"><div class="comp-thumb"></div></button>
+      </div>
       <div class="eq-extra-row">
         <span>Preamp</span>
         <input type="range" id="eq-preamp-sl" class="eq-extra-slider" min="-12" max="6" value="0" step="0.5">
@@ -761,7 +765,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '2.0.0';
+const APP_VERSION = '2.1.0';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -957,8 +961,10 @@ const EQ_PRESETS = {
 };
 let eqCtx = null, eqFilters = [], eqCompressor = null, eqLoudnessNodes = [];
 let eqPreampNode = null, eqBassNode = null, eqAnalyser = null;
+let eqWidthSplitter = null, eqWidthMerger = null;
+let eqWidthLL = null, eqWidthRL = null, eqWidthLR = null, eqWidthRR = null;
 let eqGains = [0,0,0,0,0,0,0,0,0,0], eqCompOn = false, eqLoudness = false, eqPreset = 'flat';
-let eqPreamp = 0, eqBass = 0;
+let eqPreamp = 0, eqBass = 0, eqStereoWidth = false;
 let _eqWiring = false, _eqRafId = null;
 let eqCustomPresets = [];
 let eqUseProxy = false; // true after CORS taint detected — routes audio via corsproxy.io for EQ
@@ -973,13 +979,25 @@ function _wireEQGraph() {
   const refTime    = audio.currentTime;
   try {
     const src = eqCtx.createMediaElementSource(audio);
+    // Stereo Width: mid-side matrix using ChannelSplitter + 4 GainNodes + ChannelMerger
+    // k=1: bypass (pass-through); k=1.5: 50% wider stereo image
+    // New L = ((1+k)/2)*L + ((1-k)/2)*R,  New R = ((1-k)/2)*L + ((1+k)/2)*R
+    eqWidthSplitter = eqCtx.createChannelSplitter(2);
+    eqWidthMerger   = eqCtx.createChannelMerger(2);
+    eqWidthLL = eqCtx.createGain(); eqWidthRL = eqCtx.createGain();
+    eqWidthLR = eqCtx.createGain(); eqWidthRR = eqCtx.createGain();
+    eqWidthSplitter.connect(eqWidthLL, 0); eqWidthSplitter.connect(eqWidthRL, 1);
+    eqWidthSplitter.connect(eqWidthLR, 0); eqWidthSplitter.connect(eqWidthRR, 1);
+    eqWidthLL.connect(eqWidthMerger, 0, 0); eqWidthRL.connect(eqWidthMerger, 0, 0);
+    eqWidthLR.connect(eqWidthMerger, 0, 1); eqWidthRR.connect(eqWidthMerger, 0, 1);
     // Preamp: user-controlled gain (dB) before the EQ chain
     eqPreampNode = eqCtx.createGain();
     eqPreampNode.gain.value = Math.pow(10, eqPreamp / 20);
     // Headroom: -1.5dB safety margin so EQ boosts don't clip
     const headroom = eqCtx.createGain();
     headroom.gain.value = 0.85;
-    src.connect(eqPreampNode);
+    src.connect(eqWidthSplitter);
+    eqWidthMerger.connect(eqPreampNode);
     eqPreampNode.connect(headroom);
     // Bass booster (separate lowshelf, stacks on top of EQ bands)
     eqBassNode = eqCtx.createBiquadFilter();
@@ -1030,7 +1048,10 @@ function _wireEQGraph() {
           stopSpectrum();
           try { eqCtx.close(); } catch {}
           eqCtx = null; eqFilters = []; eqCompressor = null; eqLoudnessNodes = [];
-          eqPreampNode = null; eqBassNode = null; eqAnalyser = null; _eqWiring = false;
+          eqPreampNode = null; eqBassNode = null; eqAnalyser = null;
+          eqWidthSplitter = null; eqWidthMerger = null;
+          eqWidthLL = null; eqWidthRL = null; eqWidthLR = null; eqWidthRR = null;
+          _eqWiring = false;
           const hx = document.getElementById('eq-status');
           if (hx) hx.textContent = '';
           audio.play().catch(() => {});
@@ -1040,6 +1061,8 @@ function _wireEQGraph() {
     }
   } catch (e) {
     eqFilters = []; eqLoudnessNodes = []; eqPreampNode = null; eqBassNode = null; eqAnalyser = null;
+    eqWidthSplitter = null; eqWidthMerger = null;
+    eqWidthLL = null; eqWidthRL = null; eqWidthLR = null; eqWidthRR = null;
     Log.warn('EQ wire failed', { err: e.message, name: e.name });
     if (!eqUseProxy && rawStreamUrl && (e.name === 'NotSupportedError' || e.name === 'InvalidStateError')) {
       // CORS-tainted stream — reload via proxy and retry EQ
@@ -1088,6 +1111,8 @@ audio.addEventListener('webkitcurrentplaybacktargetiswirelesschanged', () => {
     try { eqCtx?.close(); } catch {}
     eqCtx = null; eqFilters = []; eqCompressor = null; eqLoudnessNodes = [];
     eqPreampNode = null; eqBassNode = null; eqAnalyser = null;
+    eqWidthSplitter = null; eqWidthMerger = null;
+    eqWidthLL = null; eqWidthRL = null; eqWidthLR = null; eqWidthRR = null;
     const h = document.getElementById('eq-status');
     if (h) h.textContent = '';
     closeEQPanel();
@@ -1123,6 +1148,12 @@ function applyEQ() {
   }
   if (eqPreampNode) eqPreampNode.gain.value = Math.pow(10, eqPreamp / 20);
   if (eqBassNode)   eqBassNode.gain.value   = eqBass;
+  if (eqWidthLL) {
+    const k = eqStereoWidth ? 1.5 : 1.0; // 1.0 = bypass, 1.5 = 50% wider
+    const a = (1 + k) / 2, b = (1 - k) / 2; // cross-mix coefficients
+    eqWidthLL.gain.value = a; eqWidthRR.gain.value = a;
+    eqWidthRL.gain.value = b; eqWidthLR.gain.value = b;
+  }
   // Bypass compressor via ratio=1 — no graph changes, no silence
   eqCompressor.ratio.value     = eqCompOn ? 5  : 1;
   eqCompressor.threshold.value = eqCompOn ? -24 : 0;
@@ -1130,7 +1161,7 @@ function applyEQ() {
 }
 
 function saveEQState() {
-  localStorage.setItem('mbx_eq', JSON.stringify({ v:2, preset: eqPreset, gains: eqGains, comp: eqCompOn, loud: eqLoudness, preamp: eqPreamp, bass: eqBass }));
+  localStorage.setItem('mbx_eq', JSON.stringify({ v:2, preset: eqPreset, gains: eqGains, comp: eqCompOn, loud: eqLoudness, preamp: eqPreamp, bass: eqBass, wide: eqStereoWidth }));
   localStorage.setItem('mbx_eq_custom', JSON.stringify(eqCustomPresets));
 }
 
@@ -1152,6 +1183,10 @@ function syncEQUI() {
   if (psl) { psl.value = eqPreamp; document.getElementById('eq-preamp-val').textContent = (eqPreamp > 0 ? '+' : '') + eqPreamp + ' dB'; }
   const bsl = document.getElementById('eq-bass-sl');
   if (bsl) { bsl.value = eqBass; document.getElementById('eq-bass-val').textContent = '+' + eqBass + ' dB'; }
+  const wideBtn = document.getElementById('eq-wide-btn');
+  if (wideBtn) { wideBtn.classList.toggle('on', eqStereoWidth); wideBtn.setAttribute('aria-checked', String(eqStereoWidth)); }
+  // Redraw static curve if spectrum animation is not running
+  if (!_eqRafId && eqPanel && eqPanel.classList.contains('open')) stopSpectrum();
 }
 
 function setEQPreset(name) {
@@ -1177,8 +1212,9 @@ function loadEQState() {
     eqCompOn   = !!s.comp;
     eqLoudness = !!s.loud;
     eqPreset   = s.preset || 'flat';
-    eqPreamp   = typeof s.preamp === 'number' ? s.preamp : 0;
-    eqBass     = typeof s.bass   === 'number' ? s.bass   : 0;
+    eqPreamp       = typeof s.preamp === 'number' ? s.preamp : 0;
+    eqBass         = typeof s.bass   === 'number' ? s.bass   : 0;
+    eqStereoWidth  = !!s.wide;
   } catch {}
   try {
     const c = JSON.parse(localStorage.getItem('mbx_eq_custom') || '[]');
@@ -1189,31 +1225,69 @@ function loadEQState() {
 }
 
 // ── SPECTRUM ANALYSER ANIMATION ────────────────────────────────────────────────
+// Draws the theoretical EQ response curve (logarithmic x-axis, ±12dB y-axis)
+function _drawEQCurve(ctx2, W, H) {
+  const logMin = Math.log10(20), logMax = Math.log10(20000);
+  const midY = H / 2, gainScale = midY / 12;
+  // 0 dB reference line
+  ctx2.save();
+  ctx2.strokeStyle = 'rgba(255,255,255,0.15)';
+  ctx2.lineWidth = 1;
+  ctx2.setLineDash([3, 5]);
+  ctx2.beginPath(); ctx2.moveTo(0, midY); ctx2.lineTo(W, midY); ctx2.stroke();
+  ctx2.setLineDash([]);
+  // EQ gain curve through 10 band points (log-spaced x)
+  ctx2.strokeStyle = 'rgba(0,230,230,0.9)';
+  ctx2.lineWidth = 2;
+  ctx2.lineJoin = 'round';
+  ctx2.beginPath();
+  EQ_BANDS.forEach((freq, i) => {
+    const x = (Math.log10(freq) - logMin) / (logMax - logMin) * W;
+    const y = midY - Math.max(-12, Math.min(12, eqGains[i])) * gainScale;
+    i === 0 ? ctx2.moveTo(x, y) : ctx2.lineTo(x, y);
+  });
+  ctx2.stroke();
+  // Dot at each band centre
+  EQ_BANDS.forEach((freq, i) => {
+    const x = (Math.log10(freq) - logMin) / (logMax - logMin) * W;
+    const y = midY - Math.max(-12, Math.min(12, eqGains[i])) * gainScale;
+    ctx2.beginPath();
+    ctx2.fillStyle = 'rgba(0,230,230,0.95)';
+    ctx2.arc(x, y, 3, 0, Math.PI * 2);
+    ctx2.fill();
+  });
+  ctx2.restore();
+}
+
 function _drawSpectrum() {
   const canvas = document.getElementById('eq-canvas');
-  if (!canvas || !eqAnalyser || !eqCtx) { _eqRafId = null; return; }
+  if (!canvas || !eqCtx) { _eqRafId = null; return; }
   if (!eqPanel || !eqPanel.classList.contains('open')) { _eqRafId = null; return; }
   const ctx2 = canvas.getContext('2d');
   const W = canvas.offsetWidth || 320;
   const H = canvas.offsetHeight || 52;
   if (canvas.width !== W) canvas.width = W;
-  const data = new Uint8Array(eqAnalyser.frequencyBinCount);
-  eqAnalyser.getByteFrequencyData(data);
-  const sr = eqCtx.sampleRate;
-  const binCount = eqAnalyser.frequencyBinCount;
   ctx2.clearRect(0, 0, W, H);
-  const bw = W / EQ_BANDS.length;
-  EQ_BANDS.forEach((freq, i) => {
-    const binIdx = Math.min(Math.round(freq * binCount / (sr / 2)), binCount - 1);
-    const val = data[binIdx] / 255;
-    const bh = Math.max(2, val * H);
-    const x = i * bw + 2;
-    const grd = ctx2.createLinearGradient(0, H - bh, 0, H);
-    grd.addColorStop(0, 'rgba(0,230,230,0.85)');
-    grd.addColorStop(1, 'rgba(0,120,120,0.35)');
-    ctx2.fillStyle = grd;
-    ctx2.fillRect(x, H - bh, bw - 4, bh);
-  });
+  // Spectrum bars (only when analyser is live)
+  if (eqAnalyser) {
+    const data = new Uint8Array(eqAnalyser.frequencyBinCount);
+    eqAnalyser.getByteFrequencyData(data);
+    const sr = eqCtx.sampleRate, binCount = eqAnalyser.frequencyBinCount;
+    const bw = W / EQ_BANDS.length;
+    EQ_BANDS.forEach((freq, i) => {
+      const binIdx = Math.min(Math.round(freq * binCount / (sr / 2)), binCount - 1);
+      const val = data[binIdx] / 255;
+      const bh = Math.max(2, val * H);
+      const x = i * bw + 2;
+      const grd = ctx2.createLinearGradient(0, H - bh, 0, H);
+      grd.addColorStop(0, 'rgba(0,230,230,0.55)');
+      grd.addColorStop(1, 'rgba(0,120,120,0.20)');
+      ctx2.fillStyle = grd;
+      ctx2.fillRect(x, H - bh, bw - 4, bh);
+    });
+  }
+  // EQ response curve always on top
+  _drawEQCurve(ctx2, W, H);
   _eqRafId = requestAnimationFrame(_drawSpectrum);
 }
 
@@ -1224,8 +1298,14 @@ function startSpectrum() {
 
 function stopSpectrum() {
   if (_eqRafId) { cancelAnimationFrame(_eqRafId); _eqRafId = null; }
+  // Draw static curve so panel still shows EQ shape when audio is not playing
   const canvas = document.getElementById('eq-canvas');
-  if (canvas) { const c = canvas.getContext('2d'); c.clearRect(0, 0, canvas.width, canvas.height); }
+  if (!canvas) return;
+  const ctx2 = canvas.getContext('2d');
+  const W = canvas.offsetWidth || 320, H = canvas.offsetHeight || 52;
+  if (canvas.width !== W) canvas.width = W;
+  ctx2.clearRect(0, 0, W, H);
+  _drawEQCurve(ctx2, W, H);
 }
 
 // ── CUSTOM PRESETS ─────────────────────────────────────────────────────────────
@@ -1962,6 +2042,15 @@ document.getElementById('eq-loud-btn').addEventListener('click', function () {
   eqLoudness = !eqLoudness;
   this.classList.toggle('on', eqLoudness);
   this.setAttribute('aria-checked', String(eqLoudness));
+  applyEQ();
+  saveEQState();
+});
+
+document.getElementById('eq-wide-btn').addEventListener('click', function () {
+  initEQ();
+  eqStereoWidth = !eqStereoWidth;
+  this.classList.toggle('on', eqStereoWidth);
+  this.setAttribute('aria-checked', String(eqStereoWidth));
   applyEQ();
   saveEQState();
 });
