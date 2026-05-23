@@ -164,18 +164,29 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Poppins'
 
 /* ── EQ Panel — in-flow flex child, expands above footer, fits any device ── */
 #eq-panel{overflow:hidden;max-height:0;padding:0 20px;background:var(--bg2);border-radius:20px 20px 0 0;flex-shrink:0;transition:max-height .35s cubic-bezier(.32,1,.6,1),padding .28s ease}
-#eq-panel.open{max-height:45vh;padding:14px 20px 16px;overflow-y:auto}
+#eq-panel.open{max-height:70vh;padding:14px 20px 16px;overflow-y:auto}
 #eq-panel h3{text-align:center;font-size:13px;font-weight:600;color:var(--fg2);margin:0 0 12px;letter-spacing:.5px;text-transform:uppercase}
-.eq-presets{display:flex;gap:7px;flex-wrap:wrap;justify-content:center;margin-bottom:14px}
-.eq-preset{background:var(--bg3);border:none;color:var(--fg2);font-size:12px;font-weight:600;padding:5px 13px;border-radius:20px;cursor:pointer;font-family:inherit;transition:background .15s,color .15s}
+.eq-presets{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-bottom:12px}
+.eq-preset{background:var(--bg3);border:none;color:var(--fg2);font-size:11px;font-weight:600;padding:5px 11px;border-radius:20px;cursor:pointer;font-family:inherit;transition:background .15s,color .15s}
 .eq-preset.active{background:var(--red);color:#fff}
-.eq-bands{display:flex;justify-content:space-between;align-items:flex-end;gap:4px;margin-bottom:12px}
-.eq-band{display:flex;flex-direction:column;align-items:center;gap:6px;flex:1}
-.eq-band label{font-size:10px;color:var(--fg3);text-align:center;white-space:nowrap}
-.eq-band input[type=range]{writing-mode:vertical-lr;direction:rtl;-webkit-appearance:slider-vertical;width:28px;height:88px;cursor:pointer;accent-color:var(--red)}
-.eq-gain-val{font-size:10px;color:var(--fg2);font-variant-numeric:tabular-nums;min-width:28px;text-align:center}
+#eq-canvas{width:100%;height:52px;border-radius:8px;margin-bottom:10px;background:rgba(0,0,0,.3);display:block}
+.eq-bands{display:flex;justify-content:space-between;align-items:flex-end;gap:2px;margin-bottom:10px}
+.eq-band{display:flex;flex-direction:column;align-items:center;gap:4px;flex:1}
+.eq-band label{font-size:9px;color:var(--fg3);text-align:center;white-space:nowrap}
+.eq-band input[type=range]{writing-mode:vertical-lr;direction:rtl;-webkit-appearance:slider-vertical;width:22px;height:72px;cursor:pointer;accent-color:var(--red)}
+.eq-gain-val{font-size:9px;color:var(--fg2);font-variant-numeric:tabular-nums;min-width:22px;text-align:center}
 .eq-comp-row{display:flex;align-items:center;justify-content:space-between;padding:10px 4px 0;border-top:1px solid rgba(255,255,255,.07);margin-top:2px}
 .eq-comp-row span{font-size:13px;color:var(--fg2)}
+.eq-extra-row{display:flex;align-items:center;justify-content:space-between;padding:10px 4px 0;border-top:1px solid rgba(255,255,255,.07);margin-top:2px;gap:10px}
+.eq-extra-row span{font-size:13px;color:var(--fg2);flex-shrink:0;min-width:76px}
+.eq-extra-slider{flex:1;height:4px;accent-color:var(--red);cursor:pointer;min-width:0}
+.eq-extra-val{font-size:11px;color:var(--fg3);font-variant-numeric:tabular-nums;min-width:36px;text-align:right;flex-shrink:0}
+.eq-custom-row{display:flex;align-items:center;justify-content:space-between;padding:10px 4px 6px;border-top:1px solid rgba(255,255,255,.07);margin-top:2px}
+.eq-custom-row span{font-size:13px;color:var(--fg2)}
+#eq-save-btn{background:var(--bg3);border:none;color:var(--fg2);font-size:11px;font-weight:600;padding:5px 12px;border-radius:14px;cursor:pointer;font-family:inherit;transition:background .15s,color .15s}
+#eq-save-btn:active{background:var(--red);color:#fff}
+.eq-preset.custom-preset{position:relative}
+.eq-del{display:inline-block;margin-left:4px;font-size:9px;opacity:.6;vertical-align:middle;cursor:pointer;line-height:1}
 /* Tap-friendly toggle button — no hidden checkbox */
 .comp-toggle{position:relative;width:44px;height:26px;flex-shrink:0;background:rgba(255,255,255,.2);border:none;border-radius:13px;cursor:pointer;transition:background .2s;-webkit-tap-highlight-color:transparent;padding:0}
 .comp-toggle.on{background:var(--red)}
@@ -613,20 +624,32 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Poppins'
     <!-- EQ Panel (expands in-flow above footer, works on any device) -->
     <div id="eq-panel">
       <h3>Equalizer <span id="eq-status" style="font-size:10px;opacity:.6"></span></h3>
-      <div class="eq-presets">
+      <div class="eq-presets" id="eq-presets-row">
         <button class="eq-preset active" data-preset="flat">Flat</button>
         <button class="eq-preset" data-preset="bass">Bass Boost</button>
         <button class="eq-preset" data-preset="vocal">Vocal</button>
         <button class="eq-preset" data-preset="rock">Rock</button>
         <button class="eq-preset" data-preset="pop">Pop</button>
         <button class="eq-preset" data-preset="classical">Classical</button>
+        <button class="eq-preset" data-preset="jazz">Jazz</button>
+        <button class="eq-preset" data-preset="electronic">Electronic</button>
+        <button class="eq-preset" data-preset="hiphop">Hip-Hop</button>
+        <button class="eq-preset" data-preset="acoustic">Acoustic</button>
+        <button class="eq-preset" data-preset="metal">Metal</button>
+        <button class="eq-preset" data-preset="spoken">Spoken</button>
       </div>
+      <canvas id="eq-canvas" width="320" height="52" aria-hidden="true"></canvas>
       <div class="eq-bands">
-        <div class="eq-band"><input type="range" class="eq-slider" min="-12" max="12" value="0" step="0.5" data-band="0"><div class="eq-gain-val">0</div><label>60Hz</label></div>
-        <div class="eq-band"><input type="range" class="eq-slider" min="-12" max="12" value="0" step="0.5" data-band="1"><div class="eq-gain-val">0</div><label>250Hz</label></div>
-        <div class="eq-band"><input type="range" class="eq-slider" min="-12" max="12" value="0" step="0.5" data-band="2"><div class="eq-gain-val">0</div><label>1kHz</label></div>
-        <div class="eq-band"><input type="range" class="eq-slider" min="-12" max="12" value="0" step="0.5" data-band="3"><div class="eq-gain-val">0</div><label>4kHz</label></div>
-        <div class="eq-band"><input type="range" class="eq-slider" min="-12" max="12" value="0" step="0.5" data-band="4"><div class="eq-gain-val">0</div><label>12kHz</label></div>
+        <div class="eq-band"><input type="range" class="eq-slider" min="-12" max="12" value="0" step="0.5" data-band="0"><div class="eq-gain-val">0</div><label>31Hz</label></div>
+        <div class="eq-band"><input type="range" class="eq-slider" min="-12" max="12" value="0" step="0.5" data-band="1"><div class="eq-gain-val">0</div><label>62Hz</label></div>
+        <div class="eq-band"><input type="range" class="eq-slider" min="-12" max="12" value="0" step="0.5" data-band="2"><div class="eq-gain-val">0</div><label>125Hz</label></div>
+        <div class="eq-band"><input type="range" class="eq-slider" min="-12" max="12" value="0" step="0.5" data-band="3"><div class="eq-gain-val">0</div><label>250Hz</label></div>
+        <div class="eq-band"><input type="range" class="eq-slider" min="-12" max="12" value="0" step="0.5" data-band="4"><div class="eq-gain-val">0</div><label>500Hz</label></div>
+        <div class="eq-band"><input type="range" class="eq-slider" min="-12" max="12" value="0" step="0.5" data-band="5"><div class="eq-gain-val">0</div><label>1kHz</label></div>
+        <div class="eq-band"><input type="range" class="eq-slider" min="-12" max="12" value="0" step="0.5" data-band="6"><div class="eq-gain-val">0</div><label>2kHz</label></div>
+        <div class="eq-band"><input type="range" class="eq-slider" min="-12" max="12" value="0" step="0.5" data-band="7"><div class="eq-gain-val">0</div><label>4kHz</label></div>
+        <div class="eq-band"><input type="range" class="eq-slider" min="-12" max="12" value="0" step="0.5" data-band="8"><div class="eq-gain-val">0</div><label>8kHz</label></div>
+        <div class="eq-band"><input type="range" class="eq-slider" min="-12" max="12" value="0" step="0.5" data-band="9"><div class="eq-gain-val">0</div><label>16kHz</label></div>
       </div>
       <div class="eq-comp-row">
         <span>Dynamic Compressor</span>
@@ -635,6 +658,20 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Poppins'
       <div class="eq-comp-row">
         <span>Loudness</span>
         <button class="comp-toggle" id="eq-loud-btn" aria-checked="false" role="switch"><div class="comp-thumb"></div></button>
+      </div>
+      <div class="eq-extra-row">
+        <span>Preamp</span>
+        <input type="range" id="eq-preamp-sl" class="eq-extra-slider" min="-12" max="6" value="0" step="0.5">
+        <div class="eq-extra-val" id="eq-preamp-val">0 dB</div>
+      </div>
+      <div class="eq-extra-row">
+        <span>Bass Boost</span>
+        <input type="range" id="eq-bass-sl" class="eq-extra-slider" min="0" max="12" value="0" step="0.5">
+        <div class="eq-extra-val" id="eq-bass-val">+0 dB</div>
+      </div>
+      <div class="eq-custom-row">
+        <span>Custom Presets</span>
+        <button id="eq-save-btn">Save Current</button>
       </div>
     </div>
     <div id="np-footer">
@@ -724,7 +761,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '1.9.0';
+const APP_VERSION = '2.0.0';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -903,18 +940,27 @@ const audio        = document.getElementById('audio');
 const audioPreload = document.getElementById('audio-preload');
 
 // ── WEB AUDIO EQ ───────────────────────────────────────────────────────────────
-const EQ_BANDS  = [60, 250, 1000, 4000, 12000]; // Hz
+const EQ_BANDS = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000]; // Hz — 10-band ISO
 const EQ_PRESETS = {
-  flat:      [0,  0,  0,  0,  0],
-  bass:      [7,  5,  1, -1,  1],
-  vocal:     [-2,-2,  5,  5,  2],
-  rock:      [5,  3, -1,  3,  5],
-  pop:       [2,  4,  5,  3,  1],
-  classical: [4,  2, -2,  2,  5],
+  flat:       [0,  0,  0,  0,  0,  0,  0,  0,  0,  0],
+  bass:       [6,  8,  5,  2,  0, -1, -1,  0,  1,  1],
+  vocal:      [-2,-2, -1, -1,  2,  5,  5,  4,  2,  1],
+  rock:       [5,  5,  3,  1, -1, -1,  1,  4,  5,  5],
+  pop:        [1,  2,  3,  4,  4,  3,  2,  2,  2,  2],
+  classical:  [4,  3,  2,  1, -1, -2, -1,  2,  4,  5],
+  jazz:       [3,  3,  1,  2,  2,  3,  2,  1, -1, -1],
+  electronic: [7,  6,  2, -1, -1,  1,  2,  3,  4,  5],
+  hiphop:     [8,  7,  4,  1, -1,  1,  2,  0, -1, -1],
+  acoustic:   [2,  2,  1,  0, -1,  2,  3,  3,  3,  2],
+  metal:      [6,  4,  1, -1, -3, -3,  0,  4,  5,  5],
+  spoken:     [-2,-2, -1,  1,  4,  6,  5,  3,  1, -1],
 };
 let eqCtx = null, eqFilters = [], eqCompressor = null, eqLoudnessNodes = [];
-let eqGains = [0, 0, 0, 0, 0], eqCompOn = false, eqLoudness = false, eqPreset = 'flat';
-let _eqWiring = false;
+let eqPreampNode = null, eqBassNode = null, eqAnalyser = null;
+let eqGains = [0,0,0,0,0,0,0,0,0,0], eqCompOn = false, eqLoudness = false, eqPreset = 'flat';
+let eqPreamp = 0, eqBass = 0;
+let _eqWiring = false, _eqRafId = null;
+let eqCustomPresets = [];
 let eqUseProxy = false; // true after CORS taint detected — routes audio via corsproxy.io for EQ
 let rawStreamUrl = '';  // original CDN URL before any proxy wrapping
 
@@ -926,20 +972,31 @@ function _wireEQGraph() {
   const wasPlaying = !audio.paused;
   const refTime    = audio.currentTime;
   try {
-    const src      = eqCtx.createMediaElementSource(audio);
-    // Headroom node: reduce input by ~1.5dB so EQ boosts don't clip at destination
+    const src = eqCtx.createMediaElementSource(audio);
+    // Preamp: user-controlled gain (dB) before the EQ chain
+    eqPreampNode = eqCtx.createGain();
+    eqPreampNode.gain.value = Math.pow(10, eqPreamp / 20);
+    // Headroom: -1.5dB safety margin so EQ boosts don't clip
     const headroom = eqCtx.createGain();
     headroom.gain.value = 0.85;
-    src.connect(headroom);
+    src.connect(eqPreampNode);
+    eqPreampNode.connect(headroom);
+    // Bass booster (separate lowshelf, stacks on top of EQ bands)
+    eqBassNode = eqCtx.createBiquadFilter();
+    eqBassNode.type = 'lowshelf';
+    eqBassNode.frequency.value = 80;
+    eqBassNode.gain.value = eqBass;
+    headroom.connect(eqBassNode);
     // Loudness compensation nodes (always in chain; gain=0 when off)
     const lLow = eqCtx.createBiquadFilter();
     lLow.type = 'lowshelf'; lLow.frequency.value = 80;
     const lHigh = eqCtx.createBiquadFilter();
     lHigh.type = 'highshelf'; lHigh.frequency.value = 10000;
     eqLoudnessNodes = [lLow, lHigh];
+    // 10-band EQ filters
     eqFilters = EQ_BANDS.map((freq, i) => {
       const f = eqCtx.createBiquadFilter();
-      f.type = i === 0 ? 'lowshelf' : i === 4 ? 'highshelf' : 'peaking';
+      f.type = i === 0 ? 'lowshelf' : i === EQ_BANDS.length - 1 ? 'highshelf' : 'peaking';
       f.frequency.value = freq;
       f.gain.value = eqGains[i];
       return f;
@@ -947,34 +1004,33 @@ function _wireEQGraph() {
     eqCompressor = eqCtx.createDynamicsCompressor();
     eqCompressor.attack.value = 0.003;
     eqCompressor.release.value = 0.25;
-    let node = headroom;
+    // Spectrum analyser (module-level so animation loop can read it)
+    eqAnalyser = eqCtx.createAnalyser();
+    eqAnalyser.fftSize = 2048;
+    let node = eqBassNode;
     eqLoudnessNodes.forEach(f => { node.connect(f); node = f; });
     eqFilters.forEach(f => { node.connect(f); node = f; });
     node.connect(eqCompressor);
-    eqCompressor.connect(eqCtx.destination);
+    eqCompressor.connect(eqAnalyser);
+    eqAnalyser.connect(eqCtx.destination);
     applyEQ();
-    Log.info('EQ wired', { state: eqCtx.state });
-    // Show "LIVE" dot in panel header
+    Log.info('EQ wired', { state: eqCtx.state, bands: EQ_BANDS.length });
     const h = document.getElementById('eq-status');
     if (h) { h.textContent = '●'; h.style.color = 'var(--red)'; }
-    // Safety net: AnalyserNode checks for actual zero-signal output after 600ms.
-    // crossOrigin="anonymous" on <audio> prevents this in normal operation, but keeps
-    // us protected against edge cases (e.g. CDN returns audio without CORS headers).
-    const analyser = eqCtx.createAnalyser();
-    analyser.fftSize = 256;
-    eqCompressor.connect(analyser);
+    // Start spectrum animation if panel is already open
+    if (eqPanel && eqPanel.classList.contains('open')) startSpectrum();
+    // Safety net: check for zero-signal output after 600ms (CORS-taint guard)
     if (wasPlaying) {
       setTimeout(() => {
-        if (!eqCtx || eqCtx.state !== 'running' || audio.paused) return;
-        const data = new Uint8Array(analyser.frequencyBinCount);
-        analyser.getByteFrequencyData(data);
-        // Only trigger if audio is actively playing but Web Audio output is silent.
-        // (All-zero bins in a real audio environment = EQ graph muted the output.)
+        if (!eqCtx || eqCtx.state !== 'running' || audio.paused || !eqAnalyser) return;
+        const data = new Uint8Array(eqAnalyser.frequencyBinCount);
+        eqAnalyser.getByteFrequencyData(data);
         if (!data.some(v => v > 0) && !audio.paused && audio.currentTime > 0) {
-          // Release EQ context so audio reverts to default output, then resume.
           Log.warn('EQ silent output — releasing EQ, restoring audio');
+          stopSpectrum();
           try { eqCtx.close(); } catch {}
-          eqCtx = null; eqFilters = []; eqCompressor = null; eqLoudnessNodes = []; _eqWiring = false;
+          eqCtx = null; eqFilters = []; eqCompressor = null; eqLoudnessNodes = [];
+          eqPreampNode = null; eqBassNode = null; eqAnalyser = null; _eqWiring = false;
           const hx = document.getElementById('eq-status');
           if (hx) hx.textContent = '';
           audio.play().catch(() => {});
@@ -983,7 +1039,7 @@ function _wireEQGraph() {
       }, 600);
     }
   } catch (e) {
-    eqFilters = []; eqLoudnessNodes = [];
+    eqFilters = []; eqLoudnessNodes = []; eqPreampNode = null; eqBassNode = null; eqAnalyser = null;
     Log.warn('EQ wire failed', { err: e.message, name: e.name });
     if (!eqUseProxy && rawStreamUrl && (e.name === 'NotSupportedError' || e.name === 'InvalidStateError')) {
       // CORS-tainted stream — reload via proxy and retry EQ
@@ -1028,8 +1084,10 @@ function isAirPlayActive() {
 audio.addEventListener('webkitcurrentplaybacktargetiswirelesschanged', () => {
   if (isAirPlayActive() && eqFilters.length > 0) {
     // AirPlay just turned on — release EQ so audio routes through OS to AirPlay
+    stopSpectrum();
     try { eqCtx?.close(); } catch {}
     eqCtx = null; eqFilters = []; eqCompressor = null; eqLoudnessNodes = [];
+    eqPreampNode = null; eqBassNode = null; eqAnalyser = null;
     const h = document.getElementById('eq-status');
     if (h) h.textContent = '';
     closeEQPanel();
@@ -1060,9 +1118,11 @@ function applyEQ() {
   if (!eqCtx || !eqCompressor) return;
   eqFilters.forEach((f, i) => { f.gain.value = eqGains[i]; });
   if (eqLoudnessNodes.length === 2) {
-    eqLoudnessNodes[0].gain.value = eqLoudness ? 5  : 0;  // 80Hz lowshelf
-    eqLoudnessNodes[1].gain.value = eqLoudness ? 3  : 0;  // 10kHz highshelf
+    eqLoudnessNodes[0].gain.value = eqLoudness ? 5 : 0;
+    eqLoudnessNodes[1].gain.value = eqLoudness ? 3 : 0;
   }
+  if (eqPreampNode) eqPreampNode.gain.value = Math.pow(10, eqPreamp / 20);
+  if (eqBassNode)   eqBassNode.gain.value   = eqBass;
   // Bypass compressor via ratio=1 — no graph changes, no silence
   eqCompressor.ratio.value     = eqCompOn ? 5  : 1;
   eqCompressor.threshold.value = eqCompOn ? -24 : 0;
@@ -1070,7 +1130,8 @@ function applyEQ() {
 }
 
 function saveEQState() {
-  localStorage.setItem('mbx_eq', JSON.stringify({ preset: eqPreset, gains: eqGains, comp: eqCompOn, loud: eqLoudness }));
+  localStorage.setItem('mbx_eq', JSON.stringify({ v:2, preset: eqPreset, gains: eqGains, comp: eqCompOn, loud: eqLoudness, preamp: eqPreamp, bass: eqBass }));
+  localStorage.setItem('mbx_eq_custom', JSON.stringify(eqCustomPresets));
 }
 
 function syncEQUI() {
@@ -1087,6 +1148,10 @@ function syncEQUI() {
   const loudBtn = document.getElementById('eq-loud-btn');
   loudBtn.classList.toggle('on', eqLoudness);
   loudBtn.setAttribute('aria-checked', String(eqLoudness));
+  const psl = document.getElementById('eq-preamp-sl');
+  if (psl) { psl.value = eqPreamp; document.getElementById('eq-preamp-val').textContent = (eqPreamp > 0 ? '+' : '') + eqPreamp + ' dB'; }
+  const bsl = document.getElementById('eq-bass-sl');
+  if (bsl) { bsl.value = eqBass; document.getElementById('eq-bass-val').textContent = '+' + eqBass + ' dB'; }
 }
 
 function setEQPreset(name) {
@@ -1100,12 +1165,96 @@ function setEQPreset(name) {
 function loadEQState() {
   try {
     const s = JSON.parse(localStorage.getItem('mbx_eq') || '{}');
-    if (Array.isArray(s.gains) && s.gains.length === 5) eqGains = s.gains;
-    eqCompOn  = !!s.comp;
+    if (Array.isArray(s.gains)) {
+      if (s.gains.length === 10) {
+        eqGains = s.gains;
+      } else if (s.gains.length === 5) {
+        // Migrate v1 5-band → v2 10-band (approximate mapping)
+        const [g0,g1,g2,g3,g4] = s.gains;
+        eqGains = [g0, g0, Math.round(g0*0.5), g1, Math.round(g1*0.5), g2, Math.round(g2*0.5), g3, Math.round(g4*0.7), g4];
+      }
+    }
+    eqCompOn   = !!s.comp;
     eqLoudness = !!s.loud;
-    eqPreset  = s.preset || 'flat';
+    eqPreset   = s.preset || 'flat';
+    eqPreamp   = typeof s.preamp === 'number' ? s.preamp : 0;
+    eqBass     = typeof s.bass   === 'number' ? s.bass   : 0;
   } catch {}
+  try {
+    const c = JSON.parse(localStorage.getItem('mbx_eq_custom') || '[]');
+    if (Array.isArray(c)) eqCustomPresets = c;
+  } catch {}
+  renderCustomPresets();
   syncEQUI();
+}
+
+// ── SPECTRUM ANALYSER ANIMATION ────────────────────────────────────────────────
+function _drawSpectrum() {
+  const canvas = document.getElementById('eq-canvas');
+  if (!canvas || !eqAnalyser || !eqCtx) { _eqRafId = null; return; }
+  if (!eqPanel || !eqPanel.classList.contains('open')) { _eqRafId = null; return; }
+  const ctx2 = canvas.getContext('2d');
+  const W = canvas.offsetWidth || 320;
+  const H = canvas.offsetHeight || 52;
+  if (canvas.width !== W) canvas.width = W;
+  const data = new Uint8Array(eqAnalyser.frequencyBinCount);
+  eqAnalyser.getByteFrequencyData(data);
+  const sr = eqCtx.sampleRate;
+  const binCount = eqAnalyser.frequencyBinCount;
+  ctx2.clearRect(0, 0, W, H);
+  const bw = W / EQ_BANDS.length;
+  EQ_BANDS.forEach((freq, i) => {
+    const binIdx = Math.min(Math.round(freq * binCount / (sr / 2)), binCount - 1);
+    const val = data[binIdx] / 255;
+    const bh = Math.max(2, val * H);
+    const x = i * bw + 2;
+    const grd = ctx2.createLinearGradient(0, H - bh, 0, H);
+    grd.addColorStop(0, 'rgba(0,230,230,0.85)');
+    grd.addColorStop(1, 'rgba(0,120,120,0.35)');
+    ctx2.fillStyle = grd;
+    ctx2.fillRect(x, H - bh, bw - 4, bh);
+  });
+  _eqRafId = requestAnimationFrame(_drawSpectrum);
+}
+
+function startSpectrum() {
+  if (_eqRafId) return;
+  _eqRafId = requestAnimationFrame(_drawSpectrum);
+}
+
+function stopSpectrum() {
+  if (_eqRafId) { cancelAnimationFrame(_eqRafId); _eqRafId = null; }
+  const canvas = document.getElementById('eq-canvas');
+  if (canvas) { const c = canvas.getContext('2d'); c.clearRect(0, 0, canvas.width, canvas.height); }
+}
+
+// ── CUSTOM PRESETS ─────────────────────────────────────────────────────────────
+function renderCustomPresets() {
+  document.querySelectorAll('.eq-preset.custom-preset').forEach(b => b.remove());
+  const row = document.getElementById('eq-presets-row');
+  if (!row) return;
+  eqCustomPresets.forEach((cp, idx) => {
+    const btn = document.createElement('button');
+    btn.className = 'eq-preset custom-preset';
+    btn.dataset.preset = 'custom_' + idx;
+    const del = document.createElement('span');
+    del.className = 'eq-del';
+    del.textContent = ' ✕';
+    del.addEventListener('click', e => {
+      e.stopPropagation();
+      eqCustomPresets.splice(idx, 1);
+      saveEQState();
+      renderCustomPresets();
+    });
+    btn.textContent = cp.name;
+    btn.appendChild(del);
+    btn.addEventListener('click', () => {
+      eqPreset = 'custom_' + idx;
+      eqGains  = [...cp.gains];
+      applyEQ(); syncEQUI(); saveEQState();
+    });
+    row.appendChild(btn);
+  });
 }
 
 // ── STORAGE ────────────────────────────────────────────────────────────────────
@@ -1776,8 +1925,8 @@ document.getElementById('np-queue-btn').addEventListener('click', showQueueSheet
 const eqPanel = document.getElementById('eq-panel');
 const eqBtn   = document.getElementById('np-eq-btn');
 
-function openEQPanel()  { initEQ(); eqPanel.classList.add('open');    eqBtn.classList.add('active'); }
-function closeEQPanel() {           eqPanel.classList.remove('open'); eqBtn.classList.remove('active'); }
+function openEQPanel()  { initEQ(); eqPanel.classList.add('open');    eqBtn.classList.add('active'); startSpectrum(); }
+function closeEQPanel() { stopSpectrum(); eqPanel.classList.remove('open'); eqBtn.classList.remove('active'); }
 
 eqBtn.addEventListener('click', () =>
   eqPanel.classList.contains('open') ? closeEQPanel() : openEQPanel());
@@ -1815,6 +1964,30 @@ document.getElementById('eq-loud-btn').addEventListener('click', function () {
   this.setAttribute('aria-checked', String(eqLoudness));
   applyEQ();
   saveEQState();
+});
+
+document.getElementById('eq-preamp-sl').addEventListener('input', function () {
+  eqPreamp = +this.value;
+  document.getElementById('eq-preamp-val').textContent = (eqPreamp > 0 ? '+' : '') + eqPreamp + ' dB';
+  applyEQ();
+  saveEQState();
+});
+
+document.getElementById('eq-bass-sl').addEventListener('input', function () {
+  eqBass = +this.value;
+  document.getElementById('eq-bass-val').textContent = '+' + eqBass + ' dB';
+  applyEQ();
+  saveEQState();
+});
+
+document.getElementById('eq-save-btn').addEventListener('click', () => {
+  if (eqCustomPresets.length >= 5) { toast('Max 5 custom presets'); return; }
+  const name = prompt('Name this preset:', 'My Preset');
+  if (!name || !name.trim()) return;
+  eqCustomPresets.push({ name: name.trim().slice(0, 20), gains: [...eqGains] });
+  saveEQState();
+  renderCustomPresets();
+  toast('Preset saved');
 });
 
 // Close EQ panel when NP closes
