@@ -181,6 +181,10 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Poppins'
 .eq-band label{font-size:9px;color:var(--fg3);text-align:center;white-space:nowrap}
 .eq-band input[type=range]{writing-mode:vertical-lr;direction:rtl;-webkit-appearance:slider-vertical;width:22px;height:72px;cursor:pointer;accent-color:var(--red)}
 .eq-gain-val{font-size:9px;color:var(--fg2);font-variant-numeric:tabular-nums;min-width:22px;text-align:center}
+.eq-ai-row{display:flex;align-items:center;justify-content:space-between;padding:6px 4px 10px;border-bottom:1px solid rgba(255,255,255,.09);margin-bottom:4px}
+.eq-ai-label{display:block;font-size:13px;font-weight:600;color:var(--fg);letter-spacing:.2px}
+.eq-ai-hint{display:block;font-size:10px;color:var(--fg2);margin-top:2px;transition:color .4s}
+#eq-ai-btn.on{background:linear-gradient(90deg,var(--red),var(--red2))}
 .eq-comp-row{display:flex;align-items:center;justify-content:space-between;padding:10px 4px 0;border-top:1px solid rgba(255,255,255,.07);margin-top:2px}
 .eq-comp-row span{font-size:13px;color:var(--fg2)}
 .eq-extra-row{display:flex;align-items:center;justify-content:space-between;padding:10px 4px 0;border-top:1px solid rgba(255,255,255,.07);margin-top:2px;gap:10px}
@@ -664,6 +668,13 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Poppins'
     <!-- EQ Panel (expands in-flow above footer, works on any device) -->
     <div id="eq-panel">
       <h3>Equalizer <span id="eq-status" style="font-size:10px;opacity:.6"></span></h3>
+      <div class="eq-ai-row">
+        <div>
+          <span class="eq-ai-label">✨ AI EQ</span>
+          <span class="eq-ai-hint" id="eq-ai-hint">Adapts to each song</span>
+        </div>
+        <button class="comp-toggle" id="eq-ai-btn" aria-checked="false" role="switch"><div class="comp-thumb"></div></button>
+      </div>
       <div class="eq-presets" id="eq-presets-row">
         <button class="eq-preset active" data-preset="flat">Flat</button>
         <button class="eq-preset" data-preset="bass">Bass Boost</button>
@@ -810,7 +821,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '2.3.2';
+const APP_VERSION = '2.4.0';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -1013,6 +1024,8 @@ let eqGains = [0,0,0,0,0,0,0,0,0,0], eqCompOn = false, eqLoudness = false, eqPre
 let eqPreamp = 0, eqBass = 0, eqStereoWidth = false;
 let _eqWiring = false, _eqRafId = null;
 let eqCustomPresets = [];
+let eqAIMode = false, _aiTarget = new Array(10).fill(0), _aiTimer = null, _aiRaf = null;
+let _aiRafFrame = 0, _aiDetectedPreset = '';
 let eqUseProxy = false; // true after CORS taint detected — routes audio via corsproxy.io for EQ
 let rawStreamUrl = '';  // original CDN URL before any proxy wrapping
 
@@ -1226,7 +1239,7 @@ function applyEQ() {
 }
 
 function saveEQState() {
-  localStorage.setItem('mbx_eq', JSON.stringify({ v:2, preset: eqPreset, gains: eqGains, comp: eqCompOn, loud: eqLoudness, preamp: eqPreamp, bass: eqBass, wide: eqStereoWidth }));
+  localStorage.setItem('mbx_eq', JSON.stringify({ v:2, preset: eqPreset, gains: eqGains, comp: eqCompOn, loud: eqLoudness, preamp: eqPreamp, bass: eqBass, wide: eqStereoWidth, aiMode: eqAIMode }));
   localStorage.setItem('mbx_eq_custom', JSON.stringify(eqCustomPresets));
 }
 
@@ -1237,7 +1250,9 @@ function syncEQUI() {
       (eqGains[i] > 0 ? '+' : '') + eqGains[i];
   });
   document.querySelectorAll('.eq-preset').forEach(b =>
-    b.classList.toggle('active', b.dataset.preset === eqPreset));
+    b.classList.toggle('active', !eqAIMode && b.dataset.preset === eqPreset));
+  const aiBtn = document.getElementById('eq-ai-btn');
+  if (aiBtn) { aiBtn.classList.toggle('on', eqAIMode); aiBtn.setAttribute('aria-checked', String(eqAIMode)); }
   const compBtn = document.getElementById('eq-comp-btn');
   compBtn.classList.toggle('on', eqCompOn);
   compBtn.setAttribute('aria-checked', String(eqCompOn));
@@ -1255,9 +1270,103 @@ function syncEQUI() {
 }
 
 function setEQPreset(name) {
+  if (eqAIMode) { eqAIMode = false; stopAIEQ(); }
   eqPreset = name;
   eqGains = [...(EQ_PRESETS[name] || EQ_PRESETS.flat)];
   applyEQ();
+  syncEQUI();
+  saveEQState();
+}
+
+// ── AI EQ ─────────────────────────────────────────────────────────────────────
+function _aiAnalyse() {
+  if (!eqAIMode || !eqAnalyser || audio.paused) return;
+  const data = new Uint8Array(eqAnalyser.frequencyBinCount);
+  eqAnalyser.getByteFrequencyData(data);
+  const sr = eqCtx.sampleRate, n = eqAnalyser.frequencyBinCount;
+
+  function avgE(fLo, fHi) {
+    const lo = Math.max(1, Math.round(fLo * n / (sr / 2)));
+    const hi = Math.min(n - 1, Math.round(fHi * n / (sr / 2)));
+    let s = 0;
+    for (let i = lo; i <= hi; i++) s += data[i];
+    return hi > lo ? s / (hi - lo + 1) / 255 : 0;
+  }
+
+  const sub  = avgE(20,   80);
+  const bass = avgE(80,   300);
+  const lMid = avgE(300,  1500);
+  const hMid = avgE(1500, 6000);
+  const air  = avgE(6000, 20000);
+  const tot  = sub + bass + lMid + hMid + air || 0.001;
+
+  const rSub  = sub  / tot;
+  const rBass = bass / tot;
+  const rHigh = hMid / tot;
+  const rAir  = air  / tot;
+  const rLow  = lMid / tot;
+
+  let preset;
+  if ((rSub + rBass) > 0.52 && rSub > 0.18)        preset = 'hiphop';
+  else if ((rSub + rBass) > 0.48)                   preset = 'electronic';
+  else if (rHigh > 0.35 && rAir > 0.18)             preset = 'pop';
+  else if (rHigh > 0.32 && rAir < 0.15)             preset = 'vocal';
+  else if (rAir > 0.22 && (rSub + rBass) < 0.35)    preset = 'acoustic';
+  else if (rLow > 0.35 && (rSub + rBass) < 0.35)    preset = 'jazz';
+  else                                               preset = 'pop';
+
+  _aiTarget = [...(EQ_PRESETS[preset] || EQ_PRESETS.flat)];
+  _aiDetectedPreset = preset;
+  const hint = document.getElementById('eq-ai-hint');
+  if (hint) hint.textContent = preset.charAt(0).toUpperCase() + preset.slice(1);
+
+  if (!_aiRaf) _aiRaf = requestAnimationFrame(_aiInterpFrame);
+}
+
+function _aiInterpFrame() {
+  if (!eqAIMode) { _aiRaf = null; return; }
+  let moving = false;
+  for (let i = 0; i < 10; i++) {
+    const diff = _aiTarget[i] - eqGains[i];
+    if (Math.abs(diff) > 0.15) {
+      eqGains[i] += diff * 0.035; // 3.5% per frame → ~2s to reach target
+      moving = true;
+    } else {
+      eqGains[i] = _aiTarget[i];
+    }
+  }
+  if (moving) {
+    applyEQ();
+    if (++_aiRafFrame % 30 === 0) syncEQUI(); // update sliders ~2×/s
+  }
+  _aiRaf = moving ? requestAnimationFrame(_aiInterpFrame) : null;
+}
+
+function startAIEQ() {
+  if (!eqAIMode) return;
+  if (eqFilters.length === 0) initEQ();
+  clearInterval(_aiTimer);
+  _aiTimer = setInterval(_aiAnalyse, 3500);
+  setTimeout(_aiAnalyse, 1200); // first analysis shortly after song starts
+}
+
+function stopAIEQ() {
+  clearInterval(_aiTimer); _aiTimer = null;
+  if (_aiRaf) { cancelAnimationFrame(_aiRaf); _aiRaf = null; }
+  _aiDetectedPreset = '';
+  const hint = document.getElementById('eq-ai-hint');
+  if (hint) hint.textContent = 'Adapts to each song';
+}
+
+function toggleAIEQ() {
+  eqAIMode = !eqAIMode;
+  if (eqAIMode) {
+    startAIEQ();
+    toast('AI EQ on');
+  } else {
+    stopAIEQ();
+    toast('AI EQ off');
+  }
   syncEQUI();
   saveEQState();
 }
@@ -1280,6 +1389,7 @@ function loadEQState() {
     eqPreamp       = typeof s.preamp === 'number' ? s.preamp : 0;
     eqBass         = typeof s.bass   === 'number' ? s.bass   : 0;
     eqStereoWidth  = !!s.wide;
+    eqAIMode       = !!s.aiMode;
   } catch {}
   try {
     const c = JSON.parse(localStorage.getItem('mbx_eq_custom') || '[]');
@@ -1770,6 +1880,13 @@ async function play(song, newQueue, idx) {
   nowSong = song;
   cacheSong(song);
 
+  // Reset AI target when song changes so it re-analyses the new song's spectrum
+  if (eqAIMode && eqFilters.length > 0) {
+    _aiTarget = new Array(10).fill(0);
+    const hint = document.getElementById('eq-ai-hint');
+    if (hint) hint.textContent = 'Listening…';
+  }
+
   // Clear smart queue badge when a new song is explicitly started
   if (!smartQueueActive) refreshSmartQueueBadge();
 
@@ -2101,6 +2218,7 @@ function openEQPanel() {
   eqBtn.classList.add('active');
   document.getElementById('np').classList.add('eq-open');
   startSpectrum();
+  if (eqAIMode && !_aiTimer) startAIEQ();
   // Scroll the EQ into view after the panel finishes expanding
   setTimeout(() => eqPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 360);
 }
@@ -2114,12 +2232,16 @@ function closeEQPanel() {
 eqBtn.addEventListener('click', () =>
   eqPanel.classList.contains('open') ? closeEQPanel() : openEQPanel());
 
+document.getElementById('eq-ai-btn').addEventListener('click', () => { initEQ(); toggleAIEQ(); });
+
 document.querySelectorAll('.eq-preset').forEach(btn =>
   btn.addEventListener('click', () => { initEQ(); setEQPreset(btn.dataset.preset); }));
 
 document.querySelectorAll('.eq-slider').forEach(sl => {
   sl.addEventListener('input', () => {
     initEQ();
+    // Turn off AI if user manually adjusts a band
+    if (eqAIMode) { eqAIMode = false; stopAIEQ(); syncEQUI(); saveEQState(); }
     const i = +sl.dataset.band;
     eqGains[i] = +sl.value;
     sl.closest('.eq-band').querySelector('.eq-gain-val').textContent =
