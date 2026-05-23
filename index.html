@@ -126,7 +126,7 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Poppins'
 .tab-btn.on .tab-label{font-weight:700}
 
 /* Now Playing */
-#np{position:fixed;top:0;left:0;right:0;bottom:var(--tab-h);z-index:100;transform:translateY(100%);transition:transform .42s cubic-bezier(.32,.72,0,1);display:flex;flex-direction:column}
+#np{position:fixed;top:0;left:0;right:0;bottom:var(--tab-h);z-index:100;transform:translateY(100%);transition:transform .42s cubic-bezier(.32,.72,0,1);display:flex;flex-direction:column;overflow:hidden}
 #np.open{transform:translateY(0)}
 #np-bg{position:absolute;inset:0;background-size:cover;background-position:center;filter:blur(50px) brightness(.35) saturate(2.5);transform:scale(1.4);pointer-events:none}
 #np-inner{position:relative;flex:1;display:flex;flex-direction:column;padding-top:var(--safe-top);padding-bottom:calc(var(--safe-bot)+8px);overflow:hidden}
