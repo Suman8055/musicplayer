@@ -810,7 +810,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '2.3.1';
+const APP_VERSION = '2.3.2';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -2919,6 +2919,54 @@ function buildDiscover() {
   if (intelTotalPlays() > 0) renderForYouSection();
 }
 
+function normSigmaSong(s) {
+  const pa = Array.isArray(s.primaryArtists) ? s.primaryArtists : [];
+  return {
+    id:       s.id,
+    name:     decodeHtml(s.name || ''),
+    artist:   pa.map(a => a.name).join(', '),
+    artistId: pa[0]?.id || '',
+    language: s.language || '',
+    album:    '',
+    image:    bestImg(s.image, '150x150'),
+    duration: parseInt(s.duration || 0),
+  };
+}
+
+function renderLangItems(albumItems, playlistItems, albumsEl, playlistEl) {
+  // Build a queue from all song-type items so tapping one plays the section
+  const songQueue = albumItems
+    .filter(it => it.type === 'song')
+    .map(normSigmaSong);
+
+  albumsEl.innerHTML = '';
+  let songPos = 0;
+  albumItems.forEach(item => {
+    const artists = ((item.primaryArtists?.length ? item.primaryArtists : item.artists) || [])
+      .map(a => a.name).slice(0, 2).join(', ');
+    if (item.type === 'song') {
+      const pos = songPos++;
+      albumsEl.appendChild(createContentCard(
+        item.name, artists || '', bestImg(item.image),
+        () => play(songQueue[pos], [...songQueue], pos)
+      ));
+    } else {
+      albumsEl.appendChild(createContentCard(
+        item.name, artists || item.year || '', bestImg(item.image),
+        () => openBrowseDetail(item.id, 'album', item.name)
+      ));
+    }
+  });
+
+  playlistEl.innerHTML = '';
+  playlistItems.forEach(pl => {
+    playlistEl.appendChild(createContentCard(
+      pl.title, pl.subtitle || '', bestImg(pl.image),
+      () => openBrowseDetail(pl.id, 'playlist', pl.title)
+    ));
+  });
+}
+
 async function loadBrowseLang(lang, label) {
   const content    = document.getElementById('lang-content');
   const titleEl    = document.getElementById('lang-content-title');
@@ -2928,11 +2976,10 @@ async function loadBrowseLang(lang, label) {
   titleEl.textContent = label;
   content.style.display = 'block';
 
-  // Serve from cache instantly if available
+  // Serve from cache — re-render from raw data so event listeners are always fresh
   if (langCache.has(lang)) {
-    const { albumsHTML, playlistsHTML } = langCache.get(lang);
-    albumsEl.innerHTML   = albumsHTML;
-    playlistEl.innerHTML = playlistsHTML;
+    const { albumItems, playlistItems } = langCache.get(lang);
+    renderLangItems(albumItems, playlistItems, albumsEl, playlistEl);
     return;
   }
 
@@ -2945,29 +2992,13 @@ async function loadBrowseLang(lang, label) {
     if (data.status !== 'SUCCESS') throw new Error('API error');
     const md = data.data;
 
-    albumsEl.innerHTML = '';
-    (md.albums || []).slice(0, 15).forEach(album => {
-      const artists = ((album.primaryArtists?.length ? album.primaryArtists : album.artists) || []).map(a => a.name).slice(0, 2).join(', ');
-      albumsEl.appendChild(createContentCard(
-        album.name,
-        artists || album.year || '',
-        bestImg(album.image),
-        () => openBrowseDetail(album.id, 'album', album.name)
-      ));
-    });
+    const albumItems    = (md.albums    || []).slice(0, 15);
+    const playlistItems = (md.playlists || []).slice(0, 15);
 
-    playlistEl.innerHTML = '';
-    (md.playlists || []).slice(0, 15).forEach(pl => {
-      playlistEl.appendChild(createContentCard(
-        pl.title,
-        pl.subtitle || '',
-        bestImg(pl.image),
-        () => openBrowseDetail(pl.id, 'playlist', pl.title)
-      ));
-    });
+    renderLangItems(albumItems, playlistItems, albumsEl, playlistEl);
 
-    if (langCache.size >= 8) langCache.delete(langCache.keys().next().value); // evict oldest
-    langCache.set(lang, { albumsHTML: albumsEl.innerHTML, playlistsHTML: playlistEl.innerHTML });
+    if (langCache.size >= 8) langCache.delete(langCache.keys().next().value);
+    langCache.set(lang, { albumItems, playlistItems });
   } catch (err) {
     Log.warn('Browse lang failed', { lang, err: err.message });
     albumsEl.innerHTML = '<div style="padding:16px;color:var(--fg2);font-size:14px">Could not load — check internet</div>';
