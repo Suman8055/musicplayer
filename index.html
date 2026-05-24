@@ -833,7 +833,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '2.5.2';
+const APP_VERSION = '2.5.3';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -1315,13 +1315,85 @@ function setEQPreset(name) {
   saveEQState();
 }
 
-// ── AI EQ ─────────────────────────────────────────────────────────────────────
+// ── AI EQ — MFCC ENGINE ───────────────────────────────────────────────────────
+// Computes 13 Mel-Frequency Cepstral Coefficients from the FFT magnitude data.
+// MFCCs describe the timbral "shape" of sound as heard by human ears — far richer
+// than raw energy zone ratios because they use the Mel (log-pitch) scale and a
+// cosine transform that decorrelates frequency bands into independent features.
+function _computeMFCC(fftData, sr, numCoeffs) {
+  const N = fftData.length; // = frequencyBinCount (fftSize/2)
+  const numFilters = 26;    // standard Mel filterbank size
+  const fMin = 20, fMax = Math.min(sr / 2, 20000);
+
+  // Hz → Mel and back
+  const hzToMel = f => 2595 * Math.log10(1 + f / 700);
+  const melToHz = m => 700 * (Math.pow(10, m / 2595) - 1);
+
+  // Build 26 triangular Mel filterbank centre points
+  const melMin = hzToMel(fMin), melMax = hzToMel(fMax);
+  const melPoints = Array.from({ length: numFilters + 2 }, (_, i) =>
+    melToHz(melMin + (i / (numFilters + 1)) * (melMax - melMin)));
+
+  // Map Mel centres to FFT bin indices
+  const bins = melPoints.map(f => Math.min(N - 1, Math.round(f * N / (sr / 2))));
+
+  // Apply triangular filters to FFT magnitude, compute log energy per filter
+  const melEnergies = new Float32Array(numFilters);
+  for (let m = 1; m <= numFilters; m++) {
+    let energy = 0;
+    for (let k = bins[m - 1]; k < bins[m]; k++)
+      energy += fftData[k] / 255 * (k - bins[m - 1]) / (bins[m] - bins[m - 1] + 1e-9);
+    for (let k = bins[m]; k <= bins[m + 1]; k++)
+      energy += fftData[k] / 255 * (bins[m + 1] - k) / (bins[m + 1] - bins[m] + 1e-9);
+    melEnergies[m - 1] = Math.log(Math.max(energy, 1e-9));
+  }
+
+  // Discrete Cosine Transform → MFCCs (coefficients 0..numCoeffs-1)
+  const mfcc = new Float32Array(numCoeffs);
+  for (let n = 0; n < numCoeffs; n++) {
+    let sum = 0;
+    for (let m = 0; m < numFilters; m++)
+      sum += melEnergies[m] * Math.cos(Math.PI * n * (m + 0.5) / numFilters);
+    mfcc[n] = sum;
+  }
+  return mfcc;
+}
+
+// Classify genre from 13 MFCCs + 5 legacy energy ratios (belt-and-suspenders).
+// m[0] = overall loudness/brightness, m[1] = spectral tilt (bass vs treble),
+// m[2..4] = mid-range texture, m[5..12] = fine timbral detail.
+function _aiClassify(mfcc, rSub, rBass, rLow, rHigh, rAir) {
+  const m = mfcc;
+  // Normalise m[0] out — it tracks loudness, not timbre
+  const m1 = m[1], m2 = m[2], m3 = m[3], m4 = m[4], m5 = m[5];
+
+  // m[1] strongly negative → bass-heavy; strongly positive → treble-heavy
+  // m[2] large positive → peaked mid texture (vocals, guitar)
+  // m[3] negative → smooth spectrum; positive → rough/distorted
+
+  if ((rSub + rBass) > 0.50 && rSub > 0.20 && m1 < -2)   return 'hiphop';
+  if ((rSub + rBass) > 0.50 && rSub <= 0.20 && m1 < -1)  return 'rnb';
+  if ((rSub + rBass) > 0.44 && rAir > 0.11 && m2 < 0)    return 'electronic';
+  if ((rSub + rBass) > 0.38 && rHigh > 0.26 && m1 < 0)   return 'dance';
+  if (rHigh > 0.36 && (rSub+rBass) > 0.23 && m3 > 1)     return 'metal';
+  if ((rSub+rBass) > 0.26 && rHigh > 0.23 && rAir > 0.13 && m2 > 0) return 'rock';
+  if (m2 > 2 && rHigh > 0.28 && (rSub+rBass) < 0.28)     return 'vocal';
+  if (m1 > 1 && rAir > 0.20 && rHigh > 0.30)              return 'pop';
+  if (m1 < -3 && rAir < 0.09 && rLow > 0.28)              return 'lofi';
+  if (rAir > 0.22 && (rSub+rBass) < 0.27 && m4 > 0)      return 'classical';
+  if (rLow > 0.30 && (rSub+rBass) < 0.30 && m2 > 0 && m5 < 1) return 'jazz';
+  if (rAir > 0.18 && rLow > 0.26 && (rSub+rBass) < 0.28 && m3 < 1) return 'acoustic';
+  if (rHigh > 0.20 && rAir > 0.16 && (rSub+rBass) < 0.30) return 'country';
+  return 'pop';
+}
+
 function _aiAnalyse() {
   if (!eqAIMode || !eqAnalyser || audio.paused) return;
   const data = new Uint8Array(eqAnalyser.frequencyBinCount);
   eqAnalyser.getByteFrequencyData(data);
   const sr = eqCtx.sampleRate, n = eqAnalyser.frequencyBinCount;
 
+  // Legacy energy ratios — kept as secondary features for the classifier
   function avgE(fLo, fHi) {
     const lo = Math.max(1, Math.round(fLo * n / (sr / 2)));
     const hi = Math.min(n - 1, Math.round(fHi * n / (sr / 2)));
@@ -1329,7 +1401,6 @@ function _aiAnalyse() {
     for (let i = lo; i <= hi; i++) s += data[i];
     return hi > lo ? s / (hi - lo + 1) / 255 : 0;
   }
-
   const sub  = avgE(20,   80);
   const bass = avgE(80,   300);
   const lMid = avgE(300,  1500);
@@ -1337,58 +1408,29 @@ function _aiAnalyse() {
   const air  = avgE(6000, 20000);
   const tot  = sub + bass + lMid + hMid + air || 0.001;
 
-  // Silence guard — if overall signal is too quiet, hold current preset
+  // Silence guard
   if (tot < 0.08) return;
 
-  const rSub  = sub  / tot;
-  const rBass = bass / tot;
-  const rHigh = hMid / tot;
-  const rAir  = air  / tot;
-  const rLow  = lMid / tot;
+  const rSub = sub/tot, rBass = bass/tot, rLow = lMid/tot, rHigh = hMid/tot, rAir = air/tot;
 
-  // Confidence: measure how dominant the top ratio is vs others
-  const ratios = [rSub, rBass, rLow, rHigh, rAir];
-  const maxR = Math.max(...ratios);
-  const confidence = maxR - (tot - maxR * tot) / (4 * tot); // spread penalty
-  // If ratios are too close to call, hold current preset
-  if (confidence < 0.08 && _aiDetectedPreset) return;
+  // Compute 13 MFCCs from the full FFT data
+  const mfcc = _computeMFCC(data, sr, 13);
 
-  let preset;
-  // Heavy sub + bass → hiphop or R&B (rSub separates them — hiphop has more sub kick)
-  if ((rSub + rBass) > 0.52 && rSub > 0.20)         preset = 'hiphop';
-  else if ((rSub + rBass) > 0.52 && rSub <= 0.20)   preset = 'rnb';
-  // Electronic: bass-heavy but not sub-dominant, bright highs
-  else if ((rSub + rBass) > 0.46 && rAir > 0.12)    preset = 'electronic';
-  // Dance: bass + highs together, energetic feel
-  else if ((rSub + rBass) > 0.40 && rHigh > 0.28)   preset = 'dance';
-  // Metal: high mids spike + present bass, low air
-  else if (rHigh > 0.38 && (rSub + rBass) > 0.25 && rAir < 0.14) preset = 'metal';
-  // Rock: balanced bass + high mids + air
-  else if ((rSub + rBass) > 0.28 && rHigh > 0.25 && rAir > 0.14) preset = 'rock';
-  // Pop: bright highs + air, moderate bass
-  else if (rHigh > 0.32 && rAir > 0.18)             preset = 'pop';
-  // Vocal: focused high mids, low air and bass
-  else if (rHigh > 0.30 && rAir < 0.14 && (rSub + rBass) < 0.30) preset = 'vocal';
-  // Lo-fi: rolled off highs, warm mids
-  else if (rAir < 0.10 && rLow > 0.30)              preset = 'lofi';
-  // Classical: very low bass, strong air/treble presence
-  else if (rAir > 0.24 && (rSub + rBass) < 0.28 && rHigh < 0.28) preset = 'classical';
-  // Country: moderate everything, slight high-mid focus
-  else if (rHigh > 0.22 && rAir > 0.18 && (rSub + rBass) < 0.32) preset = 'country';
-  // Acoustic: open air, low bass, warm low-mids
-  else if (rAir > 0.20 && rLow > 0.28 && (rSub + rBass) < 0.30)  preset = 'acoustic';
-  // Jazz: lMid-forward, restrained bass
-  else if (rLow > 0.32 && (rSub + rBass) < 0.32)   preset = 'jazz';
-  else                                               preset = 'pop';
+  // Confidence: variance across MFCCs 1-5 — low variance = ambiguous spectrum
+  let mfccVar = 0;
+  for (let i = 1; i <= 5; i++) mfccVar += mfcc[i] * mfcc[i];
+  if (mfccVar < 0.5 && _aiDetectedPreset) return; // too ambiguous — hold current
 
-  // Stability lock — only commit if same preset seen 2 consecutive analyses
+  const preset = _aiClassify(mfcc, rSub, rBass, rLow, rHigh, rAir);
+
+  // Stability lock — commit only after 2 consecutive matching analyses
   if (preset === _aiLastCandidate) {
     _aiCandidateCount++;
   } else {
     _aiLastCandidate = preset;
     _aiCandidateCount = 1;
   }
-  if (_aiCandidateCount < 2 && _aiDetectedPreset) return; // hold current until stable
+  if (_aiCandidateCount < 2 && _aiDetectedPreset) return;
 
   _aiTarget = [...(EQ_PRESETS[preset] || EQ_PRESETS.flat)];
   _aiDetectedPreset = preset;
@@ -1397,9 +1439,8 @@ function _aiAnalyse() {
   const hint = document.getElementById('eq-ai-hint');
   if (hint) hint.textContent = label;
 
-  // Capture baseline RMS (pre-EQ) on first commit for this song
+  // Baseline RMS for loudness normalisation (Phase 2)
   if (_aiRmsBaseline === 0) _aiRmsBaseline = _aiRms();
-  // Schedule loudness compensation check after interpolation settles (~2.5s)
   clearTimeout(_aiLoudnessTimer);
   _aiLoudnessTimer = setTimeout(_aiApplyLoudnessComp, 2500);
 
