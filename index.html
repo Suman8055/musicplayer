@@ -845,7 +845,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '2.6.0';
+const APP_VERSION = '2.6.1';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -970,12 +970,13 @@ function renderGhStatus() {
 // ── CORS PROXY FETCH ──────────────────────────────────────────────────────────
 async function proxyFetch(url) {
   let last;
+  const deadline = AbortSignal.timeout(9000); // overall cap across all proxies
   for (const proxy of PROXIES) {
     try {
-      const r = await fetch(proxy(url), { signal: AbortSignal.timeout(6000) });
+      const r = await fetch(proxy(url), { signal: deadline });
       if (r.ok) return r;
       last = new Error('proxy_' + r.status);
-    } catch (e) { last = e; }
+    } catch (e) { last = e; if (deadline.aborted) break; }
   }
   throw last || new Error('All proxies failed');
 }
@@ -1069,6 +1070,7 @@ let eqAIMode = false, _aiTarget = new Array(6).fill(0), _aiTimer = null, _aiRaf 
 let _aiRafFrame = 0, _aiDetectedPreset = '', _aiLastCandidate = '', _aiCandidateCount = 0;
 let _aiRmsBaseline = 0, _aiLoudnessComp = 0, _aiLoudnessTimer = null; // loudness normalisation state
 let _aiBpm = 0, _aiBpmOnsets = [], _aiBpmTimer = null, _aiBpmPrevEnergy = 0; // BPM detection state
+let _aiInitTimeout = null; // handle for the 1.2s first-analysis delay
 const AI_LEARN_KEY = 'mbx_ai_learn'; // adaptive learning storage key
 let _aiLearnMap = {};                 // { aiPreset: { userPreset: count } }
 let eqUseProxy = false; // true after CORS taint detected — routes audio via corsproxy.io for EQ
@@ -1236,8 +1238,9 @@ function _onEQCtxStateChange() {
 // Resume AudioContext when user switches back to the app from the home screen
 // or another app — iOS suspends the context on backgrounding.
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden && eqCtx?.state === 'suspended' && !isAirPlayActive()) {
-    eqCtx.resume().catch(() => {});
+  if (!document.hidden && eqCtx && !isAirPlayActive()) {
+    if (eqCtx.state === 'closed') { eqCtx = null; return; } // will re-init on next EQ open
+    if (eqCtx.state === 'suspended') eqCtx.resume().catch(() => {});
   }
 });
 
@@ -1603,13 +1606,14 @@ function startAIEQ() {
   clearInterval(_aiBpmTimer);
   _aiTimer    = setInterval(_aiAnalyse, 3500);
   _aiBpmTimer = setInterval(_aiBpmTick, 100); // fast tick for onset detection
-  setTimeout(_aiAnalyse, 1200); // first genre analysis shortly after song starts
+  _aiInitTimeout = setTimeout(_aiAnalyse, 1200); // first genre analysis shortly after song starts
 }
 
 function stopAIEQ() {
   clearInterval(_aiTimer);    _aiTimer = null;
   clearInterval(_aiBpmTimer); _aiBpmTimer = null;
   if (_aiRaf) { cancelAnimationFrame(_aiRaf); _aiRaf = null; }
+  clearTimeout(_aiInitTimeout); _aiInitTimeout = null;
   clearTimeout(_aiLoudnessTimer);
   _aiDetectedPreset = ''; _aiLastCandidate = ''; _aiCandidateCount = 0;
   _aiRmsBaseline = 0; _aiLoudnessComp = 0;
@@ -1802,7 +1806,9 @@ function loadData() {
   return { playlists: [], liked: [] };
 }
 function persist() {
-  try { localStorage.setItem(STORE_KEY, JSON.stringify(D)); } catch {}
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(D)); } catch (e) {
+    if (e.name === 'QuotaExceededError') toast('Storage full — clear cache in Settings → Memory');
+  }
 }
 
 // ── INDEXEDDB (offline blobs) ──────────────────────────────────────────────────
@@ -2198,6 +2204,7 @@ async function play(song, newQueue, idx) {
       rawStreamUrl   = offlineBlobUrl;
       audio.src      = offlineBlobUrl;
       await audio.play().catch(() => toast('Tap play to start'));
+      if (nowSong?.id !== song.id) return;
       playing = true;
       Log.info('Playback (offline)', { name: song.name });
     } else {
@@ -2211,6 +2218,7 @@ async function play(song, newQueue, idx) {
       ? `https://corsproxy.io/?${encodeURIComponent(stream.url)}`
       : stream.url;
     await audio.play().catch(() => toast('Tap play to start'));
+    if (nowSong?.id !== song.id) return;
     playing = true;
     Log.info('Playback started', { name: song.name, artist: song.artist });
     }
@@ -3187,6 +3195,7 @@ async function smartQueueFill() {
 
     const startIdx = queue.length;
     queue.push(...songs);
+    if (shuffleOn) createShuffledQueue(); // keep shuffledQueue in sync with expanded queue
     qIdx = startIdx;
     toast(`Smart Queue — ${artist.name}`);
     play(queue[qIdx]);
@@ -3227,7 +3236,8 @@ async function apiFetch(url, { timeout = 8000, retries = 2 } = {}) {
 async function saavnFetch(url) {
   try {
     return await apiFetch(url, { timeout: 7000, retries: 1 });
-  } catch {
+  } catch (e) {
+    if (e.message?.startsWith('HTTP 4')) throw e; // don't waste time proxying client errors
     return proxyFetch(url);
   }
 }
@@ -4062,8 +4072,8 @@ if ('serviceWorker' in navigator) {
     // Once a new SW takes control, reload the page to run the latest build
     navigator.serviceWorker.addEventListener('controllerchange', () => location.reload());
 
-    // Poll for new builds every 30 minutes
-    setInterval(() => reg.update(), 30 * 60 * 1000);
+    // Poll for new builds every 30 minutes (± random jitter to avoid thundering herd)
+    setInterval(() => reg.update(), 30 * 60 * 1000 + Math.random() * 5 * 60 * 1000);
   }).catch(() => {});
 }
 
