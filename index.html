@@ -792,7 +792,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '2.7.0';
+const APP_VERSION = '2.7.1';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -960,6 +960,7 @@ let nowSong      = null;
 let queue        = [];
 let qIdx         = 0;
 let playing      = false;
+let userPaused   = false;   // true only when the user explicitly paused (not iOS interruption)
 let loadingUrl   = false;   // true while fetching stream URL
 let shuffleOn    = false;
 let shuffledQueue = [];     // shuffled index array into queue[]
@@ -1131,9 +1132,16 @@ function _onEQCtxStateChange() {
 // Resume AudioContext when user switches back to the app from the home screen
 // or another app — iOS suspends the context on backgrounding.
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden && eqCtx && !isAirPlayActive()) {
-    if (eqCtx.state === 'closed') { eqCtx = null; return; } // will re-init on next EQ open
-    if (eqCtx.state === 'suspended') eqCtx.resume().catch(() => {});
+  if (!document.hidden) {
+    // Resume EQ AudioContext after screen unlock / app foreground
+    if (eqCtx && !isAirPlayActive()) {
+      if (eqCtx.state === 'closed') { eqCtx = null; } // will re-init on next EQ open
+      else if (eqCtx.state === 'suspended') eqCtx.resume().catch(() => {});
+    }
+    // iOS can pause the audio element when screen locks — resume if user didn't explicitly pause
+    if (!userPaused && audio.paused && nowSong) {
+      audio.play().catch(() => {});
+    }
   }
 });
 
@@ -1742,7 +1750,7 @@ function setNPLoading(on) {
 
 function togglePlay() {
   if (!nowSong || loadingUrl) return;
-  if (playing) audio.pause(); else audio.play().catch(() => {});
+  if (playing) { userPaused = true; audio.pause(); } else { userPaused = false; audio.play().catch(() => {}); }
 }
 
 function prev() {
@@ -1832,6 +1840,7 @@ async function preloadNext() {
 // ── AUDIO EVENTS ───────────────────────────────────────────────────────────────
 audio.addEventListener('play', () => {
   playing = true;
+  userPaused = false;
   audioPreload.src = ''; // release iOS audio session slot — only one element active at a time
   refreshPlayBtns();
   if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
@@ -1955,8 +1964,8 @@ function updateMediaSession() {
     artwork,
   });
   navigator.mediaSession.playbackState = 'playing';
-  navigator.mediaSession.setActionHandler('play',          () => { audio.play().catch(e => Log.warn('MediaSession play failed', {err: e.message})); });
-  navigator.mediaSession.setActionHandler('pause',         () => { audio.pause(); });
+  navigator.mediaSession.setActionHandler('play',          () => { userPaused = false; audio.play().catch(e => Log.warn('MediaSession play failed', {err: e.message})); });
+  navigator.mediaSession.setActionHandler('pause',         () => { userPaused = true; audio.pause(); });
   navigator.mediaSession.setActionHandler('previoustrack', prev);
   navigator.mediaSession.setActionHandler('nexttrack',     next);
   try { navigator.mediaSession.setActionHandler('seekbackward', null); } catch {}
