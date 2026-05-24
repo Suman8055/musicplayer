@@ -833,7 +833,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '2.5.0';
+const APP_VERSION = '2.5.1';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -1027,6 +1027,10 @@ const EQ_PRESETS = {
   acoustic:   [2,  2,  1,  0, -1,  2,  3,  3,  3,  2],
   metal:      [6,  4,  1, -1, -3, -3,  0,  4,  5,  5],
   spoken:     [-2,-2, -1,  1,  4,  6,  5,  3,  1, -1],
+  rnb:        [7,  6,  3,  2,  1,  2,  3,  2,  1,  0],
+  country:    [3,  2,  1,  0,  1,  3,  4,  4,  3,  2],
+  lofi:       [4,  3,  2,  1,  0, -1, -2, -3, -4, -5],
+  dance:      [6,  5,  1, -1,  0,  2,  3,  4,  5,  4],
 };
 let eqCtx = null, eqFilters = [], eqCompressor = null, eqLoudnessNodes = [];
 let eqPreampNode = null, eqBassNode = null, eqAnalyser = null;
@@ -1037,7 +1041,7 @@ let eqPreamp = 0, eqBass = 0, eqStereoWidth = false, eqEnabled = true;
 let _eqWiring = false, _eqRafId = null;
 let eqCustomPresets = [];
 let eqAIMode = false, _aiTarget = new Array(10).fill(0), _aiTimer = null, _aiRaf = null;
-let _aiRafFrame = 0, _aiDetectedPreset = '';
+let _aiRafFrame = 0, _aiDetectedPreset = '', _aiLastCandidate = '', _aiCandidateCount = 0;
 let eqUseProxy = false; // true after CORS taint detected — routes audio via corsproxy.io for EQ
 let rawStreamUrl = '';  // original CDN URL before any proxy wrapping
 
@@ -1328,25 +1332,65 @@ function _aiAnalyse() {
   const air  = avgE(6000, 20000);
   const tot  = sub + bass + lMid + hMid + air || 0.001;
 
+  // Silence guard — if overall signal is too quiet, hold current preset
+  if (tot < 0.08) return;
+
   const rSub  = sub  / tot;
   const rBass = bass / tot;
   const rHigh = hMid / tot;
   const rAir  = air  / tot;
   const rLow  = lMid / tot;
 
+  // Confidence: measure how dominant the top ratio is vs others
+  const ratios = [rSub, rBass, rLow, rHigh, rAir];
+  const maxR = Math.max(...ratios);
+  const confidence = maxR - (tot - maxR * tot) / (4 * tot); // spread penalty
+  // If ratios are too close to call, hold current preset
+  if (confidence < 0.08 && _aiDetectedPreset) return;
+
   let preset;
-  if ((rSub + rBass) > 0.52 && rSub > 0.18)        preset = 'hiphop';
-  else if ((rSub + rBass) > 0.48)                   preset = 'electronic';
-  else if (rHigh > 0.35 && rAir > 0.18)             preset = 'pop';
-  else if (rHigh > 0.32 && rAir < 0.15)             preset = 'vocal';
-  else if (rAir > 0.22 && (rSub + rBass) < 0.35)    preset = 'acoustic';
-  else if (rLow > 0.35 && (rSub + rBass) < 0.35)    preset = 'jazz';
+  // Heavy sub + bass → hiphop or R&B (rSub separates them — hiphop has more sub kick)
+  if ((rSub + rBass) > 0.52 && rSub > 0.20)         preset = 'hiphop';
+  else if ((rSub + rBass) > 0.52 && rSub <= 0.20)   preset = 'rnb';
+  // Electronic: bass-heavy but not sub-dominant, bright highs
+  else if ((rSub + rBass) > 0.46 && rAir > 0.12)    preset = 'electronic';
+  // Dance: bass + highs together, energetic feel
+  else if ((rSub + rBass) > 0.40 && rHigh > 0.28)   preset = 'dance';
+  // Metal: high mids spike + present bass, low air
+  else if (rHigh > 0.38 && (rSub + rBass) > 0.25 && rAir < 0.14) preset = 'metal';
+  // Rock: balanced bass + high mids + air
+  else if ((rSub + rBass) > 0.28 && rHigh > 0.25 && rAir > 0.14) preset = 'rock';
+  // Pop: bright highs + air, moderate bass
+  else if (rHigh > 0.32 && rAir > 0.18)             preset = 'pop';
+  // Vocal: focused high mids, low air and bass
+  else if (rHigh > 0.30 && rAir < 0.14 && (rSub + rBass) < 0.30) preset = 'vocal';
+  // Lo-fi: rolled off highs, warm mids
+  else if (rAir < 0.10 && rLow > 0.30)              preset = 'lofi';
+  // Classical: very low bass, strong air/treble presence
+  else if (rAir > 0.24 && (rSub + rBass) < 0.28 && rHigh < 0.28) preset = 'classical';
+  // Country: moderate everything, slight high-mid focus
+  else if (rHigh > 0.22 && rAir > 0.18 && (rSub + rBass) < 0.32) preset = 'country';
+  // Acoustic: open air, low bass, warm low-mids
+  else if (rAir > 0.20 && rLow > 0.28 && (rSub + rBass) < 0.30)  preset = 'acoustic';
+  // Jazz: lMid-forward, restrained bass
+  else if (rLow > 0.32 && (rSub + rBass) < 0.32)   preset = 'jazz';
   else                                               preset = 'pop';
+
+  // Stability lock — only commit if same preset seen 2 consecutive analyses
+  if (preset === _aiLastCandidate) {
+    _aiCandidateCount++;
+  } else {
+    _aiLastCandidate = preset;
+    _aiCandidateCount = 1;
+  }
+  if (_aiCandidateCount < 2 && _aiDetectedPreset) return; // hold current until stable
 
   _aiTarget = [...(EQ_PRESETS[preset] || EQ_PRESETS.flat)];
   _aiDetectedPreset = preset;
+  const label = { rnb: 'R&B', lofi: 'Lo-Fi', hiphop: 'Hip-Hop' }[preset]
+    || preset.charAt(0).toUpperCase() + preset.slice(1);
   const hint = document.getElementById('eq-ai-hint');
-  if (hint) hint.textContent = preset.charAt(0).toUpperCase() + preset.slice(1);
+  if (hint) hint.textContent = label;
 
   if (!_aiRaf) _aiRaf = requestAnimationFrame(_aiInterpFrame);
 }
@@ -1381,7 +1425,7 @@ function startAIEQ() {
 function stopAIEQ() {
   clearInterval(_aiTimer); _aiTimer = null;
   if (_aiRaf) { cancelAnimationFrame(_aiRaf); _aiRaf = null; }
-  _aiDetectedPreset = '';
+  _aiDetectedPreset = ''; _aiLastCandidate = ''; _aiCandidateCount = 0;
   const hint = document.getElementById('eq-ai-hint');
   if (hint) hint.textContent = 'Adapts to each song';
 }
@@ -1909,9 +1953,10 @@ async function play(song, newQueue, idx) {
   nowSong = song;
   cacheSong(song);
 
-  // Reset AI target when song changes so it re-analyses the new song's spectrum
+  // Reset AI target + stability lock when song changes so it re-analyses fresh
   if (eqAIMode && eqFilters.length > 0) {
     _aiTarget = new Array(10).fill(0);
+    _aiLastCandidate = ''; _aiCandidateCount = 0; _aiDetectedPreset = '';
     const hint = document.getElementById('eq-ai-hint');
     if (hint) hint.textContent = 'Listening…';
   }
