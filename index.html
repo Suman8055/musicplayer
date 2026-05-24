@@ -833,7 +833,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '2.5.3';
+const APP_VERSION = '2.5.4';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -1043,6 +1043,7 @@ let eqCustomPresets = [];
 let eqAIMode = false, _aiTarget = new Array(10).fill(0), _aiTimer = null, _aiRaf = null;
 let _aiRafFrame = 0, _aiDetectedPreset = '', _aiLastCandidate = '', _aiCandidateCount = 0;
 let _aiRmsBaseline = 0, _aiLoudnessComp = 0, _aiLoudnessTimer = null; // loudness normalisation state
+let _aiBpm = 0, _aiBpmOnsets = [], _aiBpmTimer = null, _aiBpmPrevEnergy = 0; // BPM detection state
 let eqUseProxy = false; // true after CORS taint detected — routes audio via corsproxy.io for EQ
 let rawStreamUrl = '';  // original CDN URL before any proxy wrapping
 
@@ -1359,32 +1360,78 @@ function _computeMFCC(fftData, sr, numCoeffs) {
   return mfcc;
 }
 
-// Classify genre from 13 MFCCs + 5 legacy energy ratios (belt-and-suspenders).
-// m[0] = overall loudness/brightness, m[1] = spectral tilt (bass vs treble),
-// m[2..4] = mid-range texture, m[5..12] = fine timbral detail.
-function _aiClassify(mfcc, rSub, rBass, rLow, rHigh, rAir) {
-  const m = mfcc;
-  // Normalise m[0] out — it tracks loudness, not timbre
-  const m1 = m[1], m2 = m[2], m3 = m[3], m4 = m[4], m5 = m[5];
+// Classify genre from 13 MFCCs + 5 energy ratios + BPM.
+// m[1] = spectral tilt (negative=bass-heavy, positive=treble-heavy)
+// m[2] = mid-range texture (high=peaked/vocal, low=smooth)
+// m[3] = roughness/distortion (positive=gritty, negative=clean)
+// bpm=0 means not enough data yet — treated as neutral (no BPM vote cast)
+function _aiClassify(mfcc, rSub, rBass, rLow, rHigh, rAir, bpm) {
+  const m1 = mfcc[1], m2 = mfcc[2], m3 = mfcc[3], m4 = mfcc[4], m5 = mfcc[5];
+  const fast = bpm > 118;   // dance/electronic/hiphop tempo range
+  const slow = bpm > 0 && bpm < 85;  // ballad/jazz/classical/acoustic range
+  const mid  = bpm >= 85 && bpm <= 118; // rock/pop/rnb range
 
-  // m[1] strongly negative → bass-heavy; strongly positive → treble-heavy
-  // m[2] large positive → peaked mid texture (vocals, guitar)
-  // m[3] negative → smooth spectrum; positive → rough/distorted
-
-  if ((rSub + rBass) > 0.50 && rSub > 0.20 && m1 < -2)   return 'hiphop';
-  if ((rSub + rBass) > 0.50 && rSub <= 0.20 && m1 < -1)  return 'rnb';
-  if ((rSub + rBass) > 0.44 && rAir > 0.11 && m2 < 0)    return 'electronic';
-  if ((rSub + rBass) > 0.38 && rHigh > 0.26 && m1 < 0)   return 'dance';
-  if (rHigh > 0.36 && (rSub+rBass) > 0.23 && m3 > 1)     return 'metal';
+  // Bass-heavy genres — BPM splits hiphop (fast kick) from slow R&B
+  if ((rSub+rBass) > 0.50 && rSub > 0.20 && m1 < -2 && !slow) return 'hiphop';
+  if ((rSub+rBass) > 0.50 && rSub <= 0.20 && m1 < -1)          return 'rnb';
+  // Electronic: bass + bright highs, fast or mid tempo
+  if ((rSub+rBass) > 0.44 && rAir > 0.11 && m2 < 0 && !slow)  return 'electronic';
+  // Dance: fast BPM confirms over bass+mids profile
+  if ((rSub+rBass) > 0.38 && rHigh > 0.26 && m1 < 0 && fast)  return 'dance';
+  // Metal: rough + high mids + bass, any tempo
+  if (rHigh > 0.36 && (rSub+rBass) > 0.23 && m3 > 1)           return 'metal';
+  // Rock: balanced, mid tempo range natural fit
   if ((rSub+rBass) > 0.26 && rHigh > 0.23 && rAir > 0.13 && m2 > 0) return 'rock';
-  if (m2 > 2 && rHigh > 0.28 && (rSub+rBass) < 0.28)     return 'vocal';
-  if (m1 > 1 && rAir > 0.20 && rHigh > 0.30)              return 'pop';
-  if (m1 < -3 && rAir < 0.09 && rLow > 0.28)              return 'lofi';
-  if (rAir > 0.22 && (rSub+rBass) < 0.27 && m4 > 0)      return 'classical';
-  if (rLow > 0.30 && (rSub+rBass) < 0.30 && m2 > 0 && m5 < 1) return 'jazz';
-  if (rAir > 0.18 && rLow > 0.26 && (rSub+rBass) < 0.28 && m3 < 1) return 'acoustic';
-  if (rHigh > 0.20 && rAir > 0.16 && (rSub+rBass) < 0.30) return 'country';
+  // Vocal: peaked mid texture, slow-to-mid tempo
+  if (m2 > 2 && rHigh > 0.28 && (rSub+rBass) < 0.28 && !fast) return 'vocal';
+  // Pop: bright, mid tempo
+  if (m1 > 1 && rAir > 0.20 && rHigh > 0.30)                   return 'pop';
+  // Lo-fi: bass-heavy + no air, typically slow
+  if (m1 < -3 && rAir < 0.09 && rLow > 0.28 && !fast)          return 'lofi';
+  // Classical: airy, low bass, slow tempo confirms
+  if (rAir > 0.22 && (rSub+rBass) < 0.27 && m4 > 0 && !fast)  return 'classical';
+  // Jazz: lMid texture, slow-to-mid, smooth spectrum
+  if (rLow > 0.30 && (rSub+rBass) < 0.30 && m2 > 0 && m5 < 1 && !fast) return 'jazz';
+  // Acoustic: open air + warm mids, slow tempo
+  if (rAir > 0.18 && rLow > 0.26 && (rSub+rBass) < 0.28 && m3 < 1 && !fast) return 'acoustic';
+  // Country: mid-high brightness, mid tempo
+  if (rHigh > 0.20 && rAir > 0.16 && (rSub+rBass) < 0.30)      return 'country';
   return 'pop';
+}
+
+// Runs every 100ms — detects beat onsets from sub-bass energy bursts,
+// timestamps them, and estimates BPM from median inter-onset interval.
+function _aiBpmTick() {
+  if (!eqAIMode || !eqAnalyser || audio.paused) return;
+  const buf = new Float32Array(eqAnalyser.fftSize);
+  eqAnalyser.getFloatTimeDomainData(buf);
+  // RMS energy of the lower quarter of the buffer (biased toward bass transients)
+  const half = buf.length >> 2;
+  let sum = 0;
+  for (let i = 0; i < half; i++) sum += buf[i] * buf[i];
+  const energy = Math.sqrt(sum / half);
+
+  // Onset: energy exceeds 1.4× previous frame and is above silence floor
+  if (energy > 0.015 && energy > _aiBpmPrevEnergy * 1.4) {
+    const now = performance.now();
+    _aiBpmOnsets.push(now);
+    // Keep only the last 24 onsets (~10s at 140bpm) to stay responsive
+    if (_aiBpmOnsets.length > 24) _aiBpmOnsets.shift();
+    _aiBpm = _aiBpmEstimate();
+  }
+  _aiBpmPrevEnergy = energy;
+}
+
+// Computes BPM from inter-onset intervals using median (robust to outliers).
+function _aiBpmEstimate() {
+  if (_aiBpmOnsets.length < 4) return 0;
+  const intervals = [];
+  for (let i = 1; i < _aiBpmOnsets.length; i++)
+    intervals.push(_aiBpmOnsets[i] - _aiBpmOnsets[i - 1]);
+  intervals.sort((a, b) => a - b);
+  const med = intervals[Math.floor(intervals.length / 2)];
+  if (med < 200 || med > 2000) return 0; // outside 30–300 BPM range — discard
+  return Math.round(60000 / med);
 }
 
 function _aiAnalyse() {
@@ -1421,7 +1468,7 @@ function _aiAnalyse() {
   for (let i = 1; i <= 5; i++) mfccVar += mfcc[i] * mfcc[i];
   if (mfccVar < 0.5 && _aiDetectedPreset) return; // too ambiguous — hold current
 
-  const preset = _aiClassify(mfcc, rSub, rBass, rLow, rHigh, rAir);
+  const preset = _aiClassify(mfcc, rSub, rBass, rLow, rHigh, rAir, _aiBpm);
 
   // Stability lock — commit only after 2 consecutive matching analyses
   if (preset === _aiLastCandidate) {
@@ -1496,16 +1543,20 @@ function startAIEQ() {
   if (!eqAIMode) return;
   if (eqFilters.length === 0) initEQ();
   clearInterval(_aiTimer);
-  _aiTimer = setInterval(_aiAnalyse, 3500);
-  setTimeout(_aiAnalyse, 1200); // first analysis shortly after song starts
+  clearInterval(_aiBpmTimer);
+  _aiTimer    = setInterval(_aiAnalyse, 3500);
+  _aiBpmTimer = setInterval(_aiBpmTick, 100); // fast tick for onset detection
+  setTimeout(_aiAnalyse, 1200); // first genre analysis shortly after song starts
 }
 
 function stopAIEQ() {
-  clearInterval(_aiTimer); _aiTimer = null;
+  clearInterval(_aiTimer);    _aiTimer = null;
+  clearInterval(_aiBpmTimer); _aiBpmTimer = null;
   if (_aiRaf) { cancelAnimationFrame(_aiRaf); _aiRaf = null; }
   clearTimeout(_aiLoudnessTimer);
   _aiDetectedPreset = ''; _aiLastCandidate = ''; _aiCandidateCount = 0;
   _aiRmsBaseline = 0; _aiLoudnessComp = 0;
+  _aiBpm = 0; _aiBpmOnsets = []; _aiBpmPrevEnergy = 0;
   // Restore preamp to user value only (remove AI compensation)
   if (eqPreampNode && eqEnabled) eqPreampNode.gain.value = Math.pow(10, eqPreamp / 20);
   const hint = document.getElementById('eq-ai-hint');
@@ -2040,6 +2091,7 @@ async function play(song, newQueue, idx) {
     _aiTarget = new Array(10).fill(0);
     _aiLastCandidate = ''; _aiCandidateCount = 0; _aiDetectedPreset = '';
     _aiRmsBaseline = 0; _aiLoudnessComp = 0;
+    _aiBpm = 0; _aiBpmOnsets = []; _aiBpmPrevEnergy = 0;
     clearTimeout(_aiLoudnessTimer);
     const hint = document.getElementById('eq-ai-hint');
     if (hint) hint.textContent = 'Listening…';
