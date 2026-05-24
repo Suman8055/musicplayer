@@ -175,12 +175,14 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Poppins'
 .eq-presets{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-bottom:12px}
 .eq-preset{background:var(--bg3);border:none;color:var(--fg2);font-size:11px;font-weight:600;padding:5px 11px;border-radius:20px;cursor:pointer;font-family:inherit;transition:background .15s,color .15s}
 .eq-preset.active{background:var(--red);color:#fff}
-#eq-canvas{width:100%;height:52px;border-radius:8px;margin-bottom:10px;background:rgba(0,0,0,.3);display:block}
-.eq-bands{display:flex;justify-content:space-between;align-items:flex-end;gap:2px;margin-bottom:10px}
+#eq-canvas{width:100%;height:110px;border-radius:10px;margin-bottom:8px;background:rgba(0,0,0,.25);display:block;cursor:pointer}
+.eq-bands{display:flex;justify-content:space-between;align-items:flex-end;gap:2px;margin-bottom:8px}
 .eq-band{display:flex;flex-direction:column;align-items:center;gap:4px;flex:1}
 .eq-band label{font-size:9px;color:var(--fg3);text-align:center;white-space:nowrap}
-.eq-band input[type=range]{writing-mode:vertical-lr;direction:rtl;-webkit-appearance:slider-vertical;width:22px;height:72px;cursor:pointer;accent-color:var(--red)}
-.eq-gain-val{font-size:9px;color:var(--fg2);font-variant-numeric:tabular-nums;min-width:22px;text-align:center}
+.eq-band input[type=range]{writing-mode:vertical-lr;direction:rtl;-webkit-appearance:slider-vertical;width:26px;height:88px;cursor:pointer;accent-color:var(--red)}
+.eq-gain-val{font-size:9px;color:var(--fg2);font-variant-numeric:tabular-nums;min-width:26px;text-align:center}
+.eq-presets{display:flex;gap:6px;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:6px;margin-bottom:10px;scrollbar-width:none}
+.eq-presets::-webkit-scrollbar{display:none}
 .eq-ai-row{display:flex;align-items:center;justify-content:space-between;padding:6px 4px 10px;border-bottom:1px solid rgba(255,255,255,.09);margin-bottom:4px}
 .eq-ai-label{display:block;font-size:13px;font-weight:600;color:var(--fg);letter-spacing:.2px}
 .eq-ai-hint{display:block;font-size:10px;color:var(--fg2);margin-top:2px;transition:color .4s}
@@ -692,30 +694,36 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Poppins'
       </div>
       <div class="eq-presets" id="eq-presets-row">
         <button class="eq-preset active" data-preset="flat">Flat</button>
-        <button class="eq-preset" data-preset="bass">Bass Boost</button>
-        <button class="eq-preset" data-preset="vocal">Vocal</button>
-        <button class="eq-preset" data-preset="rock">Rock</button>
-        <button class="eq-preset" data-preset="pop">Pop</button>
+        <button class="eq-preset" data-preset="acoustic">Acoustic</button>
+        <button class="eq-preset" data-preset="bass_booster">Bass Booster</button>
+        <button class="eq-preset" data-preset="bass_reducer">Bass Reducer</button>
         <button class="eq-preset" data-preset="classical">Classical</button>
-        <button class="eq-preset" data-preset="jazz">Jazz</button>
+        <button class="eq-preset" data-preset="dance">Dance</button>
+        <button class="eq-preset" data-preset="deep">Deep</button>
         <button class="eq-preset" data-preset="electronic">Electronic</button>
         <button class="eq-preset" data-preset="hiphop">Hip-Hop</button>
-        <button class="eq-preset" data-preset="acoustic">Acoustic</button>
-        <button class="eq-preset" data-preset="metal">Metal</button>
-        <button class="eq-preset" data-preset="spoken">Spoken</button>
+        <button class="eq-preset" data-preset="jazz">Jazz</button>
+        <button class="eq-preset" data-preset="latin">Latin</button>
+        <button class="eq-preset" data-preset="loudness">Loudness</button>
+        <button class="eq-preset" data-preset="lounge">Lounge</button>
+        <button class="eq-preset" data-preset="piano">Piano</button>
+        <button class="eq-preset" data-preset="pop">Pop</button>
+        <button class="eq-preset" data-preset="rnb">R&amp;B</button>
+        <button class="eq-preset" data-preset="rock">Rock</button>
+        <button class="eq-preset" data-preset="small_speakers">Small Speakers</button>
+        <button class="eq-preset" data-preset="spoken_word">Spoken Word</button>
+        <button class="eq-preset" data-preset="treble_booster">Treble Booster</button>
+        <button class="eq-preset" data-preset="treble_reducer">Treble Reducer</button>
+        <button class="eq-preset" data-preset="vocal_booster">Vocal Booster</button>
       </div>
-      <canvas id="eq-canvas" width="320" height="52" aria-hidden="true"></canvas>
+      <canvas id="eq-canvas" width="320" height="110" aria-hidden="true"></canvas>
       <div class="eq-bands">
-        <div class="eq-band"><input type="range" class="eq-slider" min="-12" max="12" value="0" step="0.5" data-band="0"><div class="eq-gain-val">0</div><label>31Hz</label></div>
-        <div class="eq-band"><input type="range" class="eq-slider" min="-12" max="12" value="0" step="0.5" data-band="1"><div class="eq-gain-val">0</div><label>62Hz</label></div>
-        <div class="eq-band"><input type="range" class="eq-slider" min="-12" max="12" value="0" step="0.5" data-band="2"><div class="eq-gain-val">0</div><label>125Hz</label></div>
-        <div class="eq-band"><input type="range" class="eq-slider" min="-12" max="12" value="0" step="0.5" data-band="3"><div class="eq-gain-val">0</div><label>250Hz</label></div>
-        <div class="eq-band"><input type="range" class="eq-slider" min="-12" max="12" value="0" step="0.5" data-band="4"><div class="eq-gain-val">0</div><label>500Hz</label></div>
-        <div class="eq-band"><input type="range" class="eq-slider" min="-12" max="12" value="0" step="0.5" data-band="5"><div class="eq-gain-val">0</div><label>1kHz</label></div>
-        <div class="eq-band"><input type="range" class="eq-slider" min="-12" max="12" value="0" step="0.5" data-band="6"><div class="eq-gain-val">0</div><label>2kHz</label></div>
-        <div class="eq-band"><input type="range" class="eq-slider" min="-12" max="12" value="0" step="0.5" data-band="7"><div class="eq-gain-val">0</div><label>4kHz</label></div>
-        <div class="eq-band"><input type="range" class="eq-slider" min="-12" max="12" value="0" step="0.5" data-band="8"><div class="eq-gain-val">0</div><label>8kHz</label></div>
-        <div class="eq-band"><input type="range" class="eq-slider" min="-12" max="12" value="0" step="0.5" data-band="9"><div class="eq-gain-val">0</div><label>16kHz</label></div>
+        <div class="eq-band"><input type="range" class="eq-slider" min="-12" max="12" value="0" step="0.5" data-band="0"><div class="eq-gain-val">0</div><label>60Hz</label></div>
+        <div class="eq-band"><input type="range" class="eq-slider" min="-12" max="12" value="0" step="0.5" data-band="1"><div class="eq-gain-val">0</div><label>150Hz</label></div>
+        <div class="eq-band"><input type="range" class="eq-slider" min="-12" max="12" value="0" step="0.5" data-band="2"><div class="eq-gain-val">0</div><label>400Hz</label></div>
+        <div class="eq-band"><input type="range" class="eq-slider" min="-12" max="12" value="0" step="0.5" data-band="3"><div class="eq-gain-val">0</div><label>1kHz</label></div>
+        <div class="eq-band"><input type="range" class="eq-slider" min="-12" max="12" value="0" step="0.5" data-band="4"><div class="eq-gain-val">0</div><label>2.4kHz</label></div>
+        <div class="eq-band"><input type="range" class="eq-slider" min="-12" max="12" value="0" step="0.5" data-band="5"><div class="eq-gain-val">0</div><label>15kHz</label></div>
       </div>
       <div class="eq-comp-row">
         <span>Dynamic Compressor</span>
@@ -837,7 +845,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '2.5.5';
+const APP_VERSION = '2.6.0';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -1017,34 +1025,47 @@ const audio        = document.getElementById('audio');
 const audioPreload = document.getElementById('audio-preload');
 
 // ── WEB AUDIO EQ ───────────────────────────────────────────────────────────────
-const EQ_BANDS = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000]; // Hz — 10-band ISO
+// Spotify 6-band EQ: 60Hz · 150Hz · 400Hz · 1kHz · 2.4kHz · 15kHz
+const EQ_BANDS = [60, 150, 400, 1000, 2400, 15000];
 const EQ_PRESETS = {
-  flat:       [0,  0,  0,  0,  0,  0,  0,  0,  0,  0],
-  bass:       [6,  8,  5,  2,  0, -1, -1,  0,  1,  1],
-  vocal:      [-2,-2, -1, -1,  2,  5,  5,  4,  2,  1],
-  rock:       [5,  5,  3,  1, -1, -1,  1,  4,  5,  5],
-  pop:        [1,  2,  3,  4,  4,  3,  2,  2,  2,  2],
-  classical:  [4,  3,  2,  1, -1, -2, -1,  2,  4,  5],
-  jazz:       [3,  3,  1,  2,  2,  3,  2,  1, -1, -1],
-  electronic: [7,  6,  2, -1, -1,  1,  2,  3,  4,  5],
-  hiphop:     [8,  7,  4,  1, -1,  1,  2,  0, -1, -1],
-  acoustic:   [2,  2,  1,  0, -1,  2,  3,  3,  3,  2],
-  metal:      [6,  4,  1, -1, -3, -3,  0,  4,  5,  5],
-  spoken:     [-2,-2, -1,  1,  4,  6,  5,  3,  1, -1],
-  rnb:        [7,  6,  3,  2,  1,  2,  3,  2,  1,  0],
-  country:    [3,  2,  1,  0,  1,  3,  4,  4,  3,  2],
-  lofi:       [4,  3,  2,  1,  0, -1, -2, -3, -4, -5],
-  dance:      [6,  5,  1, -1,  0,  2,  3,  4,  5,  4],
+  // [60Hz, 150Hz, 400Hz, 1kHz, 2.4kHz, 15kHz]
+  flat:           [ 0,  0,  0,  0,  0,  0],
+  acoustic:       [ 4,  3,  2,  3,  4,  5],
+  bass_booster:   [ 6,  5,  3,  0,  0,  0],
+  bass_reducer:   [-6, -5, -3,  0,  0,  0],
+  classical:      [ 4,  3,  0,  0,  3,  5],
+  dance:          [ 5,  4,  1,  0,  2,  4],
+  deep:           [ 5,  4,  3,  2, -2, -4],
+  electronic:     [ 5,  4,  0, -1,  4,  5],
+  hiphop:         [ 6,  5,  2,  1,  2,  1],
+  jazz:           [ 4,  3,  1,  2,  4,  5],
+  latin:          [ 4,  2, -1, -1,  2,  5],
+  loudness:       [ 5,  3,  0,  0,  3,  5],
+  lounge:         [-3, -2,  0,  2,  4,  3],
+  piano:          [ 0,  0,  3,  5,  5,  4],
+  pop:            [-1,  0,  3,  4,  3, -1],
+  rnb:            [ 6,  5,  1, -1,  2,  3],
+  rock:           [ 5,  3,  0, -1,  3,  5],
+  small_speakers: [-3,  2,  5,  5,  3, -1],
+  spoken_word:    [-3, -3,  0,  4,  5,  4],
+  treble_booster: [ 0,  0,  0,  3,  5,  6],
+  treble_reducer: [ 0,  0,  0, -3, -5, -6],
+  vocal_booster:  [-2, -2,  3,  5,  4, -2],
+  // AI-only presets (not shown as manual buttons)
+  metal:          [ 5,  4,  0, -2,  4,  6],
+  dance_ai:       [ 5,  4,  1,  0,  2,  4],
+  lofi:           [ 3,  2,  1,  0, -2, -5],
+  country:        [ 3,  2,  0,  1,  3,  4],
 };
 let eqCtx = null, eqFilters = [], eqCompressor = null, eqLoudnessNodes = [];
 let eqPreampNode = null, eqBassNode = null, eqAnalyser = null;
 let eqWidthSplitter = null, eqWidthMerger = null;
 let eqWidthLL = null, eqWidthRL = null, eqWidthLR = null, eqWidthRR = null;
-let eqGains = [0,0,0,0,0,0,0,0,0,0], eqCompOn = false, eqLoudness = false, eqPreset = 'flat';
+let eqGains = [0,0,0,0,0,0], eqCompOn = false, eqLoudness = false, eqPreset = 'flat';
 let eqPreamp = 0, eqBass = 0, eqStereoWidth = false, eqEnabled = true;
 let _eqWiring = false, _eqRafId = null;
 let eqCustomPresets = [];
-let eqAIMode = false, _aiTarget = new Array(10).fill(0), _aiTimer = null, _aiRaf = null;
+let eqAIMode = false, _aiTarget = new Array(6).fill(0), _aiTimer = null, _aiRaf = null;
 let _aiRafFrame = 0, _aiDetectedPreset = '', _aiLastCandidate = '', _aiCandidateCount = 0;
 let _aiRmsBaseline = 0, _aiLoudnessComp = 0, _aiLoudnessTimer = null; // loudness normalisation state
 let _aiBpm = 0, _aiBpmOnsets = [], _aiBpmTimer = null, _aiBpmPrevEnergy = 0; // BPM detection state
@@ -1408,36 +1429,24 @@ function _computeMFCC(fftData, sr, numCoeffs) {
 // m[2] = mid-range texture (high=peaked/vocal, low=smooth)
 // m[3] = roughness/distortion (positive=gritty, negative=clean)
 // bpm=0 means not enough data yet — treated as neutral (no BPM vote cast)
+// Returns a Spotify preset key. All keys must exist in EQ_PRESETS.
 function _aiClassify(mfcc, rSub, rBass, rLow, rHigh, rAir, bpm) {
   const m1 = mfcc[1], m2 = mfcc[2], m3 = mfcc[3], m4 = mfcc[4], m5 = mfcc[5];
-  const fast = bpm > 118;   // dance/electronic/hiphop tempo range
-  const slow = bpm > 0 && bpm < 85;  // ballad/jazz/classical/acoustic range
-  const mid  = bpm >= 85 && bpm <= 118; // rock/pop/rnb range
+  const fast = bpm > 118;
+  const slow = bpm > 0 && bpm < 85;
 
-  // Bass-heavy genres — BPM splits hiphop (fast kick) from slow R&B
   if ((rSub+rBass) > 0.50 && rSub > 0.20 && m1 < -2 && !slow) return 'hiphop';
   if ((rSub+rBass) > 0.50 && rSub <= 0.20 && m1 < -1)          return 'rnb';
-  // Electronic: bass + bright highs, fast or mid tempo
   if ((rSub+rBass) > 0.44 && rAir > 0.11 && m2 < 0 && !slow)  return 'electronic';
-  // Dance: fast BPM confirms over bass+mids profile
   if ((rSub+rBass) > 0.38 && rHigh > 0.26 && m1 < 0 && fast)  return 'dance';
-  // Metal: rough + high mids + bass, any tempo
   if (rHigh > 0.36 && (rSub+rBass) > 0.23 && m3 > 1)           return 'metal';
-  // Rock: balanced, mid tempo range natural fit
   if ((rSub+rBass) > 0.26 && rHigh > 0.23 && rAir > 0.13 && m2 > 0) return 'rock';
-  // Vocal: peaked mid texture, slow-to-mid tempo
-  if (m2 > 2 && rHigh > 0.28 && (rSub+rBass) < 0.28 && !fast) return 'vocal';
-  // Pop: bright, mid tempo
+  if (m2 > 2 && rHigh > 0.28 && (rSub+rBass) < 0.28 && !fast) return 'vocal_booster';
   if (m1 > 1 && rAir > 0.20 && rHigh > 0.30)                   return 'pop';
-  // Lo-fi: bass-heavy + no air, typically slow
   if (m1 < -3 && rAir < 0.09 && rLow > 0.28 && !fast)          return 'lofi';
-  // Classical: airy, low bass, slow tempo confirms
   if (rAir > 0.22 && (rSub+rBass) < 0.27 && m4 > 0 && !fast)  return 'classical';
-  // Jazz: lMid texture, slow-to-mid, smooth spectrum
   if (rLow > 0.30 && (rSub+rBass) < 0.30 && m2 > 0 && m5 < 1 && !fast) return 'jazz';
-  // Acoustic: open air + warm mids, slow tempo
   if (rAir > 0.18 && rLow > 0.26 && (rSub+rBass) < 0.28 && m3 < 1 && !fast) return 'acoustic';
-  // Country: mid-high brightness, mid tempo
   if (rHigh > 0.20 && rAir > 0.16 && (rSub+rBass) < 0.30)      return 'country';
   return 'pop';
 }
@@ -1571,7 +1580,7 @@ function _aiApplyLoudnessComp() {
 function _aiInterpFrame() {
   if (!eqAIMode) { _aiRaf = null; return; }
   let moving = false;
-  for (let i = 0; i < 10; i++) {
+  for (let i = 0; i < 6; i++) {
     const diff = _aiTarget[i] - eqGains[i];
     if (Math.abs(diff) > 0.15) {
       eqGains[i] += diff * 0.035; // 3.5% per frame → ~2s to reach target
@@ -1628,12 +1637,20 @@ function loadEQState() {
   try {
     const s = JSON.parse(localStorage.getItem('mbx_eq') || '{}');
     if (Array.isArray(s.gains)) {
-      if (s.gains.length === 10) {
+      if (s.gains.length === 6) {
         eqGains = s.gains;
-      } else if (s.gains.length === 5) {
-        // Migrate v1 5-band → v2 10-band (approximate mapping)
-        const [g0,g1,g2,g3,g4] = s.gains;
-        eqGains = [g0, g0, Math.round(g0*0.5), g1, Math.round(g1*0.5), g2, Math.round(g2*0.5), g3, Math.round(g4*0.7), g4];
+      } else if (s.gains.length === 10) {
+        // Migrate v2 10-band → Spotify 6-band (approximate mapping)
+        // 10-band: [31,62,125,250,500,1k,2k,4k,8k,16k]
+        // 6-band:  [60, 150, 400, 1k, 2.4k, 15k]
+        eqGains = [
+          Math.round((s.gains[0]+s.gains[1])/2), // 60Hz  ≈ avg(31,62)
+          Math.round((s.gains[2]+s.gains[3])/2), // 150Hz ≈ avg(125,250)
+          Math.round((s.gains[3]+s.gains[4])/2), // 400Hz ≈ avg(250,500)
+          s.gains[5],                             // 1kHz  = 1kHz
+          Math.round((s.gains[6]+s.gains[7])/2), // 2.4kHz≈ avg(2k,4k)
+          s.gains[9],                             // 15kHz ≈ 16kHz
+        ];
       }
     }
     eqCompOn   = !!s.comp;
@@ -1656,34 +1673,46 @@ function loadEQState() {
 // ── SPECTRUM ANALYSER ANIMATION ────────────────────────────────────────────────
 // Draws the theoretical EQ response curve (logarithmic x-axis, ±12dB y-axis)
 function _drawEQCurve(ctx2, W, H) {
-  const logMin = Math.log10(20), logMax = Math.log10(20000);
+  const logMin = Math.log10(40), logMax = Math.log10(20000);
   const midY = H / 2, gainScale = midY / 12;
-  // 0 dB reference line
   ctx2.save();
-  ctx2.strokeStyle = 'rgba(255,255,255,0.15)';
+  // Filled gradient area under the curve
+  const pts = EQ_BANDS.map((freq, i) => ({
+    x: (Math.log10(freq) - logMin) / (logMax - logMin) * W,
+    y: midY - Math.max(-12, Math.min(12, eqGains[i])) * gainScale
+  }));
+  const grad = ctx2.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, 'rgba(0,230,230,0.22)');
+  grad.addColorStop(1, 'rgba(0,230,230,0)');
+  ctx2.beginPath();
+  ctx2.moveTo(0, midY);
+  pts.forEach(p => ctx2.lineTo(p.x, p.y));
+  ctx2.lineTo(W, midY);
+  ctx2.closePath();
+  ctx2.fillStyle = grad;
+  ctx2.fill();
+  // 0 dB reference line
+  ctx2.strokeStyle = 'rgba(255,255,255,0.12)';
   ctx2.lineWidth = 1;
   ctx2.setLineDash([3, 5]);
   ctx2.beginPath(); ctx2.moveTo(0, midY); ctx2.lineTo(W, midY); ctx2.stroke();
   ctx2.setLineDash([]);
-  // EQ gain curve through 10 band points (log-spaced x)
+  // EQ curve line
   ctx2.strokeStyle = 'rgba(0,230,230,0.9)';
   ctx2.lineWidth = 2;
   ctx2.lineJoin = 'round';
   ctx2.beginPath();
-  EQ_BANDS.forEach((freq, i) => {
-    const x = (Math.log10(freq) - logMin) / (logMax - logMin) * W;
-    const y = midY - Math.max(-12, Math.min(12, eqGains[i])) * gainScale;
-    i === 0 ? ctx2.moveTo(x, y) : ctx2.lineTo(x, y);
-  });
+  pts.forEach((p, i) => i === 0 ? ctx2.moveTo(p.x, p.y) : ctx2.lineTo(p.x, p.y));
   ctx2.stroke();
-  // Dot at each band centre
-  EQ_BANDS.forEach((freq, i) => {
-    const x = (Math.log10(freq) - logMin) / (logMax - logMin) * W;
-    const y = midY - Math.max(-12, Math.min(12, eqGains[i])) * gainScale;
+  // Spotify-style draggable dots — larger, white fill with cyan ring
+  pts.forEach(p => {
     ctx2.beginPath();
-    ctx2.fillStyle = 'rgba(0,230,230,0.95)';
-    ctx2.arc(x, y, 3, 0, Math.PI * 2);
+    ctx2.arc(p.x, p.y, 6, 0, Math.PI * 2);
+    ctx2.fillStyle = '#fff';
     ctx2.fill();
+    ctx2.strokeStyle = 'rgba(0,230,230,0.9)';
+    ctx2.lineWidth = 2;
+    ctx2.stroke();
   });
   ctx2.restore();
 }
@@ -1694,25 +1723,26 @@ function _drawSpectrum() {
   if (!eqPanel || !eqPanel.classList.contains('open')) { _eqRafId = null; return; }
   const ctx2 = canvas.getContext('2d');
   const W = canvas.offsetWidth || 320;
-  const H = canvas.offsetHeight || 52;
+  const H = canvas.offsetHeight || 110;
   if (canvas.width !== W) canvas.width = W;
   ctx2.clearRect(0, 0, W, H);
-  // Spectrum bars (only when analyser is live)
+  // Spectrum bars behind the curve (only when analyser is live)
   if (eqAnalyser) {
     const data = new Uint8Array(eqAnalyser.frequencyBinCount);
     eqAnalyser.getByteFrequencyData(data);
     const sr = eqCtx.sampleRate, binCount = eqAnalyser.frequencyBinCount;
+    const logMin = Math.log10(40), logMax = Math.log10(20000);
     const bw = W / EQ_BANDS.length;
     EQ_BANDS.forEach((freq, i) => {
       const binIdx = Math.min(Math.round(freq * binCount / (sr / 2)), binCount - 1);
       const val = data[binIdx] / 255;
-      const bh = Math.max(2, val * H);
-      const x = i * bw + 2;
+      const bh = Math.max(2, val * H * 0.85);
+      const x = (Math.log10(freq) - logMin) / (logMax - logMin) * W - bw * 0.5;
       const grd = ctx2.createLinearGradient(0, H - bh, 0, H);
-      grd.addColorStop(0, 'rgba(0,230,230,0.55)');
-      grd.addColorStop(1, 'rgba(0,120,120,0.20)');
+      grd.addColorStop(0, 'rgba(0,230,230,0.18)');
+      grd.addColorStop(1, 'rgba(0,120,120,0.06)');
       ctx2.fillStyle = grd;
-      ctx2.fillRect(x, H - bh, bw - 4, bh);
+      ctx2.fillRect(Math.max(0, x), H - bh, bw, bh);
     });
   }
   // EQ response curve always on top
@@ -1731,7 +1761,7 @@ function stopSpectrum() {
   const canvas = document.getElementById('eq-canvas');
   if (!canvas) return;
   const ctx2 = canvas.getContext('2d');
-  const W = canvas.offsetWidth || 320, H = canvas.offsetHeight || 52;
+  const W = canvas.offsetWidth || 320, H = canvas.offsetHeight || 110;
   if (canvas.width !== W) canvas.width = W;
   ctx2.clearRect(0, 0, W, H);
   _drawEQCurve(ctx2, W, H);
@@ -2136,7 +2166,7 @@ async function play(song, newQueue, idx) {
 
   // Reset AI target + stability lock + loudness state when song changes
   if (eqAIMode && eqFilters.length > 0) {
-    _aiTarget = new Array(10).fill(0);
+    _aiTarget = new Array(6).fill(0);
     _aiLastCandidate = ''; _aiCandidateCount = 0; _aiDetectedPreset = '';
     _aiRmsBaseline = 0; _aiLoudnessComp = 0;
     _aiBpm = 0; _aiBpmOnsets = []; _aiBpmPrevEnergy = 0;
