@@ -185,6 +185,9 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Poppins'
 .eq-ai-label{display:block;font-size:13px;font-weight:600;color:var(--fg);letter-spacing:.2px}
 .eq-ai-hint{display:block;font-size:10px;color:var(--fg2);margin-top:2px;transition:color .4s}
 #eq-ai-btn.on{background:linear-gradient(90deg,var(--red),var(--red2))}
+#eq-enable-btn.on{background:linear-gradient(90deg,var(--red),var(--red2))}
+#eq-body{transition:opacity .2s,filter .2s}
+#eq-body.eq-disabled{opacity:.35;pointer-events:none;filter:saturate(0)}
 .eq-comp-row{display:flex;align-items:center;justify-content:space-between;padding:10px 4px 0;border-top:1px solid rgba(255,255,255,.07);margin-top:2px}
 .eq-comp-row span{font-size:13px;color:var(--fg2)}
 .eq-extra-row{display:flex;align-items:center;justify-content:space-between;padding:10px 4px 0;border-top:1px solid rgba(255,255,255,.07);margin-top:2px;gap:10px}
@@ -668,6 +671,14 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Poppins'
     <!-- EQ Panel (expands in-flow above footer, works on any device) -->
     <div id="eq-panel">
       <h3>Equalizer <span id="eq-status" style="font-size:10px;opacity:.6"></span></h3>
+      <div class="eq-ai-row" style="border-bottom:1px solid rgba(255,255,255,.09);margin-bottom:8px;padding-bottom:10px">
+        <div>
+          <span class="eq-ai-label">EQ</span>
+          <span class="eq-ai-hint" id="eq-enable-hint">Processing active</span>
+        </div>
+        <button class="comp-toggle on" id="eq-enable-btn" aria-checked="true" role="switch"><div class="comp-thumb"></div></button>
+      </div>
+      <div id="eq-body">
       <div class="eq-ai-row">
         <div>
           <span class="eq-ai-label">✨ AI EQ</span>
@@ -728,6 +739,7 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Poppins'
         <span>Custom Presets</span>
         <button id="eq-save-btn">Save Current</button>
       </div>
+      </div><!-- /#eq-body -->
     </div>
     <div id="np-footer">
       <button class="np-foot" id="np-add-pl-btn">
@@ -821,7 +833,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '2.4.0';
+const APP_VERSION = '2.5.0';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -1021,7 +1033,7 @@ let eqPreampNode = null, eqBassNode = null, eqAnalyser = null;
 let eqWidthSplitter = null, eqWidthMerger = null;
 let eqWidthLL = null, eqWidthRL = null, eqWidthLR = null, eqWidthRR = null;
 let eqGains = [0,0,0,0,0,0,0,0,0,0], eqCompOn = false, eqLoudness = false, eqPreset = 'flat';
-let eqPreamp = 0, eqBass = 0, eqStereoWidth = false;
+let eqPreamp = 0, eqBass = 0, eqStereoWidth = false, eqEnabled = true;
 let _eqWiring = false, _eqRafId = null;
 let eqCustomPresets = [];
 let eqAIMode = false, _aiTarget = new Array(10).fill(0), _aiTimer = null, _aiRaf = null;
@@ -1217,33 +1229,49 @@ function initEQ() {
     .catch(e => Log.warn('EQ resume failed', { err: e.message }));
 }
 
+function applyEQEnabled() {
+  const body = document.getElementById('eq-body');
+  const hint = document.getElementById('eq-enable-hint');
+  const btn  = document.getElementById('eq-enable-btn');
+  if (body) body.classList.toggle('eq-disabled', !eqEnabled);
+  if (hint) hint.textContent = eqEnabled ? 'Processing active' : 'Bypassed';
+  if (btn)  { btn.classList.toggle('on', eqEnabled); btn.setAttribute('aria-checked', String(eqEnabled)); }
+  applyEQ();
+}
+
 function applyEQ() {
   if (!eqCtx || !eqCompressor) return;
-  eqFilters.forEach((f, i) => { f.gain.value = eqGains[i]; });
+  eqFilters.forEach((f, i) => { f.gain.value = eqEnabled ? eqGains[i] : 0; });
   if (eqLoudnessNodes.length === 2) {
-    eqLoudnessNodes[0].gain.value = eqLoudness ? 5 : 0;
-    eqLoudnessNodes[1].gain.value = eqLoudness ? 3 : 0;
+    eqLoudnessNodes[0].gain.value = (eqEnabled && eqLoudness) ? 5 : 0;
+    eqLoudnessNodes[1].gain.value = (eqEnabled && eqLoudness) ? 3 : 0;
   }
-  if (eqPreampNode) eqPreampNode.gain.value = Math.pow(10, eqPreamp / 20);
-  if (eqBassNode)   eqBassNode.gain.value   = eqBass;
+  if (eqPreampNode) eqPreampNode.gain.value = eqEnabled ? Math.pow(10, eqPreamp / 20) : 1;
+  if (eqBassNode)   eqBassNode.gain.value   = eqEnabled ? eqBass : 0;
   if (eqWidthLL) {
-    const k = eqStereoWidth ? 1.5 : 1.0; // 1.0 = bypass, 1.5 = 50% wider
+    const k = (eqEnabled && eqStereoWidth) ? 1.5 : 1.0; // 1.0 = bypass, 1.5 = 50% wider
     const a = (1 + k) / 2, b = (1 - k) / 2; // cross-mix coefficients
     eqWidthLL.gain.value = a; eqWidthRR.gain.value = a;
     eqWidthRL.gain.value = b; eqWidthLR.gain.value = b;
   }
   // Bypass compressor via ratio=1 — no graph changes, no silence
-  eqCompressor.ratio.value     = eqCompOn ? 5  : 1;
-  eqCompressor.threshold.value = eqCompOn ? -24 : 0;
-  eqCompressor.knee.value      = eqCompOn ? 30  : 0;
+  eqCompressor.ratio.value     = (eqEnabled && eqCompOn) ? 5  : 1;
+  eqCompressor.threshold.value = (eqEnabled && eqCompOn) ? -24 : 0;
+  eqCompressor.knee.value      = (eqEnabled && eqCompOn) ? 30  : 0;
 }
 
 function saveEQState() {
-  localStorage.setItem('mbx_eq', JSON.stringify({ v:2, preset: eqPreset, gains: eqGains, comp: eqCompOn, loud: eqLoudness, preamp: eqPreamp, bass: eqBass, wide: eqStereoWidth, aiMode: eqAIMode }));
+  localStorage.setItem('mbx_eq', JSON.stringify({ v:2, preset: eqPreset, gains: eqGains, comp: eqCompOn, loud: eqLoudness, preamp: eqPreamp, bass: eqBass, wide: eqStereoWidth, aiMode: eqAIMode, enabled: eqEnabled }));
   localStorage.setItem('mbx_eq_custom', JSON.stringify(eqCustomPresets));
 }
 
 function syncEQUI() {
+  const enableBtn = document.getElementById('eq-enable-btn');
+  const enableHint = document.getElementById('eq-enable-hint');
+  const eqBody = document.getElementById('eq-body');
+  if (enableBtn) { enableBtn.classList.toggle('on', eqEnabled); enableBtn.setAttribute('aria-checked', String(eqEnabled)); }
+  if (enableHint) enableHint.textContent = eqEnabled ? 'Processing active' : 'Bypassed';
+  if (eqBody) eqBody.classList.toggle('eq-disabled', !eqEnabled);
   document.querySelectorAll('.eq-slider').forEach((sl, i) => {
     sl.value = eqGains[i];
     sl.closest('.eq-band').querySelector('.eq-gain-val').textContent =
@@ -1390,6 +1418,7 @@ function loadEQState() {
     eqBass         = typeof s.bass   === 'number' ? s.bass   : 0;
     eqStereoWidth  = !!s.wide;
     eqAIMode       = !!s.aiMode;
+    eqEnabled      = s.enabled !== false; // default true
   } catch {}
   try {
     const c = JSON.parse(localStorage.getItem('mbx_eq_custom') || '[]');
@@ -2231,6 +2260,13 @@ function closeEQPanel() {
 
 eqBtn.addEventListener('click', () =>
   eqPanel.classList.contains('open') ? closeEQPanel() : openEQPanel());
+
+document.getElementById('eq-enable-btn').addEventListener('click', () => {
+  eqEnabled = !eqEnabled;
+  initEQ();
+  applyEQEnabled();
+  saveEQState();
+});
 
 document.getElementById('eq-ai-btn').addEventListener('click', () => { initEQ(); toggleAIEQ(); });
 
