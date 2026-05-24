@@ -164,33 +164,6 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Poppins'
 .np-foot{background:none;border:none;color:var(--fg3);font-size:13px;cursor:pointer;font-family:inherit;padding:8px 12px;display:flex;align-items:center;gap:5px}
 .np-foot.active{color:var(--red)}
 
-/* ── EQ Panel — in-flow flex child, expands above footer, fits any device ── */
-#eq-panel{overflow:hidden;max-height:0;padding:0 20px;background:var(--bg2);border-radius:20px 20px 0 0;flex-shrink:0;transition:max-height .35s cubic-bezier(.32,1,.6,1),padding .28s ease}
-#eq-panel.open{max-height:800px;padding:14px 20px;padding-bottom:calc(max(16px,env(safe-area-inset-bottom)) + 8px);overflow-y:auto;-webkit-overflow-scrolling:touch}
-/* When EQ is open — collapse art, hide vol row, allow NP inner to scroll */
-#np.eq-open #np-art-wrap{max-height:0;padding:0;opacity:0;pointer-events:none}
-#np.eq-open #np-vol-wrap{display:none}
-#np.eq-open #np-inner{overflow-y:auto;-webkit-overflow-scrolling:touch}
-#eq-panel h3{text-align:center;font-size:13px;font-weight:600;color:var(--fg2);margin:0 0 12px;letter-spacing:.5px;text-transform:uppercase}
-.eq-presets{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-bottom:12px}
-.eq-preset{background:var(--bg3);border:none;color:var(--fg2);font-size:11px;font-weight:600;padding:5px 11px;border-radius:20px;cursor:pointer;font-family:inherit;transition:background .15s,color .15s}
-.eq-preset.active{background:var(--red);color:#fff}
-#eq-canvas{width:100%;height:110px;border-radius:10px;margin-bottom:8px;background:rgba(0,0,0,.25);display:block;cursor:pointer}
-.eq-bands{display:flex;justify-content:space-between;align-items:flex-end;gap:2px;margin-bottom:8px}
-.eq-band{display:flex;flex-direction:column;align-items:center;gap:4px;flex:1}
-.eq-band label{font-size:9px;color:var(--fg3);text-align:center;white-space:nowrap}
-.eq-band input[type=range]{writing-mode:vertical-lr;direction:rtl;-webkit-appearance:slider-vertical;width:26px;height:88px;cursor:pointer;accent-color:var(--red)}
-.eq-gain-val{font-size:9px;color:var(--fg2);font-variant-numeric:tabular-nums;min-width:26px;text-align:center}
-.eq-presets{display:flex;gap:6px;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:6px;margin-bottom:10px;scrollbar-width:none}
-.eq-presets::-webkit-scrollbar{display:none}
-#eq-enable-btn.on{background:linear-gradient(90deg,var(--red),var(--red2))}
-#eq-body{transition:opacity .2s,filter .2s}
-#eq-body.eq-disabled{opacity:.35;pointer-events:none;filter:saturate(0)}
-/* Tap-friendly toggle button — no hidden checkbox */
-.comp-toggle{position:relative;width:44px;height:26px;flex-shrink:0;background:rgba(255,255,255,.2);border:none;border-radius:13px;cursor:pointer;transition:background .2s;-webkit-tap-highlight-color:transparent;padding:0}
-.comp-toggle.on{background:var(--red)}
-.comp-thumb{position:absolute;top:3px;left:3px;width:20px;height:20px;background:#fff;border-radius:50%;transition:transform .2s;box-shadow:0 1px 4px rgba(0,0,0,.4);pointer-events:none}
-.comp-toggle.on .comp-thumb{transform:translateX(18px)}
 
 /* Loading ring in now playing */
 #np-loading{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.4)}
@@ -654,58 +627,9 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Poppins'
       <input id="np-vol" type="range" min="0" max="1" step="0.02" value="1">
       <span class="vol-ico">🔊</span>
     </div>
-    <!-- EQ Panel (expands in-flow above footer, works on any device) -->
-    <div id="eq-panel">
-      <h3>Equalizer <span id="eq-status" style="font-size:10px;opacity:.6"></span></h3>
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 4px 10px;border-bottom:1px solid rgba(255,255,255,.09);margin-bottom:8px">
-        <div>
-          <span style="display:block;font-size:13px;font-weight:600;color:var(--fg);letter-spacing:.2px">EQ</span>
-          <span style="display:block;font-size:10px;color:var(--fg2);margin-top:2px" id="eq-enable-hint">Processing active</span>
-        </div>
-        <button class="comp-toggle on" id="eq-enable-btn" aria-checked="true" role="switch"><div class="comp-thumb"></div></button>
-      </div>
-      <div id="eq-body">
-      <div class="eq-presets" id="eq-presets-row">
-        <button class="eq-preset active" data-preset="flat">Flat</button>
-        <button class="eq-preset" data-preset="acoustic">Acoustic</button>
-        <button class="eq-preset" data-preset="bass_booster">Bass Booster</button>
-        <button class="eq-preset" data-preset="bass_reducer">Bass Reducer</button>
-        <button class="eq-preset" data-preset="classical">Classical</button>
-        <button class="eq-preset" data-preset="dance">Dance</button>
-        <button class="eq-preset" data-preset="deep">Deep</button>
-        <button class="eq-preset" data-preset="electronic">Electronic</button>
-        <button class="eq-preset" data-preset="hiphop">Hip-Hop</button>
-        <button class="eq-preset" data-preset="jazz">Jazz</button>
-        <button class="eq-preset" data-preset="latin">Latin</button>
-        <button class="eq-preset" data-preset="loudness">Loudness</button>
-        <button class="eq-preset" data-preset="lounge">Lounge</button>
-        <button class="eq-preset" data-preset="piano">Piano</button>
-        <button class="eq-preset" data-preset="pop">Pop</button>
-        <button class="eq-preset" data-preset="rnb">R&amp;B</button>
-        <button class="eq-preset" data-preset="rock">Rock</button>
-        <button class="eq-preset" data-preset="small_speakers">Small Speakers</button>
-        <button class="eq-preset" data-preset="spoken_word">Spoken Word</button>
-        <button class="eq-preset" data-preset="treble_booster">Treble Booster</button>
-        <button class="eq-preset" data-preset="treble_reducer">Treble Reducer</button>
-        <button class="eq-preset" data-preset="vocal_booster">Vocal Booster</button>
-      </div>
-      <canvas id="eq-canvas" width="320" height="110" aria-hidden="true"></canvas>
-      <div class="eq-bands">
-        <div class="eq-band"><input type="range" class="eq-slider" min="-12" max="12" value="0" step="0.5" data-band="0"><div class="eq-gain-val">0</div><label>60Hz</label></div>
-        <div class="eq-band"><input type="range" class="eq-slider" min="-12" max="12" value="0" step="0.5" data-band="1"><div class="eq-gain-val">0</div><label>150Hz</label></div>
-        <div class="eq-band"><input type="range" class="eq-slider" min="-12" max="12" value="0" step="0.5" data-band="2"><div class="eq-gain-val">0</div><label>400Hz</label></div>
-        <div class="eq-band"><input type="range" class="eq-slider" min="-12" max="12" value="0" step="0.5" data-band="3"><div class="eq-gain-val">0</div><label>1kHz</label></div>
-        <div class="eq-band"><input type="range" class="eq-slider" min="-12" max="12" value="0" step="0.5" data-band="4"><div class="eq-gain-val">0</div><label>2.4kHz</label></div>
-        <div class="eq-band"><input type="range" class="eq-slider" min="-12" max="12" value="0" step="0.5" data-band="5"><div class="eq-gain-val">0</div><label>15kHz</label></div>
-      </div>
-      </div><!-- /#eq-body -->
-    </div>
     <div id="np-footer">
       <button class="np-foot" id="np-add-pl-btn">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Playlist
-      </button>
-      <button class="np-foot" id="np-eq-btn">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>EQ
       </button>
       <button class="np-foot" id="np-queue-btn">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>Queue
@@ -735,8 +659,8 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Poppins'
 </div>
 
 <div id="toast"></div>
-<audio id="audio" preload="none" crossorigin="anonymous" playsinline webkit-playsinline x-webkit-airplay="allow"></audio>
-<audio id="audio-preload" preload="none" crossorigin="anonymous" playsinline webkit-playsinline x-webkit-airplay="allow" style="display:none"></audio>
+<audio id="audio" preload="none" playsinline webkit-playsinline x-webkit-airplay="allow"></audio>
+<audio id="audio-preload" preload="none" playsinline webkit-playsinline x-webkit-airplay="allow" style="display:none"></audio>
 
 <script>
 'use strict';
@@ -792,7 +716,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '2.7.1';
+const APP_VERSION = '2.8.0';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -972,352 +896,6 @@ let _intelNaturalEnd = false; // true when song ends naturally (vs. user skip)
 
 const audio        = document.getElementById('audio');
 const audioPreload = document.getElementById('audio-preload');
-
-// ── WEB AUDIO EQ ───────────────────────────────────────────────────────────────
-// Spotify 6-band EQ: 60Hz · 150Hz · 400Hz · 1kHz · 2.4kHz · 15kHz
-const EQ_BANDS = [60, 150, 400, 1000, 2400, 15000];
-const EQ_PRESETS = {
-  // [60Hz, 150Hz, 400Hz, 1kHz, 2.4kHz, 15kHz]
-  flat:           [ 0,  0,  0,  0,  0,  0],
-  acoustic:       [ 4,  3,  2,  3,  4,  5],
-  bass_booster:   [ 6,  5,  3,  0,  0,  0],
-  bass_reducer:   [-6, -5, -3,  0,  0,  0],
-  classical:      [ 4,  3,  0,  0,  3,  5],
-  dance:          [ 5,  4,  1,  0,  2,  4],
-  deep:           [ 5,  4,  3,  2, -2, -4],
-  electronic:     [ 5,  4,  0, -1,  4,  5],
-  hiphop:         [ 6,  5,  2,  1,  2,  1],
-  jazz:           [ 4,  3,  1,  2,  4,  5],
-  latin:          [ 4,  2, -1, -1,  2,  5],
-  loudness:       [ 5,  3,  0,  0,  3,  5],
-  lounge:         [-3, -2,  0,  2,  4,  3],
-  piano:          [ 0,  0,  3,  5,  5,  4],
-  pop:            [-1,  0,  3,  4,  3, -1],
-  rnb:            [ 6,  5,  1, -1,  2,  3],
-  rock:           [ 5,  3,  0, -1,  3,  5],
-  small_speakers: [-3,  2,  5,  5,  3, -1],
-  spoken_word:    [-3, -3,  0,  4,  5,  4],
-  treble_booster: [ 0,  0,  0,  3,  5,  6],
-  treble_reducer: [ 0,  0,  0, -3, -5, -6],
-  vocal_booster:  [-2, -2,  3,  5,  4, -2],
-};
-let eqCtx = null, eqFilters = [], eqCompressor = null, eqAnalyser = null;
-let eqGains = [0,0,0,0,0,0], eqPreset = 'flat', eqEnabled = true;
-let _eqWiring = false, _eqRafId = null;
-let eqUseProxy = false;
-let rawStreamUrl = '';  // original CDN URL before any proxy wrapping
-
-// Wire the audio graph. Must only run when AudioContext is already 'running'.
-function _wireEQGraph() {
-  if (eqFilters.length > 0 || _eqWiring || !eqCtx) return;
-  if (eqCtx.state !== 'running') return;
-  _eqWiring = true;
-  const wasPlaying = !audio.paused;
-  const refTime    = audio.currentTime;
-  try {
-    const src = eqCtx.createMediaElementSource(audio);
-    // 6-band EQ filters (Spotify-style)
-    eqFilters = EQ_BANDS.map((freq, i) => {
-      const f = eqCtx.createBiquadFilter();
-      f.type = i === 0 ? 'lowshelf' : i === EQ_BANDS.length - 1 ? 'highshelf' : 'peaking';
-      f.frequency.value = freq;
-      f.gain.value = eqGains[i];
-      return f;
-    });
-    // Always-on gentle compressor — adds loudness/warmth, prevents clipping on boosts
-    eqCompressor = eqCtx.createDynamicsCompressor();
-    eqCompressor.threshold.value = -18;
-    eqCompressor.knee.value      = 12;
-    eqCompressor.ratio.value     = 3;
-    eqCompressor.attack.value    = 0.003;
-    eqCompressor.release.value   = 0.25;
-    // Spectrum analyser (module-level so animation loop can read it)
-    eqAnalyser = eqCtx.createAnalyser();
-    eqAnalyser.fftSize = 2048;
-    let node = src;
-    eqFilters.forEach(f => { node.connect(f); node = f; });
-    node.connect(eqCompressor);
-    eqCompressor.connect(eqAnalyser);
-    eqAnalyser.connect(eqCtx.destination);
-    applyEQ();
-    Log.info('EQ wired', { state: eqCtx.state, bands: EQ_BANDS.length });
-    const h = document.getElementById('eq-status');
-    if (h) { h.textContent = '●'; h.style.color = 'var(--red)'; }
-    // Start spectrum animation if panel is already open
-    if (eqPanel && eqPanel.classList.contains('open')) startSpectrum();
-    // Safety net: check for zero-signal output after 600ms (CORS-taint guard)
-    if (wasPlaying) {
-      setTimeout(() => {
-        if (!eqCtx || eqCtx.state !== 'running' || audio.paused || !eqAnalyser) return;
-        const data = new Uint8Array(eqAnalyser.frequencyBinCount);
-        eqAnalyser.getByteFrequencyData(data);
-        if (!data.some(v => v > 0) && !audio.paused && audio.currentTime > 0) {
-          Log.warn('EQ silent output — releasing EQ, restoring audio');
-          stopSpectrum();
-          try { eqCtx.close(); } catch {}
-          eqCtx = null; eqFilters = []; eqCompressor = null; eqAnalyser = null;
-          _eqWiring = false;
-          const hx = document.getElementById('eq-status');
-          if (hx) hx.textContent = '';
-          audio.play().catch(() => {});
-          toast('EQ unavailable for this stream — playing without EQ');
-        }
-      }, 600);
-    }
-  } catch (e) {
-    eqFilters = []; eqAnalyser = null; eqCompressor = null;
-    Log.warn('EQ wire failed', { err: e.message, name: e.name });
-    if (!eqUseProxy && rawStreamUrl && (e.name === 'NotSupportedError' || e.name === 'InvalidStateError')) {
-      // CORS-tainted stream — reload via proxy and retry EQ
-      _reloadAudioForEQ(wasPlaying, refTime);
-    } else {
-      try { if (eqCtx) eqCtx.close(); } catch {}
-      eqCtx = null;
-      toast('EQ not available on this source');
-      if (wasPlaying) audio.play().catch(() => {});
-    }
-  }
-  _eqWiring = false;
-}
-
-async function _reloadAudioForEQ(wasPlaying, savedTime) {
-  eqUseProxy = true;
-  Log.info('EQ: reloading via CORS proxy', { url: rawStreamUrl });
-  toast('EQ: reloading stream…');
-  const proxied = `https://corsproxy.io/?${encodeURIComponent(rawStreamUrl)}`;
-  audio.src = proxied;
-  if (wasPlaying) {
-    try {
-      await audio.play();
-      if (savedTime > 1) audio.currentTime = savedTime;
-    } catch {}
-  }
-  setTimeout(initEQ, 900);
-}
-
-// initEQ — called from tap/click handlers only.
-// Creates the AudioContext, resumes it (synchronous call = iOS honours the gesture),
-// then wires the graph AFTER the context confirms running state via Promise.
-// ── AIRPLAY GUARD ─────────────────────────────────────────────────────────────
-// createMediaElementSource() routes audio through AudioContext.destination which
-// is always the LOCAL speaker — it bypasses iOS AirPlay routing entirely.
-// When AirPlay is active we must keep the <audio> element unwired so the OS
-// can route it to the AirPlay target.
-function isAirPlayActive() {
-  return !!audio.webkitCurrentPlaybackTargetIsWireless;
-}
-
-audio.addEventListener('webkitcurrentplaybacktargetiswirelesschanged', () => {
-  if (isAirPlayActive() && eqFilters.length > 0) {
-    // AirPlay just turned on — release EQ so audio routes through OS to AirPlay
-    stopSpectrum();
-    try { eqCtx?.close(); } catch {}
-    eqCtx = null; eqFilters = []; eqCompressor = null; eqAnalyser = null;
-    const h = document.getElementById('eq-status');
-    if (h) h.textContent = '';
-    closeEQPanel();
-    Log.info('EQ released for AirPlay');
-    toast('EQ paused — AirPlay active');
-  }
-});
-
-// iOS phone-call / Siri interruption recovery.
-// When the OS resumes the audio session after a call, AudioContext transitions
-// interrupted → suspended. Resume it so EQ keeps working without user action.
-function _onEQCtxStateChange() {
-  if (!eqCtx || isAirPlayActive()) return;
-  if (eqCtx.state === 'suspended') eqCtx.resume().catch(() => {});
-}
-
-// Resume AudioContext when user switches back to the app from the home screen
-// or another app — iOS suspends the context on backgrounding.
-document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) {
-    // Resume EQ AudioContext after screen unlock / app foreground
-    if (eqCtx && !isAirPlayActive()) {
-      if (eqCtx.state === 'closed') { eqCtx = null; } // will re-init on next EQ open
-      else if (eqCtx.state === 'suspended') eqCtx.resume().catch(() => {});
-    }
-    // iOS can pause the audio element when screen locks — resume if user didn't explicitly pause
-    if (!userPaused && audio.paused && nowSong) {
-      audio.play().catch(() => {});
-    }
-  }
-});
-
-function initEQ() {
-  if (isAirPlayActive()) { toast('EQ is not available during AirPlay'); return; }
-  if (eqFilters.length > 0) {
-    if (eqCtx?.state === 'suspended') eqCtx.resume().then(() => applyEQ()).catch(() => {});
-    return;
-  }
-  if (!eqCtx) {
-    try {
-      eqCtx = new (window.AudioContext || window.webkitAudioContext)();
-      eqCtx.addEventListener('statechange', _onEQCtxStateChange);
-    }
-    catch (e) { return; }
-  }
-  // Wire immediately if already running (e.g. reopening panel)
-  if (eqCtx.state === 'running') { _wireEQGraph(); return; }
-  // Otherwise resume and wire once the Promise resolves (context confirmed running)
-  eqCtx.resume()
-    .then(() => _wireEQGraph())
-    .catch(e => Log.warn('EQ resume failed', { err: e.message }));
-}
-
-function applyEQEnabled() {
-  const body = document.getElementById('eq-body');
-  const hint = document.getElementById('eq-enable-hint');
-  const btn  = document.getElementById('eq-enable-btn');
-  if (body) body.classList.toggle('eq-disabled', !eqEnabled);
-  if (hint) hint.textContent = eqEnabled ? 'Processing active' : 'Bypassed';
-  if (btn)  { btn.classList.toggle('on', eqEnabled); btn.setAttribute('aria-checked', String(eqEnabled)); }
-  applyEQ();
-}
-
-function applyEQ() {
-  if (!eqCtx || !eqCompressor) return;
-  eqFilters.forEach((f, i) => { f.gain.value = eqEnabled ? eqGains[i] : 0; });
-}
-
-function saveEQState() {
-  localStorage.setItem('mbx_eq', JSON.stringify({ v:3, preset: eqPreset, gains: eqGains, enabled: eqEnabled }));
-}
-
-function syncEQUI() {
-  const enableBtn = document.getElementById('eq-enable-btn');
-  const enableHint = document.getElementById('eq-enable-hint');
-  const eqBody = document.getElementById('eq-body');
-  if (enableBtn) { enableBtn.classList.toggle('on', eqEnabled); enableBtn.setAttribute('aria-checked', String(eqEnabled)); }
-  if (enableHint) enableHint.textContent = eqEnabled ? 'Processing active' : 'Bypassed';
-  if (eqBody) eqBody.classList.toggle('eq-disabled', !eqEnabled);
-  document.querySelectorAll('.eq-slider').forEach((sl, i) => {
-    sl.value = eqGains[i];
-    sl.closest('.eq-band').querySelector('.eq-gain-val').textContent =
-      (eqGains[i] > 0 ? '+' : '') + eqGains[i];
-  });
-  document.querySelectorAll('.eq-preset').forEach(b =>
-    b.classList.toggle('active', b.dataset.preset === eqPreset));
-  // Redraw static curve if spectrum animation is not running
-  if (!_eqRafId && eqPanel && eqPanel.classList.contains('open')) stopSpectrum();
-}
-
-function setEQPreset(name) {
-  eqPreset = name;
-  eqGains = [...(EQ_PRESETS[name] || EQ_PRESETS.flat)];
-  applyEQ();
-  syncEQUI();
-  saveEQState();
-}
-
-
-function loadEQState() {
-  try {
-    const s = JSON.parse(localStorage.getItem('mbx_eq') || '{}');
-    if (Array.isArray(s.gains) && s.gains.length === 6) eqGains = s.gains;
-    eqPreset  = s.preset || 'flat';
-    eqEnabled = s.enabled !== false;
-  } catch {}
-  syncEQUI();
-}
-
-// ── SPECTRUM ANALYSER ANIMATION ────────────────────────────────────────────────
-// Draws the theoretical EQ response curve (logarithmic x-axis, ±12dB y-axis)
-function _drawEQCurve(ctx2, W, H) {
-  const logMin = Math.log10(40), logMax = Math.log10(20000);
-  const midY = H / 2, gainScale = midY / 12;
-  ctx2.save();
-  // Filled gradient area under the curve
-  const pts = EQ_BANDS.map((freq, i) => ({
-    x: (Math.log10(freq) - logMin) / (logMax - logMin) * W,
-    y: midY - Math.max(-12, Math.min(12, eqGains[i])) * gainScale
-  }));
-  const grad = ctx2.createLinearGradient(0, 0, 0, H);
-  grad.addColorStop(0, 'rgba(0,230,230,0.22)');
-  grad.addColorStop(1, 'rgba(0,230,230,0)');
-  ctx2.beginPath();
-  ctx2.moveTo(0, midY);
-  pts.forEach(p => ctx2.lineTo(p.x, p.y));
-  ctx2.lineTo(W, midY);
-  ctx2.closePath();
-  ctx2.fillStyle = grad;
-  ctx2.fill();
-  // 0 dB reference line
-  ctx2.strokeStyle = 'rgba(255,255,255,0.12)';
-  ctx2.lineWidth = 1;
-  ctx2.setLineDash([3, 5]);
-  ctx2.beginPath(); ctx2.moveTo(0, midY); ctx2.lineTo(W, midY); ctx2.stroke();
-  ctx2.setLineDash([]);
-  // EQ curve line
-  ctx2.strokeStyle = 'rgba(0,230,230,0.9)';
-  ctx2.lineWidth = 2;
-  ctx2.lineJoin = 'round';
-  ctx2.beginPath();
-  pts.forEach((p, i) => i === 0 ? ctx2.moveTo(p.x, p.y) : ctx2.lineTo(p.x, p.y));
-  ctx2.stroke();
-  // Spotify-style draggable dots — larger, white fill with cyan ring
-  pts.forEach(p => {
-    ctx2.beginPath();
-    ctx2.arc(p.x, p.y, 6, 0, Math.PI * 2);
-    ctx2.fillStyle = '#fff';
-    ctx2.fill();
-    ctx2.strokeStyle = 'rgba(0,230,230,0.9)';
-    ctx2.lineWidth = 2;
-    ctx2.stroke();
-  });
-  ctx2.restore();
-}
-
-function _drawSpectrum() {
-  const canvas = document.getElementById('eq-canvas');
-  if (!canvas || !eqCtx) { _eqRafId = null; return; }
-  if (!eqPanel || !eqPanel.classList.contains('open')) { _eqRafId = null; return; }
-  const ctx2 = canvas.getContext('2d');
-  const W = canvas.offsetWidth || 320;
-  const H = canvas.offsetHeight || 110;
-  if (canvas.width !== W) canvas.width = W;
-  ctx2.clearRect(0, 0, W, H);
-  // Spectrum bars behind the curve (only when analyser is live)
-  if (eqAnalyser) {
-    const data = new Uint8Array(eqAnalyser.frequencyBinCount);
-    eqAnalyser.getByteFrequencyData(data);
-    const sr = eqCtx.sampleRate, binCount = eqAnalyser.frequencyBinCount;
-    const logMin = Math.log10(40), logMax = Math.log10(20000);
-    const bw = W / EQ_BANDS.length;
-    EQ_BANDS.forEach((freq, i) => {
-      const binIdx = Math.min(Math.round(freq * binCount / (sr / 2)), binCount - 1);
-      const val = data[binIdx] / 255;
-      const bh = Math.max(2, val * H * 0.85);
-      const x = (Math.log10(freq) - logMin) / (logMax - logMin) * W - bw * 0.5;
-      const grd = ctx2.createLinearGradient(0, H - bh, 0, H);
-      grd.addColorStop(0, 'rgba(0,230,230,0.18)');
-      grd.addColorStop(1, 'rgba(0,120,120,0.06)');
-      ctx2.fillStyle = grd;
-      ctx2.fillRect(Math.max(0, x), H - bh, bw, bh);
-    });
-  }
-  // EQ response curve always on top
-  _drawEQCurve(ctx2, W, H);
-  _eqRafId = requestAnimationFrame(_drawSpectrum);
-}
-
-function startSpectrum() {
-  if (_eqRafId) return;
-  _eqRafId = requestAnimationFrame(_drawSpectrum);
-}
-
-function stopSpectrum() {
-  if (_eqRafId) { cancelAnimationFrame(_eqRafId); _eqRafId = null; }
-  // Draw static curve so panel still shows EQ shape when audio is not playing
-  const canvas = document.getElementById('eq-canvas');
-  if (!canvas) return;
-  const ctx2 = canvas.getContext('2d');
-  const W = canvas.offsetWidth || 320, H = canvas.offsetHeight || 110;
-  if (canvas.width !== W) canvas.width = W;
-  ctx2.clearRect(0, 0, W, H);
-  _drawEQCurve(ctx2, W, H);
-}
 
 
 // ── STORAGE ────────────────────────────────────────────────────────────────────
@@ -1710,7 +1288,6 @@ async function play(song, newQueue, idx) {
       refreshMini(); refreshNP();
       if (offlineBlobUrl) { URL.revokeObjectURL(offlineBlobUrl); offlineBlobUrl = null; }
       offlineBlobUrl = URL.createObjectURL(offline.blob);
-      rawStreamUrl   = offlineBlobUrl;
       audio.src      = offlineBlobUrl;
       await audio.play().catch(() => toast('Tap play to start'));
       if (nowSong?.id !== song.id) return;
@@ -1722,10 +1299,7 @@ async function play(song, newQueue, idx) {
     if (stream.image) nowSong.image = stream.image;
     if (stream.quality) nowSong.quality = stream.quality;
     refreshMini(); refreshNP();
-    rawStreamUrl = stream.url;
-    audio.src = eqUseProxy
-      ? `https://corsproxy.io/?${encodeURIComponent(stream.url)}`
-      : stream.url;
+    audio.src = stream.url;
     await audio.play().catch(() => toast('Tap play to start'));
     if (nowSong?.id !== song.id) return;
     playing = true;
@@ -1867,6 +1441,14 @@ audio.addEventListener('error', () => {
     refreshPlayBtns();
   }
 });
+// Resume playback after screen lock / app foreground (iOS pauses the audio element)
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && !userPaused && audio.paused && nowSong) {
+    audio.play().catch(() => {});
+  }
+});
+
+let _posStateTs = 0;
 audio.addEventListener('timeupdate', () => {
   if (seeking || !audio.duration) return;
   const pct = audio.currentTime / audio.duration;
@@ -1876,8 +1458,10 @@ audio.addEventListener('timeupdate', () => {
   document.getElementById('mini-bar').style.width = (pct * 100) + '%';
   document.getElementById('np-elapsed').textContent = fmt(audio.currentTime);
   document.getElementById('np-remain').textContent  = '−' + fmt(audio.duration - audio.currentTime);
-  // Keep CarPlay / Bluetooth seek bar in sync
-  if ('setPositionState' in navigator.mediaSession && isFinite(audio.duration)) {
+  // Keep CarPlay / Bluetooth seek bar in sync — throttled to 1Hz to avoid audio glitches
+  const now = Date.now();
+  if ('setPositionState' in navigator.mediaSession && isFinite(audio.duration) && now - _posStateTs > 1000) {
+    _posStateTs = now;
     try {
       navigator.mediaSession.setPositionState({
         duration: audio.duration,
@@ -2014,56 +1598,8 @@ document.getElementById('np-menu-btn').addEventListener('click', () => { if (now
 document.getElementById('np-add-pl-btn').addEventListener('click', () => { if (nowSong) showAddToPlaylist(nowSong); });
 document.getElementById('np-queue-btn').addEventListener('click', showQueueSheet);
 
-// ── EQ PANEL ───────────────────────────────────────────────────────────────────
-const eqPanel = document.getElementById('eq-panel');
-const eqBtn   = document.getElementById('np-eq-btn');
-
-function openEQPanel() {
-  initEQ();
-  eqPanel.classList.add('open');
-  eqBtn.classList.add('active');
-  document.getElementById('np').classList.add('eq-open');
-  startSpectrum();
-  // Scroll the EQ into view after the panel finishes expanding
-  setTimeout(() => eqPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 360);
-}
-function closeEQPanel() {
-  stopSpectrum();
-  eqPanel.classList.remove('open');
-  eqBtn.classList.remove('active');
-  document.getElementById('np').classList.remove('eq-open');
-}
-
-eqBtn.addEventListener('click', () =>
-  eqPanel.classList.contains('open') ? closeEQPanel() : openEQPanel());
-
-document.getElementById('eq-enable-btn').addEventListener('click', () => {
-  eqEnabled = !eqEnabled;
-  initEQ();
-  applyEQEnabled();
-  saveEQState();
-});
-
-document.querySelectorAll('.eq-preset').forEach(btn =>
-  btn.addEventListener('click', () => { initEQ(); setEQPreset(btn.dataset.preset); }));
-
-document.querySelectorAll('.eq-slider').forEach(sl => {
-  sl.addEventListener('input', () => {
-    initEQ();
-    const i = +sl.dataset.band;
-    eqGains[i] = +sl.value;
-    sl.closest('.eq-band').querySelector('.eq-gain-val').textContent =
-      (eqGains[i] > 0 ? '+' : '') + eqGains[i];
-    eqPreset = 'custom';
-    document.querySelectorAll('.eq-preset').forEach(b => b.classList.remove('active'));
-    applyEQ();
-    saveEQState();
-  });
-});
-
-// Close EQ panel when NP closes
 function openNP()  { document.getElementById('np').classList.add('open'); }
-function closeNP() { closeEQPanel(); document.getElementById('np').classList.remove('open'); }
+function closeNP() { document.getElementById('np').classList.remove('open'); }
 
 // ── TABS ───────────────────────────────────────────────────────────────────────
 document.getElementById('tabbar').addEventListener('click', e => {
@@ -3536,7 +3072,6 @@ if ('serviceWorker' in navigator) {
 // ── INIT ────────────────────────────────────────────────────────────────────────
 Log.init();
 intelPrune(); // trim stale listening history once per session
-loadEQState();
 buildDiscover();
 
 // Seed downloadedIds from IndexedDB so badges & sheet options are correct immediately
