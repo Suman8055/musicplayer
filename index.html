@@ -659,8 +659,8 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Poppins'
 </div>
 
 <div id="toast"></div>
-<audio id="audio" preload="none" playsinline webkit-playsinline x-webkit-airplay="allow"></audio>
-<audio id="audio-preload" preload="none" playsinline webkit-playsinline x-webkit-airplay="allow" style="display:none"></audio>
+<audio id="audio" preload="metadata" playsinline webkit-playsinline x-webkit-airplay="allow"></audio>
+<audio id="audio-preload" preload="metadata" playsinline webkit-playsinline x-webkit-airplay="allow" style="display:none"></audio>
 
 <script>
 'use strict';
@@ -716,7 +716,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '2.8.0';
+const APP_VERSION = '2.8.1';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -1288,6 +1288,7 @@ async function play(song, newQueue, idx) {
       refreshMini(); refreshNP();
       if (offlineBlobUrl) { URL.revokeObjectURL(offlineBlobUrl); offlineBlobUrl = null; }
       offlineBlobUrl = URL.createObjectURL(offline.blob);
+      audio.volume   = 1.0;
       audio.src      = offlineBlobUrl;
       await audio.play().catch(() => toast('Tap play to start'));
       if (nowSong?.id !== song.id) return;
@@ -1299,6 +1300,7 @@ async function play(song, newQueue, idx) {
     if (stream.image) nowSong.image = stream.image;
     if (stream.quality) nowSong.quality = stream.quality;
     refreshMini(); refreshNP();
+    audio.volume = 1.0;
     audio.src = stream.url;
     await audio.play().catch(() => toast('Tap play to start'));
     if (nowSong?.id !== song.id) return;
@@ -1429,6 +1431,18 @@ audio.addEventListener('waiting', () => { if (!loadingUrl) setNPLoading(true); }
 audio.addEventListener('stalled', () => {
   Log.warn('Audio stalled', { name: nowSong?.name, t: audio.currentTime });
   if (!loadingUrl) setNPLoading(true);
+  // Auto-recover: reload the src at the current position after a short delay
+  if (!loadingUrl && nowSong) {
+    setTimeout(() => {
+      if (audio.paused && !userPaused && nowSong) {
+        const t = audio.currentTime;
+        audio.load();
+        audio.currentTime = t;
+        audio.play().catch(() => {});
+        Log.info('Stall recovery attempted', { name: nowSong?.name });
+      }
+    }, 3000);
+  }
 });
 audio.addEventListener('ended', () => { _intelNaturalEnd = true; next(); });
 audio.addEventListener('error', () => {
