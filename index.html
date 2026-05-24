@@ -534,6 +534,10 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Poppins'
           <div class="settings-label">In-memory caches<small id="cache-stats-label">—</small></div>
           <button class="settings-btn sec" id="clear-cache-btn" style="flex-shrink:0;margin:0;padding:8px 14px;font-size:13px;border-radius:10px">Clear</button>
         </div>
+        <div class="settings-row">
+          <div class="settings-label">AI EQ learning<small id="ai-learn-stats-label">—</small></div>
+          <button class="settings-btn sec" id="reset-ai-learn-btn" style="flex-shrink:0;margin:0;padding:8px 14px;font-size:13px;border-radius:10px">Reset</button>
+        </div>
       </div>
 
       <div class="settings-section">Offline Storage</div>
@@ -833,7 +837,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '2.5.4';
+const APP_VERSION = '2.5.5';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -1044,6 +1048,8 @@ let eqAIMode = false, _aiTarget = new Array(10).fill(0), _aiTimer = null, _aiRaf
 let _aiRafFrame = 0, _aiDetectedPreset = '', _aiLastCandidate = '', _aiCandidateCount = 0;
 let _aiRmsBaseline = 0, _aiLoudnessComp = 0, _aiLoudnessTimer = null; // loudness normalisation state
 let _aiBpm = 0, _aiBpmOnsets = [], _aiBpmTimer = null, _aiBpmPrevEnergy = 0; // BPM detection state
+const AI_LEARN_KEY = 'mbx_ai_learn'; // adaptive learning storage key
+let _aiLearnMap = {};                 // { aiPreset: { userPreset: count } }
 let eqUseProxy = false; // true after CORS taint detected — routes audio via corsproxy.io for EQ
 let rawStreamUrl = '';  // original CDN URL before any proxy wrapping
 
@@ -1308,12 +1314,49 @@ function syncEQUI() {
 }
 
 function setEQPreset(name) {
+  if (eqAIMode && _aiDetectedPreset) _aiLearnRecord(_aiDetectedPreset, name);
   if (eqAIMode) { eqAIMode = false; stopAIEQ(); }
   eqPreset = name;
   eqGains = [...(EQ_PRESETS[name] || EQ_PRESETS.flat)];
   applyEQ();
   syncEQUI();
   saveEQState();
+}
+
+// ── AI EQ — ADAPTIVE LEARNING ────────────────────────────────────────────────
+function _aiLearnLoad() {
+  try { _aiLearnMap = JSON.parse(localStorage.getItem(AI_LEARN_KEY) || '{}'); } catch { _aiLearnMap = {}; }
+}
+
+function _aiLearnSave() {
+  try { localStorage.setItem(AI_LEARN_KEY, JSON.stringify(_aiLearnMap)); } catch {}
+}
+
+// Called when user manually picks a preset while AI was active.
+// Records: AI thought it was `aiPreset`, user chose `userPreset`.
+function _aiLearnRecord(aiPreset, userPreset) {
+  if (!aiPreset || aiPreset === userPreset) return; // no disagreement — nothing to learn
+  if (!_aiLearnMap[aiPreset]) _aiLearnMap[aiPreset] = {};
+  _aiLearnMap[aiPreset][userPreset] = (_aiLearnMap[aiPreset][userPreset] || 0) + 1;
+  _aiLearnSave();
+}
+
+// Returns the user-preferred preset for a given AI-detected preset,
+// or the original if no strong preference exists (threshold: 2 overrides).
+function _aiLearnApply(aiPreset) {
+  const corrections = _aiLearnMap[aiPreset];
+  if (!corrections) return aiPreset;
+  let best = aiPreset, bestCount = 1; // need >1 to override
+  for (const [preset, count] of Object.entries(corrections)) {
+    if (count > bestCount) { best = preset; bestCount = count; }
+  }
+  return best;
+}
+
+// Wipes the learning map (called from Settings reset)
+function _aiLearnReset() {
+  _aiLearnMap = {};
+  try { localStorage.removeItem(AI_LEARN_KEY); } catch {}
 }
 
 // ── AI EQ — MFCC ENGINE ───────────────────────────────────────────────────────
@@ -1479,12 +1522,17 @@ function _aiAnalyse() {
   }
   if (_aiCandidateCount < 2 && _aiDetectedPreset) return;
 
-  _aiTarget = [...(EQ_PRESETS[preset] || EQ_PRESETS.flat)];
-  _aiDetectedPreset = preset;
-  const label = { rnb: 'R&B', lofi: 'Lo-Fi', hiphop: 'Hip-Hop' }[preset]
-    || preset.charAt(0).toUpperCase() + preset.slice(1);
+  // Apply user's learned preference before committing
+  const finalPreset = _aiLearnApply(preset);
+  _aiTarget = [...(EQ_PRESETS[finalPreset] || EQ_PRESETS.flat)];
+  _aiDetectedPreset = preset; // store raw detection (not corrected) for future learning
+  const LABELS = { rnb: 'R&B', lofi: 'Lo-Fi', hiphop: 'Hip-Hop' };
   const hint = document.getElementById('eq-ai-hint');
-  if (hint) hint.textContent = label;
+  if (hint) {
+    const detectedLabel = LABELS[preset] || preset.charAt(0).toUpperCase() + preset.slice(1);
+    const finalLabel    = LABELS[finalPreset] || finalPreset.charAt(0).toUpperCase() + finalPreset.slice(1);
+    hint.textContent = finalPreset !== preset ? `${finalLabel} ✦` : detectedLabel;
+  }
 
   // Baseline RMS for loudness normalisation (Phase 2)
   if (_aiRmsBaseline === 0) _aiRmsBaseline = _aiRms();
@@ -2457,8 +2505,11 @@ document.querySelectorAll('.eq-preset').forEach(btn =>
 document.querySelectorAll('.eq-slider').forEach(sl => {
   sl.addEventListener('input', () => {
     initEQ();
-    // Turn off AI if user manually adjusts a band
-    if (eqAIMode) { eqAIMode = false; stopAIEQ(); syncEQUI(); saveEQState(); }
+    // Turn off AI if user manually adjusts a band — record as "flat" override
+    if (eqAIMode) {
+      if (_aiDetectedPreset) _aiLearnRecord(_aiDetectedPreset, 'flat');
+      eqAIMode = false; stopAIEQ(); syncEQUI(); saveEQState();
+    }
     const i = +sl.dataset.band;
     eqGains[i] = +sl.value;
     sl.closest('.eq-band').querySelector('.eq-gain-val').textContent =
@@ -3806,6 +3857,14 @@ function renderMemoryCard() {
   // In-memory cache stats
   const cacheEl = document.getElementById('cache-stats-label');
   if (cacheEl) cacheEl.textContent = `songs ${songCache.size}/300 · langs ${langCache.size}/8 · streams ${streamCache.size}/15`;
+
+  // AI learning stats
+  const learnEl = document.getElementById('ai-learn-stats-label');
+  if (learnEl) {
+    const rules = Object.keys(_aiLearnMap).length;
+    const total = Object.values(_aiLearnMap).reduce((s, v) => s + Object.values(v).reduce((a, b) => a + b, 0), 0);
+    learnEl.textContent = rules > 0 ? `${rules} genre rules · ${total} corrections` : 'No corrections yet';
+  }
 }
 
 function renderSettings() {
@@ -3856,6 +3915,12 @@ document.getElementById('clear-cache-btn').addEventListener('click', () => {
   _forYouCache = null;
   renderMemoryCard();
   toast('In-memory caches cleared');
+});
+
+document.getElementById('reset-ai-learn-btn').addEventListener('click', () => {
+  _aiLearnReset();
+  renderMemoryCard();
+  toast('AI EQ learning reset');
 });
 
 document.getElementById('clear-downloads-btn').addEventListener('click', async () => {
@@ -3993,6 +4058,7 @@ if ('serviceWorker' in navigator) {
 Log.init();
 intelPrune(); // trim stale listening history once per session
 loadEQState();
+_aiLearnLoad(); // restore adaptive EQ learning map
 buildDiscover();
 
 // Seed downloadedIds from IndexedDB so badges & sheet options are correct immediately
