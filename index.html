@@ -1015,10 +1015,6 @@ function _wireEQGraph() {
   const refTime    = audio.currentTime;
   try {
     const src = eqCtx.createMediaElementSource(audio);
-    // Headroom: -1.5dB safety margin so EQ boosts don't clip
-    const headroom = eqCtx.createGain();
-    headroom.gain.value = 0.85;
-    src.connect(headroom);
     // 6-band EQ filters (Spotify-style)
     eqFilters = EQ_BANDS.map((freq, i) => {
       const f = eqCtx.createBiquadFilter();
@@ -1027,13 +1023,17 @@ function _wireEQGraph() {
       f.gain.value = eqGains[i];
       return f;
     });
+    // Always-on gentle compressor — adds loudness/warmth, prevents clipping on boosts
     eqCompressor = eqCtx.createDynamicsCompressor();
-    eqCompressor.attack.value = 0.003;
-    eqCompressor.release.value = 0.25;
+    eqCompressor.threshold.value = -18;
+    eqCompressor.knee.value      = 12;
+    eqCompressor.ratio.value     = 3;
+    eqCompressor.attack.value    = 0.003;
+    eqCompressor.release.value   = 0.25;
     // Spectrum analyser (module-level so animation loop can read it)
     eqAnalyser = eqCtx.createAnalyser();
     eqAnalyser.fftSize = 2048;
-    let node = headroom;
+    let node = src;
     eqFilters.forEach(f => { node.connect(f); node = f; });
     node.connect(eqCompressor);
     eqCompressor.connect(eqAnalyser);
@@ -1171,10 +1171,6 @@ function applyEQEnabled() {
 function applyEQ() {
   if (!eqCtx || !eqCompressor) return;
   eqFilters.forEach((f, i) => { f.gain.value = eqEnabled ? eqGains[i] : 0; });
-  // Compressor always bypassed (ratio=1) in Spotify-style mode
-  eqCompressor.ratio.value     = 1;
-  eqCompressor.threshold.value = 0;
-  eqCompressor.knee.value      = 0;
 }
 
 function saveEQState() {
