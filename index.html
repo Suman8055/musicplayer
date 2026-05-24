@@ -833,7 +833,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '2.5.1';
+const APP_VERSION = '2.5.2';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -1042,6 +1042,7 @@ let _eqWiring = false, _eqRafId = null;
 let eqCustomPresets = [];
 let eqAIMode = false, _aiTarget = new Array(10).fill(0), _aiTimer = null, _aiRaf = null;
 let _aiRafFrame = 0, _aiDetectedPreset = '', _aiLastCandidate = '', _aiCandidateCount = 0;
+let _aiRmsBaseline = 0, _aiLoudnessComp = 0, _aiLoudnessTimer = null; // loudness normalisation state
 let eqUseProxy = false; // true after CORS taint detected — routes audio via corsproxy.io for EQ
 let rawStreamUrl = '';  // original CDN URL before any proxy wrapping
 
@@ -1250,7 +1251,11 @@ function applyEQ() {
     eqLoudnessNodes[0].gain.value = (eqEnabled && eqLoudness) ? 5 : 0;
     eqLoudnessNodes[1].gain.value = (eqEnabled && eqLoudness) ? 3 : 0;
   }
-  if (eqPreampNode) eqPreampNode.gain.value = eqEnabled ? Math.pow(10, eqPreamp / 20) : 1;
+  if (eqPreampNode) {
+    const userLinear = Math.pow(10, eqPreamp / 20);
+    const compLinear = eqAIMode ? Math.pow(10, _aiLoudnessComp / 20) : 1;
+    eqPreampNode.gain.value = eqEnabled ? userLinear * compLinear : 1;
+  }
   if (eqBassNode)   eqBassNode.gain.value   = eqEnabled ? eqBass : 0;
   if (eqWidthLL) {
     const k = (eqEnabled && eqStereoWidth) ? 1.5 : 1.0; // 1.0 = bypass, 1.5 = 50% wider
@@ -1392,7 +1397,39 @@ function _aiAnalyse() {
   const hint = document.getElementById('eq-ai-hint');
   if (hint) hint.textContent = label;
 
+  // Capture baseline RMS (pre-EQ) on first commit for this song
+  if (_aiRmsBaseline === 0) _aiRmsBaseline = _aiRms();
+  // Schedule loudness compensation check after interpolation settles (~2.5s)
+  clearTimeout(_aiLoudnessTimer);
+  _aiLoudnessTimer = setTimeout(_aiApplyLoudnessComp, 2500);
+
   if (!_aiRaf) _aiRaf = requestAnimationFrame(_aiInterpFrame);
+}
+
+// Returns RMS energy [0..1] from the analyser's current time-domain data
+function _aiRms() {
+  if (!eqAnalyser) return 0;
+  const buf = new Float32Array(eqAnalyser.fftSize);
+  eqAnalyser.getFloatTimeDomainData(buf);
+  let sum = 0;
+  for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+  return Math.sqrt(sum / buf.length);
+}
+
+// After EQ interpolation settles, compare current RMS to pre-EQ baseline
+// and adjust eqPreampNode to compensate — keeps volume constant
+function _aiApplyLoudnessComp() {
+  if (!eqAIMode || !eqPreampNode || _aiRmsBaseline < 0.001) return;
+  const rmsAfter = _aiRms();
+  if (rmsAfter < 0.001) return; // silence — skip
+  // dB difference between post-EQ and baseline
+  const diffDb = 20 * Math.log10(rmsAfter / _aiRmsBaseline);
+  // Clamp compensation to ±6dB so it can't do anything drastic
+  _aiLoudnessComp = Math.max(-6, Math.min(6, -diffDb));
+  // Apply: user preamp × AI compensation (both in linear gain)
+  const userLinear   = Math.pow(10, eqPreamp / 20);
+  const compLinear   = Math.pow(10, _aiLoudnessComp / 20);
+  eqPreampNode.gain.value = eqEnabled ? userLinear * compLinear : 1;
 }
 
 function _aiInterpFrame() {
@@ -1425,7 +1462,11 @@ function startAIEQ() {
 function stopAIEQ() {
   clearInterval(_aiTimer); _aiTimer = null;
   if (_aiRaf) { cancelAnimationFrame(_aiRaf); _aiRaf = null; }
+  clearTimeout(_aiLoudnessTimer);
   _aiDetectedPreset = ''; _aiLastCandidate = ''; _aiCandidateCount = 0;
+  _aiRmsBaseline = 0; _aiLoudnessComp = 0;
+  // Restore preamp to user value only (remove AI compensation)
+  if (eqPreampNode && eqEnabled) eqPreampNode.gain.value = Math.pow(10, eqPreamp / 20);
   const hint = document.getElementById('eq-ai-hint');
   if (hint) hint.textContent = 'Adapts to each song';
 }
@@ -1953,10 +1994,12 @@ async function play(song, newQueue, idx) {
   nowSong = song;
   cacheSong(song);
 
-  // Reset AI target + stability lock when song changes so it re-analyses fresh
+  // Reset AI target + stability lock + loudness state when song changes
   if (eqAIMode && eqFilters.length > 0) {
     _aiTarget = new Array(10).fill(0);
     _aiLastCandidate = ''; _aiCandidateCount = 0; _aiDetectedPreset = '';
+    _aiRmsBaseline = 0; _aiLoudnessComp = 0;
+    clearTimeout(_aiLoudnessTimer);
     const hint = document.getElementById('eq-ai-hint');
     if (hint) hint.textContent = 'Listening…';
   }
