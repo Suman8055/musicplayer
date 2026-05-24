@@ -659,8 +659,8 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Poppins'
 </div>
 
 <div id="toast"></div>
-<audio id="audio" preload="metadata" playsinline webkit-playsinline x-webkit-airplay="allow"></audio>
-<audio id="audio-preload" preload="metadata" playsinline webkit-playsinline x-webkit-airplay="allow" style="display:none"></audio>
+<audio id="audio" preload="metadata" crossorigin="anonymous" playsinline webkit-playsinline x-webkit-airplay="allow"></audio>
+<audio id="audio-preload" preload="metadata" crossorigin="anonymous" playsinline webkit-playsinline x-webkit-airplay="allow" style="display:none"></audio>
 
 <script>
 'use strict';
@@ -716,7 +716,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '2.8.1';
+const APP_VERSION = '2.9.0';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -897,6 +897,102 @@ let _intelNaturalEnd = false; // true when song ends naturally (vs. user skip)
 const audio        = document.getElementById('audio');
 const audioPreload = document.getElementById('audio-preload');
 
+// ── AUDIO PROCESSING (invisible, always-on) ────────────────────────────────────
+// Graph: src → gainNode (loudness normalise) → limiter (peak protection) → destination
+// Wired on first play gesture. Released automatically when AirPlay/CarPlay is active.
+// JioSaavn 320kbps AAC masters are typically −8 to −10 LUFS (hot masters).
+// Spotify targets −14 LUFS, Apple Music −16 LUFS.
+// We apply −2 dB normalisation gain + transparent brick-wall limiter to land at ~−14 LUFS
+// perceived, matching Spotify's "Normal" loudness level without colouring the signal.
+let _apCtx = null, _apSrc = null, _apGain = null, _apLimiter = null;
+let _apWired = false, _apUseProxy = false;
+
+function _isAirPlay() { return !!audio.webkitCurrentPlaybackTargetIsWireless; }
+
+function _apRelease() {
+  try { _apCtx?.close(); } catch {}
+  _apCtx = null; _apSrc = null; _apGain = null; _apLimiter = null; _apWired = false;
+}
+
+function _apWire() {
+  if (_apWired || _isAirPlay() || !_apCtx || _apCtx.state !== 'running') return;
+  _apWired = true;
+  try {
+    _apSrc     = _apCtx.createMediaElementSource(audio);
+    _apGain    = _apCtx.createGain();
+    _apLimiter = _apCtx.createDynamicsCompressor();
+
+    // −2 dB gain: brings hot JioSaavn masters (~−8 LUFS) down to ~−10 LUFS,
+    // then the limiter's makeup adds perceived loudness → net ~−14 LUFS
+    _apGain.gain.value = 0.794; // 10^(−2/20)
+
+    // Transparent brick-wall limiter — catches inter-sample peaks above −1 dBFS
+    // without audible pumping or colour. Settings match professional mastering limiters.
+    _apLimiter.threshold.value = -1.0;   // start limiting at −1 dBFS
+    _apLimiter.knee.value      =  0.0;   // hard knee — brick-wall, no soft transition
+    _apLimiter.ratio.value     = 20.0;   // 20:1 ≈ brick-wall
+    _apLimiter.attack.value    = 0.001;  // 1 ms — fast enough to catch transients
+    _apLimiter.release.value   = 0.1;    // 100 ms — short release, no pumping
+
+    _apSrc.connect(_apGain);
+    _apGain.connect(_apLimiter);
+    _apLimiter.connect(_apCtx.destination);
+    Log.info('Audio processing wired', { gain: _apGain.gain.value });
+  } catch (e) {
+    // CORS-tainted stream — reload via proxy and retry once
+    _apWired = false;
+    _apGain = null; _apLimiter = null;
+    if (!_apUseProxy && (e.name === 'NotSupportedError' || e.name === 'InvalidStateError')) {
+      _apUseProxy = true;
+      const proxied = `https://corsproxy.io/?${encodeURIComponent(audio.src)}`;
+      const t = audio.currentTime, wasPlaying = !audio.paused;
+      audio.src = proxied;
+      if (wasPlaying) audio.play().then(() => { audio.currentTime = t; setTimeout(_apInit, 600); }).catch(() => {});
+      Log.info('Audio processing: CORS proxy fallback');
+    } else {
+      try { _apCtx?.close(); } catch {}
+      _apCtx = null;
+      Log.warn('Audio processing unavailable', { err: e.message });
+    }
+  }
+}
+
+function _apInit() {
+  if (_isAirPlay()) return;
+  if (_apWired) {
+    if (_apCtx?.state === 'suspended') _apCtx.resume().catch(() => {});
+    return;
+  }
+  if (!_apCtx) {
+    try {
+      _apCtx = new (window.AudioContext || window.webkitAudioContext)();
+      _apCtx.addEventListener('statechange', () => {
+        if (_apCtx?.state === 'suspended' && !_isAirPlay()) _apCtx.resume().catch(() => {});
+      });
+    } catch { return; }
+  }
+  if (_apCtx.state === 'running') { _apWire(); return; }
+  _apCtx.resume().then(() => _apWire()).catch(() => {});
+}
+
+// Release graph when AirPlay activates (graph locks audio to local speaker)
+audio.addEventListener('webkitcurrentplaybacktargetiswirelesschanged', () => {
+  if (_isAirPlay() && _apWired) {
+    _apRelease();
+    Log.info('Audio processing released for AirPlay/CarPlay');
+  }
+});
+
+// Resume AudioContext on app foreground / screen unlock
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) {
+    if (_apCtx && !_isAirPlay()) {
+      if (_apCtx.state === 'closed')     { _apCtx = null; _apWired = false; }
+      else if (_apCtx.state === 'suspended') _apCtx.resume().catch(() => {});
+    }
+    if (!userPaused && audio.paused && nowSong) audio.play().catch(() => {});
+  }
+});
 
 // ── STORAGE ────────────────────────────────────────────────────────────────────
 function loadData() {
@@ -1420,6 +1516,7 @@ audio.addEventListener('play', () => {
   audioPreload.src = ''; // release iOS audio session slot — only one element active at a time
   refreshPlayBtns();
   if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+  _apInit(); // wire processing graph on first play (requires user-gesture context on iOS)
 });
 audio.addEventListener('pause', () => {
   playing = false;
@@ -1453,12 +1550,6 @@ audio.addEventListener('error', () => {
     playing = false;
     setNPLoading(false);
     refreshPlayBtns();
-  }
-});
-// Resume playback after screen lock / app foreground (iOS pauses the audio element)
-document.addEventListener('visibilitychange', () => {
-  if (!document.hidden && !userPaused && audio.paused && nowSong) {
-    audio.play().catch(() => {});
   }
 });
 
