@@ -886,6 +886,7 @@ let qIdx         = 0;
 let playing      = false;
 let userPaused   = false;   // true only when the user explicitly paused (not iOS interruption)
 let loadingUrl   = false;   // true while fetching stream URL
+let _pendingNext = false;   // next() was tapped during a fetch; fire it once load settles
 let shuffleOn    = false;
 let shuffledQueue = [];     // shuffled index array into queue[]
 let shufflePos   = 0;       // current position in shuffledQueue
@@ -1093,6 +1094,18 @@ const streamCache = new Map();
 
 const QUALITY_RANK = { '320kbps': 5, '160kbps': 4, '96kbps': 3, '48kbps': 2, '12kbps': 1 };
 
+// Returns the highest quality tier the current network can support comfortably.
+// navigator.connection is Chrome/Android only — Safari/iOS always gets '320kbps' (fine on WiFi/LTE).
+function getNetworkQuality() {
+  const c = navigator.connection;
+  if (!c) return '320kbps';
+  if (c.saveData) return '96kbps';
+  const t = c.effectiveType;
+  if (t === 'slow-2g' || t === '2g') return '96kbps';
+  if (t === '3g' || (c.downlink > 0 && c.downlink < 1.5)) return '160kbps';
+  return '320kbps';
+}
+
 async function fetchStream(id) {
   // ── Fast path: hayasaka.8man.in — retry once on transient failure ──────────────
   for (let attempt = 1; attempt <= 2; attempt++) {
@@ -1104,12 +1117,14 @@ async function fetchStream(id) {
       const data = await r.json();
       const song = Array.isArray(data?.data) ? data.data[0] : null;
       if (song) {
+        const targetTier = QUALITY_RANK[getNetworkQuality()];
         const urls = (song.downloadUrl || []).slice().sort(
           (a, b) => (QUALITY_RANK[b.quality] || 0) - (QUALITY_RANK[a.quality] || 0)
         );
-        const best = urls[0];
+        // Pick highest quality that doesn't exceed what the network can handle
+        const best = urls.find(u => (QUALITY_RANK[u.quality] || 0) <= targetTier) || urls[urls.length - 1];
         if (best?.url) {
-          Log.info('Stream OK (fast)', { id, quality: best.quality, attempt });
+          Log.info('Stream OK (fast)', { id, quality: best.quality, network: getNetworkQuality(), attempt });
           return { url: best.url, quality: best.quality, image: bestImg(song.image, '500x500'), duration: song.duration || 0 };
         }
       }
@@ -1134,14 +1149,15 @@ async function fetchStream(id) {
   const url96 = desDecrypt(song.encrypted_media_url, DES_KEY);
   if (!url96) throw new Error('Decrypt failed');
   let url, quality;
-  if (song['320kbps'] === 'true') {
-    url = url96.replace(/_96([._])/g, '_320$1');
-    quality = '320kbps';
+  const netQ = getNetworkQuality();
+  if (netQ === '96kbps') {
+    url = url96; quality = '96kbps';
+  } else if (song['320kbps'] === 'true' && netQ === '320kbps') {
+    url = url96.replace(/_96([._])/g, '_320$1'); quality = '320kbps';
   } else {
-    url = url96.replace(/_96([._])/g, '_160$1');
-    quality = '160kbps';
+    url = url96.replace(/_96([._])/g, '_160$1'); quality = '160kbps';
   }
-  Log.info('Stream OK (fallback)', { id, quality });
+  Log.info('Stream OK (fallback)', { id, quality, network: netQ });
   return {
     url,
     quality,
@@ -1328,6 +1344,7 @@ async function play(song, newQueue, idx) {
     Log.error('Playback failed', { name: song.name, err: e.message });
   } finally {
     loadingUrl = false;
+    if (_pendingNext) { _pendingNext = false; next(); return; }
     setNPLoading(false);
     refreshPlayBtns();
     updateMediaSession();
@@ -1365,7 +1382,7 @@ function next() {
   }
   _intelNaturalEnd = false;
 
-  if (loadingUrl) return;
+  if (loadingUrl) { _pendingNext = true; return; }
   if (repeatMode === 2) { audio.currentTime = 0; audio.play(); return; }
   let ni;
   if (shuffleOn) {
@@ -1447,15 +1464,17 @@ audio.addEventListener('stalled', () => {
   if (!loadingUrl) setNPLoading(true);
   // Auto-recover: reload the src at the current position after a short delay
   if (!loadingUrl && nowSong) {
+    const c = navigator.connection;
+    const stallWait = (c?.effectiveType === '2g' || c?.effectiveType === 'slow-2g') ? 10000 : 3000;
     setTimeout(() => {
       if (audio.paused && !userPaused && nowSong) {
         const t = audio.currentTime;
         audio.load();
         audio.currentTime = t;
         audio.play().catch(() => {});
-        Log.info('Stall recovery attempted', { name: nowSong?.name });
+        Log.info('Stall recovery attempted', { name: nowSong?.name, stallWait });
       }
-    }, 3000);
+    }, stallWait);
   }
 });
 audio.addEventListener('ended', () => { _intelNaturalEnd = true; next(); });
@@ -1469,6 +1488,18 @@ audio.addEventListener('error', () => {
     refreshPlayBtns();
   }
 });
+
+// When the network type changes (4G→2G, WiFi→mobile, etc.):
+// bust the stream cache so the next song fetches at the right quality tier,
+// then re-preload so the buffered next song matches new conditions.
+if (navigator.connection) {
+  navigator.connection.addEventListener('change', () => {
+    const q = getNetworkQuality();
+    Log.info('Network changed', { effectiveType: navigator.connection.effectiveType, downlink: navigator.connection.downlink, targetQuality: q });
+    streamCache.clear();
+    if (!loadingUrl) preloadNext();
+  });
+}
 
 let _posStateTs = 0;
 audio.addEventListener('timeupdate', () => {
