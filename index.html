@@ -845,7 +845,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '2.6.1';
+const APP_VERSION = '2.6.0';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -1058,7 +1058,7 @@ const EQ_PRESETS = {
   country:        [ 3,  2,  0,  1,  3,  4],
 };
 let eqCtx = null, eqFilters = [], eqCompressor = null, eqLoudnessNodes = [];
-let eqPreampNode = null, eqBassNode = null, eqAnalyser = null, eqHeadroomNode = null, eqLimiter = null;
+let eqPreampNode = null, eqBassNode = null, eqAnalyser = null;
 let eqWidthSplitter = null, eqWidthMerger = null;
 let eqWidthLL = null, eqWidthRL = null, eqWidthLR = null, eqWidthRR = null;
 let eqGains = [0,0,0,0,0,0], eqCompOn = false, eqLoudness = false, eqPreset = 'flat';
@@ -1075,26 +1075,6 @@ let eqUseProxy = false; // true after CORS taint detected — routes audio via c
 let rawStreamUrl = '';  // original CDN URL before any proxy wrapping
 
 // Wire the audio graph. Must only run when AudioContext is already 'running'.
-// Returns linear gain for the headroom node that offsets the worst-case EQ boost.
-// Formula: -( max(0, max band gain) + max(0, bass) + loudness overhead ) dB.
-function _calcHeadroomGain() {
-  const maxBand = eqEnabled ? Math.max(0, ...eqGains) : 0;
-  const bassBoost = eqEnabled ? Math.max(0, eqBass) : 0;
-  const loudOverhead = (eqEnabled && eqLoudness) ? 5 : 0; // loudness adds up to 5dB low shelf
-  const totalBoostDb = maxBand + bassBoost + loudOverhead;
-  return Math.pow(10, -totalBoostDb / 20);
-}
-
-// Soft-knee hard limiter curve — clips at ±ceiling using tanh saturation.
-function _makeLimiterCurve(ceiling) {
-  const n = 256, curve = new Float32Array(n);
-  for (let i = 0; i < n; i++) {
-    const x = (i * 2) / (n - 1) - 1; // –1 to +1
-    curve[i] = ceiling * Math.tanh(x / ceiling);
-  }
-  return curve;
-}
-
 function _wireEQGraph() {
   if (eqFilters.length > 0 || _eqWiring || !eqCtx) return;
   if (eqCtx.state !== 'running') return;
@@ -1117,26 +1097,25 @@ function _wireEQGraph() {
     // Preamp: user-controlled gain (dB) before the EQ chain
     eqPreampNode = eqCtx.createGain();
     eqPreampNode.gain.value = Math.pow(10, eqPreamp / 20);
-    // Headroom: dynamic gain to counter the total EQ boost and prevent clipping.
-    // Computed as the inverse of (max band boost + bass + loudness compensation).
-    eqHeadroomNode = eqCtx.createGain();
-    eqHeadroomNode.gain.value = _calcHeadroomGain();
+    // Headroom: -1.5dB safety margin so EQ boosts don't clip
+    const headroom = eqCtx.createGain();
+    headroom.gain.value = 0.85;
     src.connect(eqWidthSplitter);
     eqWidthMerger.connect(eqPreampNode);
-    eqPreampNode.connect(eqHeadroomNode);
+    eqPreampNode.connect(headroom);
     // Bass booster (separate lowshelf, stacks on top of EQ bands)
     eqBassNode = eqCtx.createBiquadFilter();
     eqBassNode.type = 'lowshelf';
     eqBassNode.frequency.value = 80;
     eqBassNode.gain.value = eqBass;
-    eqHeadroomNode.connect(eqBassNode);
+    headroom.connect(eqBassNode);
     // Loudness compensation nodes (always in chain; gain=0 when off)
     const lLow = eqCtx.createBiquadFilter();
     lLow.type = 'lowshelf'; lLow.frequency.value = 80;
     const lHigh = eqCtx.createBiquadFilter();
     lHigh.type = 'highshelf'; lHigh.frequency.value = 10000;
     eqLoudnessNodes = [lLow, lHigh];
-    // 6-band EQ filters
+    // 10-band EQ filters
     eqFilters = EQ_BANDS.map((freq, i) => {
       const f = eqCtx.createBiquadFilter();
       f.type = i === 0 ? 'lowshelf' : i === EQ_BANDS.length - 1 ? 'highshelf' : 'peaking';
@@ -1145,15 +1124,8 @@ function _wireEQGraph() {
       return f;
     });
     eqCompressor = eqCtx.createDynamicsCompressor();
-    eqCompressor.threshold.value = -18;
-    eqCompressor.knee.value = 6;
-    eqCompressor.ratio.value = 4;
     eqCompressor.attack.value = 0.003;
     eqCompressor.release.value = 0.25;
-    // Hard limiter WaveShaper — final guard against any > 0dBFS sample reaching the DAC
-    eqLimiter = eqCtx.createWaveShaper();
-    eqLimiter.curve = _makeLimiterCurve(0.95);
-    eqLimiter.oversample = '4x';
     // Spectrum analyser (module-level so animation loop can read it)
     eqAnalyser = eqCtx.createAnalyser();
     eqAnalyser.fftSize = 2048;
@@ -1161,8 +1133,7 @@ function _wireEQGraph() {
     eqLoudnessNodes.forEach(f => { node.connect(f); node = f; });
     eqFilters.forEach(f => { node.connect(f); node = f; });
     node.connect(eqCompressor);
-    eqCompressor.connect(eqLimiter);
-    eqLimiter.connect(eqAnalyser);
+    eqCompressor.connect(eqAnalyser);
     eqAnalyser.connect(eqCtx.destination);
     applyEQ();
     Log.info('EQ wired', { state: eqCtx.state, bands: EQ_BANDS.length });
@@ -1181,7 +1152,7 @@ function _wireEQGraph() {
           stopSpectrum();
           try { eqCtx.close(); } catch {}
           eqCtx = null; eqFilters = []; eqCompressor = null; eqLoudnessNodes = [];
-          eqPreampNode = null; eqBassNode = null; eqAnalyser = null; eqHeadroomNode = null; eqLimiter = null;
+          eqPreampNode = null; eqBassNode = null; eqAnalyser = null;
           eqWidthSplitter = null; eqWidthMerger = null;
           eqWidthLL = null; eqWidthRL = null; eqWidthLR = null; eqWidthRR = null;
           _eqWiring = false;
@@ -1193,9 +1164,9 @@ function _wireEQGraph() {
       }, 600);
     }
   } catch (e) {
-    eqFilters = []; eqLoudnessNodes = []; eqPreampNode = null; eqBassNode = null; eqAnalyser = null; eqHeadroomNode = null; eqLimiter = null;
+    eqFilters = []; eqLoudnessNodes = []; eqPreampNode = null; eqBassNode = null; eqAnalyser = null;
     eqWidthSplitter = null; eqWidthMerger = null;
-    eqWidthLL = null; eqWidthRL = null; eqWidthRR = null; eqWidthLR = null;
+    eqWidthLL = null; eqWidthRL = null; eqWidthLR = null; eqWidthRR = null;
     Log.warn('EQ wire failed', { err: e.message, name: e.name });
     if (!eqUseProxy && rawStreamUrl && (e.name === 'NotSupportedError' || e.name === 'InvalidStateError')) {
       // CORS-tainted stream — reload via proxy and retry EQ
@@ -1243,7 +1214,7 @@ audio.addEventListener('webkitcurrentplaybacktargetiswirelesschanged', () => {
     stopSpectrum();
     try { eqCtx?.close(); } catch {}
     eqCtx = null; eqFilters = []; eqCompressor = null; eqLoudnessNodes = [];
-    eqPreampNode = null; eqBassNode = null; eqAnalyser = null; eqHeadroomNode = null; eqLimiter = null;
+    eqPreampNode = null; eqBassNode = null; eqAnalyser = null;
     eqWidthSplitter = null; eqWidthMerger = null;
     eqWidthLL = null; eqWidthRL = null; eqWidthLR = null; eqWidthRR = null;
     const h = document.getElementById('eq-status');
@@ -1314,17 +1285,16 @@ function applyEQ() {
     eqPreampNode.gain.value = eqEnabled ? userLinear * compLinear : 1;
   }
   if (eqBassNode)   eqBassNode.gain.value   = eqEnabled ? eqBass : 0;
-  if (eqHeadroomNode) eqHeadroomNode.gain.value = _calcHeadroomGain();
   if (eqWidthLL) {
     const k = (eqEnabled && eqStereoWidth) ? 1.5 : 1.0; // 1.0 = bypass, 1.5 = 50% wider
     const a = (1 + k) / 2, b = (1 - k) / 2; // cross-mix coefficients
     eqWidthLL.gain.value = a; eqWidthRR.gain.value = a;
     eqWidthRL.gain.value = b; eqWidthLR.gain.value = b;
   }
-  // Bypass compressor via ratio=1, threshold=0 — no graph changes, no silence
-  eqCompressor.threshold.value = (eqEnabled && eqCompOn) ? -18 : 0;
-  eqCompressor.knee.value      = (eqEnabled && eqCompOn) ?   6 : 0;
-  eqCompressor.ratio.value     = (eqEnabled && eqCompOn) ?   4 : 1;
+  // Bypass compressor via ratio=1 — no graph changes, no silence
+  eqCompressor.ratio.value     = (eqEnabled && eqCompOn) ? 5  : 1;
+  eqCompressor.threshold.value = (eqEnabled && eqCompOn) ? -24 : 0;
+  eqCompressor.knee.value      = (eqEnabled && eqCompOn) ? 30  : 0;
 }
 
 function saveEQState() {
@@ -1605,7 +1575,6 @@ function _aiApplyLoudnessComp() {
   const userLinear   = Math.pow(10, eqPreamp / 20);
   const compLinear   = Math.pow(10, _aiLoudnessComp / 20);
   eqPreampNode.gain.value = eqEnabled ? userLinear * compLinear : 1;
-  if (eqHeadroomNode) eqHeadroomNode.gain.value = _calcHeadroomGain();
 }
 
 function _aiInterpFrame() {
@@ -1647,7 +1616,6 @@ function stopAIEQ() {
   _aiBpm = 0; _aiBpmOnsets = []; _aiBpmPrevEnergy = 0;
   // Restore preamp to user value only (remove AI compensation)
   if (eqPreampNode && eqEnabled) eqPreampNode.gain.value = Math.pow(10, eqPreamp / 20);
-  if (eqHeadroomNode) eqHeadroomNode.gain.value = _calcHeadroomGain();
   const hint = document.getElementById('eq-ai-hint');
   if (hint) hint.textContent = 'Adapts to each song';
 }
