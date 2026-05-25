@@ -2155,7 +2155,7 @@ function renderSearchResults({ topHit, songs, albums, artists, playlists }) {
     el.appendChild(makeSectionHdr('Songs', visibleSongs.length));
 
     const list = document.createElement('div');
-    list.className = 'song-list';
+    list.className = 'song-list sr-songs';
     const hiddenSongNodes = [];
     visibleSongs.forEach((song, i) => {
       const row = document.createElement('div');
@@ -2210,7 +2210,7 @@ function renderSearchResults({ topHit, songs, albums, artists, playlists }) {
     el.appendChild(makeSectionHdr('Artists', visibleArtists.length));
 
     const list = document.createElement('div');
-    list.className = 'song-list';
+    list.className = 'song-list sr-artists';
     const hiddenArtistNodes = [];
     visibleArtists.forEach((ar, i) => {
       const row = document.createElement('div');
@@ -2242,7 +2242,7 @@ function renderSearchResults({ topHit, songs, albums, artists, playlists }) {
     el.appendChild(makeSectionHdr('Playlists', visiblePlaylists.length));
 
     const list = document.createElement('div');
-    list.className = 'song-list';
+    list.className = 'song-list sr-playlists';
     const hiddenPlaylistNodes = [];
     visiblePlaylists.forEach((pl, i) => {
       const row = document.createElement('div');
