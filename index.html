@@ -385,8 +385,15 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Poppins'
       <div id="for-you-section" style="display:none">
         <div class="disc-hd">
           <span class="disc-hd-title">✨ For You</span>
+          <span id="for-you-greeting" style="font-size:12px;opacity:.55;margin-left:8px"></span>
         </div>
         <div id="for-you-rows"></div>
+      </div>
+
+      <!-- Weekly Recap (Mondays only) -->
+      <div id="weekly-recap-card" style="display:none;margin:8px 16px 4px;padding:14px 16px;background:var(--bg3);border-radius:16px;border:1px solid rgba(0,230,230,.15)">
+        <div style="font-size:13px;font-weight:600;color:var(--red);margin-bottom:6px">Your Week in Music</div>
+        <div id="weekly-recap-body" style="font-size:13px;color:var(--fg2);line-height:1.8"></div>
       </div>
 
       <!-- Language pills -->
@@ -489,6 +496,14 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Poppins'
           <div class="settings-label">Listening history<small id="intel-stats-label">—</small></div>
           <button class="settings-btn sec" id="reset-intel-btn" style="flex-shrink:0;margin:0;padding:8px 14px;font-size:13px;border-radius:10px">Reset</button>
         </div>
+        <div class="settings-row" id="smartplay-stats-row" style="display:none;flex-direction:column;align-items:flex-start;gap:4px">
+          <div class="settings-label" style="font-size:12px;opacity:.7">SmartPlay — Top artists</div>
+          <div id="smartplay-stats-list" style="font-size:12px;color:var(--fg2);line-height:1.8;padding-left:2px"></div>
+        </div>
+        <div class="settings-row" id="flow-pairs-row" style="display:none;flex-direction:column;align-items:flex-start;gap:4px">
+          <div class="settings-label" style="font-size:12px;opacity:.7">Your listening flows</div>
+          <div id="flow-pairs-list" style="font-size:12px;color:var(--fg2);line-height:1.8;padding-left:2px"></div>
+        </div>
         <div class="settings-row">
           <div class="settings-label">In-memory caches<small id="cache-stats-label">—</small></div>
           <button class="settings-btn sec" id="clear-cache-btn" style="flex-shrink:0;margin:0;padding:8px 14px;font-size:13px;border-radius:10px">Clear</button>
@@ -554,6 +569,11 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Poppins'
   <div id="sq-badge">
     <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3a9 9 0 1 0 0 18A9 9 0 0 0 12 3zm-1 13V8l6 4-6 4z"/></svg>
     Smart Queue
+  </div>
+
+  <!-- Mood shift badge (floats above mini player, auto-hides after 3s) -->
+  <div id="mood-badge" style="display:none;align-items:center;gap:5px;position:absolute;bottom:calc(var(--tab-h) + var(--mini-h) + 32px);left:50%;transform:translateX(-50%);background:rgba(255,180,0,.18);border:1px solid rgba(255,180,0,.4);border-radius:20px;padding:4px 12px;font-size:11px;font-weight:600;color:#ffb400;white-space:nowrap;pointer-events:none;z-index:31;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)">
+    ✦ Adapting to your mood...
   </div>
 
   <!-- Tab bar -->
@@ -627,12 +647,17 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Poppins'
       <input id="np-vol" type="range" min="0" max="1" step="0.02" value="1">
       <span class="vol-ico">🔊</span>
     </div>
+    <!-- "Why this song?" chip — hidden until SmartQueue fills -->
+    <div id="np-why-chip" style="display:none;margin:6px 20px 0;padding:5px 12px;border-radius:20px;background:rgba(0,230,230,.1);border:1px solid rgba(0,230,230,.25);font-size:11px;color:var(--fg2);text-align:center;cursor:pointer"></div>
     <div id="np-footer">
       <button class="np-foot" id="np-add-pl-btn">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Playlist
       </button>
       <button class="np-foot" id="np-queue-btn">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>Queue
+      </button>
+      <button class="np-foot" id="np-smartplay-btn" title="SmartPlay">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2zm-1 14.5v-9l7 4.5-7 4.5z"/></svg>Smart
       </button>
     </div>
   </div>
@@ -716,7 +741,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '2.9.2';
+const APP_VERSION = '3.0.0';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -893,7 +918,12 @@ let shufflePos   = 0;       // current position in shuffledQueue
 let repeatMode   = 0;       // 0=off 1=all 2=one
 let seeking      = false;
 let openPlId     = null;
-let _intelNaturalEnd = false; // true when song ends naturally (vs. user skip)
+let _intelNaturalEnd = false;      // true when song ends naturally (vs. user skip)
+let _intelPlayStartTs = 0;         // Date.now() when current song started playing
+let _sessionStreak = 0;            // consecutive full-play count this session
+let _sessionSkipStreak = 0;        // consecutive fast-skip count this session
+let _sessionSuppressed = new Set();// artist keys suppressed for this session (mood shift / Not Now)
+let _prevFullPlayArtistKey = null; // artist key of the last fully-played song (for flow recording)
 
 const audio        = document.getElementById('audio');
 const audioPreload = document.getElementById('audio-preload');
@@ -1298,8 +1328,11 @@ async function play(song, newQueue, idx) {
   nowSong = song;
   cacheSong(song);
 
-  // Clear smart queue badge when a new song is explicitly started
-  if (!smartQueueActive) refreshSmartQueueBadge();
+  // Clear smart queue badge and why chip when a new song is explicitly started
+  if (!smartQueueActive) {
+    refreshSmartQueueBadge();
+    setWhyChip(null);
+  }
 
   // Show immediately in UI
   refreshMini();
@@ -1335,6 +1368,7 @@ async function play(song, newQueue, idx) {
     await audio.play().catch(() => toast('Tap play to start'));
     if (nowSong?.id !== song.id) return;
     playing = true;
+    _intelPlayStartTs = Date.now();
     Log.info('Playback started', { name: song.name, artist: song.artist });
     }
     setTimeout(preloadNext, 1500); // delay so current fetch wins bandwidth
@@ -1378,7 +1412,25 @@ function next() {
   // Track play completion before advancing
   if (nowSong) {
     const ratio = _intelNaturalEnd ? 1.0 : (audio.duration > 0 ? audio.currentTime / audio.duration : 0);
-    intelTrackPlay(nowSong, ratio);
+    const isFast = !_intelNaturalEnd && _intelPlayStartTs > 0 && (Date.now() - _intelPlayStartTs) < 5000;
+    intelTrackPlay(nowSong, ratio, isFast);
+
+    if (_intelNaturalEnd || ratio >= 0.8) {
+      // Full play resets skip streak
+      _sessionSkipStreak = 0;
+    } else if (isFast) {
+      _sessionSkipStreak++;
+      if (_sessionSkipStreak >= 2) {
+        // Mood shift: suppress this artist for the session, show badge
+        const key = _artistKey(nowSong);
+        if (key && key !== 'n:') _sessionSuppressed.add(key);
+        _sessionSkipStreak = 0;
+        _showMoodShiftBadge();
+      }
+    } else {
+      // Non-fast skip still breaks streak but doesn't count toward mood shift
+      _sessionSkipStreak = 0;
+    }
   }
   _intelNaturalEnd = false;
 
@@ -1651,6 +1703,37 @@ document.getElementById('np-menu-btn').addEventListener('click', () => { if (now
 document.getElementById('np-add-pl-btn').addEventListener('click', () => { if (nowSong) showAddToPlaylist(nowSong); });
 document.getElementById('np-queue-btn').addEventListener('click', showQueueSheet);
 
+// ── SMARTPLAY TOGGLE ──────────────────────────────────────────────────────────
+const SP_KEY = 'mbx_smartplay_on';
+let smartPlayOn = localStorage.getItem(SP_KEY) !== 'false'; // default true
+
+function refreshSmartPlayBtn() {
+  const btn = document.getElementById('np-smartplay-btn');
+  if (btn) btn.classList.toggle('active', smartPlayOn);
+}
+
+document.getElementById('np-smartplay-btn').addEventListener('click', () => {
+  smartPlayOn = !smartPlayOn;
+  localStorage.setItem(SP_KEY, smartPlayOn);
+  refreshSmartPlayBtn();
+  toast(smartPlayOn ? 'SmartPlay on' : 'SmartPlay off');
+});
+
+// ── WHY CHIP — shows source of current SmartQueue fill ───────────────────────
+let _whyChipReason = null; // set by smartQueueFill before calling play()
+
+function setWhyChip(reason) {
+  _whyChipReason = reason;
+  const chip = document.getElementById('np-why-chip');
+  if (!chip) return;
+  if (reason) {
+    chip.textContent = reason;
+    chip.style.display = 'block';
+  } else {
+    chip.style.display = 'none';
+  }
+}
+
 function openNP()  { document.getElementById('np').classList.add('open'); }
 function closeNP() { document.getElementById('np').classList.remove('open'); }
 
@@ -1668,7 +1751,7 @@ document.getElementById('tabbar').addEventListener('click', e => {
   if (tab === 'library')  renderPlaylists();
   if (tab === 'settings') renderSettings();
   if (tab === 'browse' && !browseChartsLoaded) { browseChartsLoaded = true; loadBrowseCharts(); }
-  if (tab === 'browse') renderForYouSection();
+  if (tab === 'browse') { renderForYouSection(); renderWeeklyRecap(); }
 });
 
 // ── SEARCH ─────────────────────────────────────────────────────────────────────
@@ -1997,24 +2080,54 @@ function renderSearchResults({ topHit, songs, albums, artists, playlists }) {
 // ── INTEL — listening tracker + recommendation engine ─────────────────────────
 // Tracks plays, skips, likes per song/artist/language in localStorage.
 // Builds personalised "For You" rows and powers the Smart Queue.
+//
+// v2 schema: adds fastSkips (skips < 5s), flows (A→B artist transitions),
+// streaks object, language entries as {count, lastPlayed} objects.
 
-const INTEL_KEY = 'mbx_intel_v1';
+const INTEL_KEY = 'mbx_intel_v2';
 
 function intelLoad() {
-  try { const s = localStorage.getItem(INTEL_KEY); if (s) return JSON.parse(s); } catch {}
-  return { artists: {}, languages: {}, songs: {} };
+  try {
+    const s = localStorage.getItem(INTEL_KEY);
+    if (s) return JSON.parse(s);
+  } catch {}
+  return { artists: {}, languages: {}, songs: {}, flows: {}, streaks: {} };
 }
 function intelSave(d) {
   try { localStorage.setItem(INTEL_KEY, JSON.stringify(d)); } catch {}
 }
 
-// Run once per session: drop songs older than 90 days, enforce hard caps.
+// Migrate v1 data into v2 schema once, then removes old key.
+function intelMigrateV1() {
+  try {
+    const raw = localStorage.getItem('mbx_intel_v1');
+    if (!raw) return;
+    const v1 = JSON.parse(raw);
+    const d = intelLoad();
+    for (const [k, a] of Object.entries(v1.artists || {})) {
+      if (!d.artists[k]) d.artists[k] = { name: a.name, id: a.id || '', score: a.score || 0, plays: a.plays || 0 };
+    }
+    for (const [id, s] of Object.entries(v1.songs || {})) {
+      if (!d.songs[id]) d.songs[id] = { plays: s.plays || 0, skips: s.skips || 0, fastSkips: 0, lastPlayed: s.lastPlayed || 0 };
+    }
+    for (const [lang, val] of Object.entries(v1.languages || {})) {
+      if (!d.languages[lang]) d.languages[lang] = { count: typeof val === 'number' ? val : (val.count || 0), lastPlayed: Date.now() };
+    }
+    intelSave(d);
+    localStorage.removeItem('mbx_intel_v1');
+  } catch {}
+}
+
+// Run once per session: drop songs older than 90 days, enforce hard caps,
+// apply 20% language decay for languages not played in 30 days.
 let _intelPruned = false;
 function intelPrune() {
   if (_intelPruned) return;
   _intelPruned = true;
+  intelMigrateV1();
   const d = intelLoad();
-  const CUT = Date.now() - 90 * 24 * 60 * 60 * 1000; // 90 days
+  const CUT     = Date.now() - 90 * 24 * 60 * 60 * 1000;
+  const LANGCUT = Date.now() - 30 * 24 * 60 * 60 * 1000;
 
   // Keep songs played recently, cap at 500
   const songs = Object.entries(d.songs)
@@ -2029,7 +2142,55 @@ function intelPrune() {
     .slice(0, 100);
   d.artists = Object.fromEntries(artists);
 
+  // Language decay: languages not played in 30 days lose 20% weight
+  for (const lang of Object.keys(d.languages)) {
+    const entry = d.languages[lang];
+    if (entry && typeof entry === 'object' && (entry.lastPlayed || 0) < LANGCUT) {
+      entry.count = Math.floor((entry.count || 0) * 0.8);
+    }
+  }
+
+  // Cap flow pairs at 200 (keep highest-count pairs)
+  const allFlows = [];
+  for (const [from, toMap] of Object.entries(d.flows || {})) {
+    for (const [to, count] of Object.entries(toMap)) allFlows.push({ from, to, count });
+  }
+  if (allFlows.length > 200) {
+    allFlows.sort((a, b) => b.count - a.count);
+    d.flows = {};
+    for (const { from, to, count } of allFlows.slice(0, 200)) {
+      if (!d.flows[from]) d.flows[from] = {};
+      d.flows[from][to] = count;
+    }
+  }
+
   intelSave(d);
+}
+
+// Returns the current time-of-day slot name.
+// morning=6–11, afternoon=11–17, evening=17–21, night=21–6
+function _timeSlot() {
+  const h = new Date().getHours();
+  if (h >= 6  && h < 11) return 'morning';
+  if (h >= 11 && h < 17) return 'afternoon';
+  if (h >= 17 && h < 21) return 'evening';
+  return 'night';
+}
+
+// Returns a greeting string for the current time slot.
+function _timeGreeting() {
+  switch (_timeSlot()) {
+    case 'morning':   return 'Good Morning';
+    case 'afternoon': return 'Good Afternoon';
+    case 'evening':   return 'Good Evening';
+    default:          return 'Good Night';
+  }
+}
+
+// Returns whether today is a weekend (Sat=6, Sun=0).
+function _isWeekend() {
+  const d = new Date().getDay();
+  return d === 0 || d === 6;
 }
 
 // Derive a stable artist key that works even when no API artist ID is available.
@@ -2039,29 +2200,71 @@ function _artistKey(song) {
 }
 
 // Called after every song advances (natural end = ratio 1.0, skip = fraction).
-function intelTrackPlay(song, completionRatio) {
-  if (!song?.id) return;                    // only need song ID — artist name is enough
+// isFastSkip: true when user skipped within 5s of play start.
+function intelTrackPlay(song, completionRatio, isFastSkip = false) {
+  if (!song?.id) return;
   const key = _artistKey(song);
-  if (!key || key === 'n:') return;         // no artist info at all — skip
+  if (!key || key === 'n:') return;
   const d = intelLoad();
+  if (!d.flows)   d.flows   = {};
+  if (!d.streaks) d.streaks = {};
 
-  const sr = d.songs[song.id] || { plays: 0, skips: 0, lastPlayed: 0 };
-  if (completionRatio >= 0.8) sr.plays++;
-  else if (completionRatio < 0.2) sr.skips++;
+  const sr = d.songs[song.id] || { plays: 0, skips: 0, fastSkips: 0, lastPlayed: 0 };
+  if (completionRatio >= 0.8) {
+    sr.plays++;
+  } else if (completionRatio < 0.2) {
+    sr.skips++;
+    if (isFastSkip) sr.fastSkips = (sr.fastSkips || 0) + 1;
+  }
   sr.lastPlayed = Date.now();
   d.songs[song.id] = sr;
 
   const ar = d.artists[key] || { name: song.artist || '', id: song.artistId || '', score: 0, plays: 0 };
   ar.name = song.artist || ar.name;
-  if (song.artistId) ar.id = song.artistId; // upgrade to real ID whenever we get one
-  if (completionRatio >= 0.8) { ar.score += 3; ar.plays++; }
-  else if (completionRatio >= 0.3) { ar.score += 1; ar.plays++; }
-  else if (completionRatio < 0.2) { ar.score = Math.max(0, ar.score - 1); }
+  if (song.artistId) ar.id = song.artistId;
+
+  const slot = _timeSlot();
+  const isWeekend = _isWeekend();
+
+  if (completionRatio >= 0.8) {
+    ar.score += 3;
+    ar.plays++;
+    _sessionStreak++;
+    // Streak bonus: 3 consecutive full plays on same artist → +2
+    if (_sessionStreak >= 3 && _artistKey(song) === key) ar.score += 2;
+    // Time-slot scoring: track per-slot play count for context-aware queue
+    if (!ar.slots) ar.slots = {};
+    ar.slots[slot] = (ar.slots[slot] || 0) + 1;
+    if (isWeekend) ar.slots['weekend'] = (ar.slots['weekend'] || 0) + 1;
+    // Flow memory: record A→B transition when previous song was also a full play
+    if (_prevFullPlayArtistKey && _prevFullPlayArtistKey !== key) {
+      if (!d.flows[_prevFullPlayArtistKey]) d.flows[_prevFullPlayArtistKey] = {};
+      d.flows[_prevFullPlayArtistKey][key] = (d.flows[_prevFullPlayArtistKey][key] || 0) + 1;
+    }
+    _prevFullPlayArtistKey = key;
+  } else if (completionRatio >= 0.3) {
+    ar.score += 1;
+    ar.plays++;
+    _sessionStreak = 0;
+    _prevFullPlayArtistKey = null; // partial play breaks flow chain
+  } else if (completionRatio < 0.2) {
+    ar.score = Math.max(0, ar.score - 1);
+    _sessionStreak = 0;
+    _prevFullPlayArtistKey = null; // skip breaks flow chain
+  }
   d.artists[key] = ar;
 
-  if (song.language) {
-    d.languages[song.language] = (d.languages[song.language] || 0) + (completionRatio >= 0.3 ? 1 : 0);
+  // Language tracking: v2 uses {count, lastPlayed} objects
+  if (song.language && completionRatio >= 0.3) {
+    const lang = d.languages[song.language];
+    if (lang && typeof lang === 'object') {
+      lang.count++;
+      lang.lastPlayed = Date.now();
+    } else {
+      d.languages[song.language] = { count: (typeof lang === 'number' ? lang + 1 : 1), lastPlayed: Date.now() };
+    }
   }
+
   intelSave(d);
   _forYouCache = null;
 }
@@ -2082,14 +2285,26 @@ function intelTrackLike(song) {
   _forYouCache = null;
 }
 
-function intelGetTopArtists(n = 3) {
+// contextual=true: sort by current time-slot score first, fall back to all-time score.
+// contextual=true: sort by current time-slot score first, then all-time score.
+// filtered=true:   exclude session-suppressed artists (mood shift / Not Now).
+// SmartQueue always calls (1, true, true). ForYou calls (3). Stats calls (5).
+function intelGetTopArtists(n = 3, contextual = false, filtered = false) {
   const d = intelLoad();
+  const slot = _timeSlot();
+  const weekend = _isWeekend();
   return Object.entries(d.artists)
-    .filter(([, a]) => a.score > 0)
-    .sort(([, a], [, b]) => b.score - a.score)
+    .filter(([key, a]) => a.score > 0 && !(filtered && _sessionSuppressed.has(key)))
+    .sort(([, a], [, b]) => {
+      if (contextual) {
+        const slotA = (a.slots?.[slot] || 0) + (weekend ? (a.slots?.['weekend'] || 0) : 0);
+        const slotB = (b.slots?.[slot] || 0) + (weekend ? (b.slots?.['weekend'] || 0) : 0);
+        if (slotA !== slotB) return slotB - slotA;
+      }
+      return b.score - a.score;
+    })
     .slice(0, n)
-    // Expose real API id (ar.id) separately from the storage key
-    .map(([key, a]) => ({ key, id: a.id || '', name: a.name, score: a.score, plays: a.plays }));
+    .map(([key, a]) => ({ key, id: a.id || '', name: a.name, score: a.score, plays: a.plays, slots: a.slots || {} }));
 }
 
 function intelTotalPlays() {
@@ -2141,6 +2356,35 @@ async function buildForYouRows() {
   return rows;
 }
 
+// ── WEEKLY RECAP — shown on Mondays ─────────────────────────────────────────
+function renderWeeklyRecap() {
+  const card = document.getElementById('weekly-recap-card');
+  const body = document.getElementById('weekly-recap-body');
+  if (!card || !body) return;
+
+  const day = new Date().getDay(); // 1 = Monday
+  if (day !== 1) { card.style.display = 'none'; return; }
+
+  const d = intelLoad();
+  const totalSongs = Object.values(d.songs).reduce((s, r) => s + (r.plays || 0), 0);
+  if (totalSongs < 1) { card.style.display = 'none'; return; }
+
+  const topArtist = intelGetTopArtists(1)[0];
+  const topLang   = Object.entries(d.languages || {})
+    .map(([lang, v]) => ({ lang, count: typeof v === 'object' ? (v.count || 0) : (v || 0) }))
+    .sort((a, b) => b.count - a.count)[0];
+  const flowCount = Object.values(d.flows || {}).reduce((s, m) => s + Object.keys(m).length, 0);
+
+  body.innerHTML = [
+    `🎵 <b>${totalSongs}</b> songs played`,
+    topArtist ? `🎤 Top artist: <b>${esc(topArtist.name)}</b>` : '',
+    topLang   ? `🌐 Top language: <b>${esc(topLang.lang)}</b>` : '',
+    flowCount ? `🔗 <b>${flowCount}</b> listening flows discovered` : '',
+  ].filter(Boolean).join('<br>');
+
+  card.style.display = 'block';
+}
+
 async function renderForYouSection() {
   const section = document.getElementById('for-you-section');
   const rowsEl  = document.getElementById('for-you-rows');
@@ -2148,6 +2392,10 @@ async function renderForYouSection() {
 
   const totalPlays = intelTotalPlays();
   section.style.display = 'block';
+
+  // Update time-aware greeting
+  const greetingEl = document.getElementById('for-you-greeting');
+  if (greetingEl) greetingEl.textContent = _timeGreeting();
 
   if (totalPlays < 5) {
     rowsEl.innerHTML = `<div class="for-you-empty">
@@ -2168,13 +2416,18 @@ async function renderForYouSection() {
       return;
     }
 
-    rows.forEach(({ artist, songs }) => {
+    // Build a time-slot label for the top contextual artist
+    const slot = _timeSlot();
+    const slotLabel = { morning: 'Morning mix', afternoon: 'Afternoon mix', evening: 'Evening mix', night: 'Night mix' }[slot];
+
+    rows.forEach(({ artist, songs }, rowIdx) => {
       const wrap = document.createElement('div');
       wrap.className = 'for-you-artist-row';
 
       const hdr = document.createElement('div');
       hdr.className = 'disc-hd';
-      hdr.innerHTML = `<span class="disc-hd-title" style="font-size:16px">Because you play <span style="background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent">${esc(artist.name)}</span></span>`;
+      const slotTag = rowIdx === 0 ? ` <span style="font-size:11px;opacity:.45;font-weight:400">· ${slotLabel}</span>` : '';
+      hdr.innerHTML = `<span class="disc-hd-title" style="font-size:16px">Because you play <span style="background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent">${esc(artist.name)}</span>${slotTag}</span>`;
       wrap.appendChild(hdr);
 
       const fadeWrap = document.createElement('div');
@@ -2197,6 +2450,36 @@ async function renderForYouSection() {
   }
 }
 
+// ── MOOD SHIFT — session-level skip detection ─────────────────────────────────
+let _moodBadgeTimer = null;
+function _showMoodShiftBadge() {
+  const b = document.getElementById('mood-badge');
+  if (!b) return;
+  b.style.display = 'flex';
+  clearTimeout(_moodBadgeTimer);
+  _moodBadgeTimer = setTimeout(() => { b.style.display = 'none'; }, 3000);
+}
+
+// "Not Now" — long-press on next button suppresses current artist for this session.
+let _nextLongPressTimer = null;
+function _initNotNowLongPress() {
+  const btn = document.getElementById('np-next-btn');
+  if (!btn) return;
+  btn.addEventListener('pointerdown', () => {
+    _nextLongPressTimer = setTimeout(() => {
+      _nextLongPressTimer = null;
+      if (!nowSong) return;
+      const key = _artistKey(nowSong);
+      if (key && key !== 'n:') {
+        _sessionSuppressed.add(key);
+        toast(`Skip ${nowSong.artist || 'artist'} for now`);
+      }
+    }, 600);
+  });
+  btn.addEventListener('pointerup',    () => { clearTimeout(_nextLongPressTimer); _nextLongPressTimer = null; });
+  btn.addEventListener('pointerleave', () => { clearTimeout(_nextLongPressTimer); _nextLongPressTimer = null; });
+}
+
 // ── SMART QUEUE — auto-fill queue from top artist when it runs out ──────────────
 let smartQueueActive = false;
 
@@ -2205,15 +2488,46 @@ function refreshSmartQueueBadge() {
   if (b) b.style.display = smartQueueActive ? 'flex' : 'none';
 }
 
+// Returns the strongest flow-connected artist key for the current artist, or null.
+// "Strongest" = highest flows[prev][to] count, excluding suppressed artists.
+// Threshold: count must be >= 3 before we trust the signal.
+// Called by smartQueueFill() as the first priority before falling back to top-artist.
+function _flowNextArtistKey() {
+  if (!_prevFullPlayArtistKey) return null;
+  const d = intelLoad();
+  const toMap = d.flows?.[_prevFullPlayArtistKey];
+  if (!toMap) return null;
+  const best = Object.entries(toMap)
+    .filter(([k]) => !_sessionSuppressed.has(k))
+    .sort(([, a], [, b]) => b - a)[0];
+  if (!best || best[1] < 3) return null;
+  return best[0];
+}
+
 async function smartQueueFill() {
-  const topArtists = intelGetTopArtists(1);
-  if (!topArtists.length) return false;
+  if (!smartPlayOn) return false; // SmartPlay toggle is off
+
+  // Flow memory: if current artist has a strong flow (≥3), use that artist next
+  const flowKey = _flowNextArtistKey();
+  const d = intelLoad();
+  let artist, whyReason;
+  if (flowKey && d.artists[flowKey]) {
+    const a = d.artists[flowKey];
+    artist = { key: flowKey, id: a.id || '', name: a.name, score: a.score, plays: a.plays };
+    whyReason = `Follows your ${d.artists[_prevFullPlayArtistKey]?.name || ''} session`;
+  } else {
+    // contextual + filtered: time-aware and suppress session-blocked artists
+    const topArtists = intelGetTopArtists(1, true, true);
+    if (!topArtists.length) return false;
+    artist = topArtists[0];
+    const slotLabel = { morning: 'Morning mix', afternoon: 'Afternoon mix', evening: 'Evening mix', night: 'Night mix' }[_timeSlot()];
+    whyReason = `${slotLabel} · ${artist.name}`;
+  }
 
   smartQueueActive = true;
   refreshSmartQueueBadge();
 
   try {
-    const artist = topArtists[0];
     let apiId = artist.id;
     if (!apiId) {
       const sr = await saavnFetch(`${SAAVN_API}/api/search?query=${encodeURIComponent(artist.name)}`);
@@ -2235,8 +2549,9 @@ async function smartQueueFill() {
 
     const startIdx = queue.length;
     queue.push(...songs);
-    if (shuffleOn) createShuffledQueue(); // keep shuffledQueue in sync with expanded queue
+    if (shuffleOn) createShuffledQueue();
     qIdx = startIdx;
+    setWhyChip(whyReason);
     toast(`Smart Queue — ${artist.name}`);
     play(queue[qIdx]);
     return true;
@@ -2245,6 +2560,50 @@ async function smartQueueFill() {
     refreshSmartQueueBadge();
     return false;
   }
+}
+
+// ── SMART RADIO — seed queue from a song's artist + flow connections ──────────
+async function startSmartRadio(song) {
+  if (!song?.artistId && !song?.artist) return;
+  const seedKey = _artistKey(song);
+  const d = intelLoad();
+
+  // Collect seed artist + up to 2 flow-connected artists
+  const seedArtists = [song];
+  const flowMap = d.flows?.[seedKey] || {};
+  const flowPartners = Object.entries(flowMap)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 2)
+    .map(([k]) => d.artists[k])
+    .filter(Boolean);
+  for (const a of flowPartners) seedArtists.push({ artistId: a.id, artist: a.name });
+
+  toast('Starting Smart Radio...');
+  queue = [];
+  qIdx = 0;
+
+  for (const seed of seedArtists) {
+    try {
+      let apiId = seed.artistId;
+      if (!apiId) {
+        const sr = await saavnFetch(`${SAAVN_API}/api/search?query=${encodeURIComponent(seed.artist || '')}`);
+        const sd = await sr.json();
+        apiId = sd.data?.artists?.results?.[0]?.id || '';
+      }
+      if (!apiId) continue;
+      const resp = await saavnFetch(`${SAAVN_API}/api/artists/${encodeURIComponent(apiId)}/songs?limit=20`);
+      const data = await resp.json();
+      const songs = (data.data?.songs || []).map(normSaavnSong).filter(s => s.id);
+      queue.push(...songs);
+    } catch {}
+  }
+
+  queue.sort(() => Math.random() - 0.5);
+  if (!queue.length) { toast('Smart Radio — no songs found'); return; }
+  setWhyChip(`Smart Radio · ${song.artist}`);
+  smartQueueActive = true;
+  refreshSmartQueueBadge();
+  play(queue[0]);
 }
 
 // ── BROWSE (JioSaavn-style) ────────────────────────────────────────────────────
@@ -2845,6 +3204,7 @@ function showSongSheet(song) {
            : isDl
              ? { label: '🗑  Remove Download', danger: true, action: () => removeDownload(song) }
              : { label: '⬇  Download for Offline', action: () => downloadSong(song) },
+    { label: '📻  Start Smart Radio', action: () => startSmartRadio(song) },
   ]);
 }
 
@@ -2938,6 +3298,48 @@ function renderMemoryCard() {
   const cacheEl = document.getElementById('cache-stats-label');
   if (cacheEl) cacheEl.textContent = `songs ${songCache.size}/300 · langs ${langCache.size}/8 · streams ${streamCache.size}/15`;
 
+  // SmartPlay stats — top 5 artists with scores and slot breakdown
+  const spRow  = document.getElementById('smartplay-stats-row');
+  const spList = document.getElementById('smartplay-stats-list');
+  if (spRow && spList) {
+    const top5 = intelGetTopArtists(5);
+    if (top5.length) {
+      spRow.style.display = 'flex';
+      spList.innerHTML = top5.map(a => {
+        const slotStr = Object.entries(a.slots || {})
+          .filter(([k, v]) => v > 0 && k !== 'weekend')
+          .sort(([, a], [, b]) => b - a)
+          .map(([k, v]) => `${k.slice(0, 3)}:${v}`)
+          .join(' ');
+        return `${esc(a.name)} <span style="opacity:.45">score:${a.score}${slotStr ? ' · ' + slotStr : ''}</span>`;
+      }).join('<br>');
+    } else {
+      spRow.style.display = 'none';
+    }
+  }
+
+  // Flow pairs — show top 5 A→B artist transitions
+  const flowRow  = document.getElementById('flow-pairs-row');
+  const flowList = document.getElementById('flow-pairs-list');
+  if (flowRow && flowList) {
+    const allFlows = [];
+    for (const [from, toMap] of Object.entries(d.flows || {})) {
+      for (const [to, count] of Object.entries(toMap)) {
+        const fromName = d.artists[from]?.name || from;
+        const toName   = d.artists[to]?.name   || to;
+        allFlows.push({ fromName, toName, count });
+      }
+    }
+    allFlows.sort((a, b) => b.count - a.count);
+    const top5 = allFlows.slice(0, 5);
+    if (top5.length) {
+      flowRow.style.display = 'flex';
+      flowList.innerHTML = top5.map(f => `${esc(f.fromName)} → ${esc(f.toName)} <span style="opacity:.45">(${f.count}x)</span>`).join('<br>');
+    } else {
+      flowRow.style.display = 'none';
+    }
+  }
+
 }
 
 function renderSettings() {
@@ -2972,9 +3374,11 @@ function renderStorageMeter() {
 }
 
 document.getElementById('reset-intel-btn').addEventListener('click', () => {
-  try { localStorage.removeItem(INTEL_KEY); } catch {}
+  try { localStorage.removeItem(INTEL_KEY); localStorage.removeItem('mbx_intel_v1'); } catch {}
   _forYouCache = null;
   _intelPruned = false;
+  _sessionStreak = 0;
+  _intelPlayStartTs = 0;
   const section = document.getElementById('for-you-section');
   if (section) section.style.display = 'none';
   renderMemoryCard();
@@ -3126,6 +3530,8 @@ if ('serviceWorker' in navigator) {
 Log.init();
 intelPrune(); // trim stale listening history once per session
 buildDiscover();
+_initNotNowLongPress();
+refreshSmartPlayBtn();
 
 // Seed downloadedIds from IndexedDB so badges & sheet options are correct immediately
 idbGetAll().then(songs => {
