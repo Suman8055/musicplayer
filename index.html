@@ -750,7 +750,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '3.2.0';
+const APP_VERSION = '3.3.0';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -2161,17 +2161,37 @@ function intelPrune() {
     }
   }
 
+  // Flow decay: pairs not reinforced in 30 days lose 20%; drop pairs with count < 1
+  const FLOWCUT = Date.now() - 30 * 24 * 60 * 60 * 1000;
+  for (const [from, toMap] of Object.entries(d.flows || {})) {
+    for (const [to, val] of Object.entries(toMap)) {
+      const entry = typeof val === 'number' ? { count: val, lastPlayed: 0 } : val;
+      if ((entry.lastPlayed || 0) < FLOWCUT) {
+        entry.count = Math.floor(entry.count * 0.8);
+      }
+      if (entry.count < 1) {
+        delete toMap[to];
+      } else {
+        toMap[to] = entry;
+      }
+    }
+    if (!Object.keys(toMap).length) delete d.flows[from];
+  }
+
   // Cap flow pairs at 200 (keep highest-count pairs)
   const allFlows = [];
   for (const [from, toMap] of Object.entries(d.flows || {})) {
-    for (const [to, count] of Object.entries(toMap)) allFlows.push({ from, to, count });
+    for (const [to, val] of Object.entries(toMap)) {
+      const count = typeof val === 'number' ? val : (val?.count || 0);
+      allFlows.push({ from, to, count, lastPlayed: typeof val === 'object' ? (val.lastPlayed || 0) : 0 });
+    }
   }
   if (allFlows.length > 200) {
     allFlows.sort((a, b) => b.count - a.count);
     d.flows = {};
-    for (const { from, to, count } of allFlows.slice(0, 200)) {
+    for (const { from, to, count, lastPlayed } of allFlows.slice(0, 200)) {
       if (!d.flows[from]) d.flows[from] = {};
-      d.flows[from][to] = count;
+      d.flows[from][to] = { count, lastPlayed };
     }
   }
 
@@ -2275,7 +2295,9 @@ function intelTrackPlay(song, completionRatio, isFastSkip = false) {
     // Flow memory: record A→B transition when previous song was also a full play
     if (_prevFullPlayArtistKey && _prevFullPlayArtistKey !== key) {
       if (!d.flows[_prevFullPlayArtistKey]) d.flows[_prevFullPlayArtistKey] = {};
-      d.flows[_prevFullPlayArtistKey][key] = (d.flows[_prevFullPlayArtistKey][key] || 0) + 1;
+      const existing = d.flows[_prevFullPlayArtistKey][key];
+      const prevCount = typeof existing === 'number' ? existing : (existing?.count || 0);
+      d.flows[_prevFullPlayArtistKey][key] = { count: prevCount + 1, lastPlayed: Date.now() };
     }
     _prevFullPlayArtistKey = key;
   } else if (completionRatio >= 0.3) {
@@ -2544,29 +2566,39 @@ function refreshSmartQueueBadge() {
 // "Strongest" = highest flows[prev][to] count, excluding suppressed artists.
 // Threshold: count must be >= 3 before we trust the signal.
 // Called by smartQueueFill() as the first priority before falling back to top-artist.
-function _flowNextArtistKey() {
+// Returns { key, count } for the strongest unsuppressed flow partner, or null.
+// Reads both new {count, lastPlayed} objects and legacy plain-number values.
+function _flowNextArtist() {
   if (!_prevFullPlayArtistKey) return null;
   const d = intelLoad();
   const toMap = d.flows?.[_prevFullPlayArtistKey];
   if (!toMap) return null;
   const best = Object.entries(toMap)
+    .map(([k, v]) => [k, typeof v === 'number' ? v : (v?.count || 0)])
     .filter(([k]) => !_sessionSuppressed.has(k))
     .sort(([, a], [, b]) => b - a)[0];
   if (!best || best[1] < 3) return null;
-  return best[0];
+  return { key: best[0], count: best[1] };
+}
+
+// Legacy wrapper kept for backward compat with existing test calls.
+function _flowNextArtistKey() {
+  const r = _flowNextArtist();
+  return r ? r.key : null;
 }
 
 async function smartQueueFill() {
   if (!smartPlayOn) return false; // SmartPlay toggle is off
 
   // Flow memory: if current artist has a strong flow (≥3), use that artist next
-  const flowKey = _flowNextArtistKey();
+  const flowResult = _flowNextArtist();
   const d = intelLoad();
   let artist, whyReason;
-  if (flowKey && d.artists[flowKey]) {
-    const a = d.artists[flowKey];
-    artist = { key: flowKey, id: a.id || '', name: a.name, score: a.score, plays: a.plays };
-    whyReason = `Follows your ${d.artists[_prevFullPlayArtistKey]?.name || ''} session`;
+  if (flowResult && d.artists[flowResult.key]) {
+    const a = d.artists[flowResult.key];
+    artist = { key: flowResult.key, id: a.id || '', name: a.name, score: a.score, plays: a.plays };
+    const fromName = d.artists[_prevFullPlayArtistKey]?.name || '';
+    whyReason = `Follows your ${fromName} session (${flowResult.count}x)`;
   } else {
     // contextual + filtered: time-aware and suppress session-blocked artists
     const topArtists = intelGetTopArtists(1, true, true);
@@ -2624,6 +2656,7 @@ async function startSmartRadio(song) {
   const seedArtists = [song];
   const flowMap = d.flows?.[seedKey] || {};
   const flowPartners = Object.entries(flowMap)
+    .map(([k, v]) => [k, typeof v === 'number' ? v : (v?.count || 0)])
     .sort(([, a], [, b]) => b - a)
     .slice(0, 2)
     .map(([k]) => d.artists[k])
@@ -3381,7 +3414,8 @@ function renderMemoryCard() {
   if (flowRow && flowList) {
     const allFlows = [];
     for (const [from, toMap] of Object.entries(d.flows || {})) {
-      for (const [to, count] of Object.entries(toMap)) {
+      for (const [to, val] of Object.entries(toMap)) {
+        const count = typeof val === 'number' ? val : (val?.count || 0);
         const fromName = d.artists[from]?.name || from;
         const toName   = d.artists[to]?.name   || to;
         allFlows.push({ fromName, toName, count });
