@@ -332,6 +332,27 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Poppins'
 .for-you-artist-row{margin-bottom:4px}
 /* Smart Queue badge in mini player */
 #sq-badge{display:none;align-items:center;gap:4px;position:absolute;bottom:calc(var(--tab-h) + var(--mini-h) + 4px);left:50%;transform:translateX(-50%);background:rgba(0,230,230,.18);border:1px solid rgba(0,230,230,.35);border-radius:20px;padding:3px 10px 3px 8px;font-size:11px;font-weight:600;color:var(--red);white-space:nowrap;pointer-events:none;z-index:30;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+/* SmartPlay v3.4.0 UI layer */
+@keyframes sp-glow{0%,100%{box-shadow:0 0 0 0 rgba(0,230,230,0)}50%{box-shadow:0 0 10px 3px rgba(0,230,230,.35)}}
+@keyframes sp-dot-pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.65)}}
+.np-foot.active{color:var(--red);animation:sp-glow 2.4s ease-in-out infinite}
+.sq-pulse-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--red);animation:sp-dot-pulse 1.2s ease-in-out infinite;flex-shrink:0}
+#np-why-chip{transition:background .2s,border-color .2s}
+#np-why-chip:active{background:rgba(0,230,230,.18)}
+/* SmartPlay info sheet */
+#sp-info-sheet{position:fixed;inset:0;z-index:250;display:none;align-items:flex-end}
+#sp-info-sheet.open{display:flex}
+#sp-info-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.55)}
+#sp-info-box{position:relative;width:100%;background:var(--bg2);border-radius:22px 22px 0 0;padding:0 0 calc(var(--safe-bot) + 8px);transform:translateY(40px);opacity:0;transition:transform .28s ease,opacity .28s ease;max-height:72vh;overflow-y:auto}
+#sp-info-sheet.open #sp-info-box{transform:none;opacity:1}
+.sp-info-handle{width:36px;height:4px;border-radius:2px;background:rgba(255,255,255,.2);margin:12px auto 0}
+.sp-info-title{font-size:13px;font-weight:700;color:var(--fg2);text-align:center;padding:10px 20px 14px;letter-spacing:.4px;text-transform:uppercase}
+.sp-info-section{font-size:11px;font-weight:700;color:var(--red);letter-spacing:.6px;text-transform:uppercase;padding:0 20px 6px;opacity:.8}
+.sp-info-row{display:flex;align-items:center;justify-content:space-between;padding:10px 20px;border-top:1px solid rgba(255,255,255,.06)}
+.sp-info-row-label{font-size:14px;color:var(--fg);display:flex;align-items:center;gap:8px}
+.sp-info-row-value{font-size:13px;color:var(--fg2);text-align:right;max-width:55%}
+.sp-info-row-value.accent{color:var(--red);font-weight:600}
+.sp-info-close{display:block;width:calc(100% - 40px);margin:14px 20px 0;padding:14px;text-align:center;background:rgba(0,230,230,.12);border:1px solid rgba(0,230,230,.25);border-radius:14px;color:var(--red);font-size:16px;font-weight:600;font-family:inherit;cursor:pointer}
 </style>
 </head>
 <body>
@@ -576,7 +597,7 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Poppins'
 
   <!-- Smart Queue badge (floats above mini player) -->
   <div id="sq-badge">
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3a9 9 0 1 0 0 18A9 9 0 0 0 12 3zm-1 13V8l6 4-6 4z"/></svg>
+    <span class="sq-pulse-dot"></span>
     Smart Queue
   </div>
 
@@ -672,6 +693,17 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Poppins'
   </div>
 </div>
 
+<!-- SmartPlay Info sheet -->
+<div id="sp-info-sheet">
+  <div id="sp-info-backdrop"></div>
+  <div id="sp-info-box">
+    <div class="sp-info-handle"></div>
+    <div class="sp-info-title">✦ SmartPlay Intelligence</div>
+    <div id="sp-info-content"></div>
+    <button class="sp-info-close" id="sp-info-close-btn">Done</button>
+  </div>
+</div>
+
 <!-- Action sheet -->
 <div id="sheet-wrap">
   <div id="sheet">
@@ -750,7 +782,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '3.3.0';
+const APP_VERSION = '3.4.0';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -1737,12 +1769,81 @@ function setWhyChip(reason) {
   const chip = document.getElementById('np-why-chip');
   if (!chip) return;
   if (reason) {
-    chip.textContent = reason;
+    chip.textContent = '✦ ' + reason;
     chip.style.display = 'block';
   } else {
     chip.style.display = 'none';
   }
 }
+
+// ── SMARTPLAY INFO SHEET ─────────────────────────────────────────────────────
+function openSmartPlayInfo() {
+  const sheet = document.getElementById('sp-info-sheet');
+  const content = document.getElementById('sp-info-content');
+  if (!sheet || !content) return;
+
+  const d = intelLoad();
+  const slot = _timeSlot();
+  const slotLabel = { morning: 'Morning', afternoon: 'Afternoon', evening: 'Evening', night: 'Night' }[slot] || '';
+
+  // Queue mode row
+  let modeLine = smartPlayOn ? 'Active' : 'Off';
+  let modeAccent = smartPlayOn;
+  if (smartQueueActive && _whyChipReason) {
+    if (_whyChipReason.includes('Smart Radio')) modeLine = 'Smart Radio';
+    else if (_whyChipReason.includes('Follows your')) modeLine = 'Flow mode';
+    else modeLine = slotLabel + ' mix';
+  }
+
+  // Top artists
+  const topArtists = intelGetTopArtists(5, false, false);
+  const artistRows = topArtists.map(a =>
+    `<div class="sp-info-row"><span class="sp-info-row-label">${esc(a.name)}</span><span class="sp-info-row-value">${a.plays || 0} plays · score ${a.score || 0}</span></div>`
+  ).join('');
+
+  // Active flow chain
+  let flowHTML = '';
+  if (_prevFullPlayArtistKey && d.artists[_prevFullPlayArtistKey]) {
+    const fromName = d.artists[_prevFullPlayArtistKey].name;
+    const flowResult = _flowNextArtist();
+    if (flowResult && d.artists[flowResult.key]) {
+      const toName = d.artists[flowResult.key].name;
+      flowHTML = `<div class="sp-info-row"><span class="sp-info-row-label">Flow chain</span><span class="sp-info-row-value accent">${esc(fromName)} → ${esc(toName)} (${flowResult.count}x)</span></div>`;
+    }
+  }
+
+  // Suppressed artists
+  let suppressedHTML = '';
+  if (_sessionSuppressed.size > 0) {
+    const names = [..._sessionSuppressed].map(k => d.artists[k]?.name || k).map(esc).join(', ');
+    suppressedHTML = `<div class="sp-info-row"><span class="sp-info-row-label">Skipping</span><span class="sp-info-row-value" style="color:#ffb400">${names}</span></div>`;
+  }
+
+  content.innerHTML = `
+    <div class="sp-info-row" style="border-top:none">
+      <span class="sp-info-row-label">SmartPlay</span>
+      <span class="sp-info-row-value ${modeAccent ? 'accent' : ''}">${modeLine}</span>
+    </div>
+    <div class="sp-info-row">
+      <span class="sp-info-row-label">Time context</span>
+      <span class="sp-info-row-value">${slotLabel} mix · ${_timeGreeting()}</span>
+    </div>
+    ${_whyChipReason ? `<div class="sp-info-row"><span class="sp-info-row-label">Current queue</span><span class="sp-info-row-value accent">${esc(_whyChipReason)}</span></div>` : ''}
+    ${flowHTML}
+    ${suppressedHTML}
+    ${topArtists.length ? `<div class="sp-info-section" style="padding-top:14px">Your Top Artists</div>${artistRows}` : ''}
+  `;
+
+  sheet.classList.add('open');
+}
+
+function closeSmartPlayInfo() {
+  document.getElementById('sp-info-sheet')?.classList.remove('open');
+}
+
+document.getElementById('sp-info-backdrop').addEventListener('click', closeSmartPlayInfo);
+document.getElementById('sp-info-close-btn').addEventListener('click', closeSmartPlayInfo);
+document.getElementById('np-why-chip').addEventListener('click', openSmartPlayInfo);
 
 function openNP()  { document.getElementById('np').classList.add('open'); }
 function closeNP() { document.getElementById('np').classList.remove('open'); }
