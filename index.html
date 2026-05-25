@@ -1082,54 +1082,48 @@ async function _apiSearchFallback(q, limit = 20) {
 }
 
 async function searchSongs(q, limit = 20) {
+  // SIGMA_API has Access-Control-Allow-Origin: * — works in all browsers.
+  // SAAVN_API (saavn.8man.dev) has no CORS headers so browser fetches always fail.
   try {
     const r = await apiFetch(
-      `${SAAVN_API}/api/search/songs?query=${encodeURIComponent(q)}&limit=${limit}`,
+      `${SIGMA_API}/search/songs?query=${encodeURIComponent(q)}&page=1&limit=${limit}`,
       { timeout: 7000, retries: 1 }
     );
     const data = await r.json();
-    // API uses { success: true, data: { results: [] } } — accept both old 'SUCCESS' and new boolean
-    const results = data.data?.results || (data.status === 'SUCCESS' ? data.data?.results : null);
-    if ((data.success === true || data.status === 'SUCCESS') && results?.length) {
-      Log.info('Search OK', { q, count: results.length });
-      return results.map(normSaavnSong);
+    const results = data.data?.results;
+    if (data.status === 'SUCCESS' && results?.length) {
+      Log.info('Search songs OK', { q, count: results.length });
+      return results.map(s => ({
+        id:       s.id,
+        name:     decodeHtml(s.name || ''),
+        artist:   decodeHtml(s.primaryArtists || ''),
+        album:    decodeHtml(s.album?.name || ''),
+        language: s.language || '',
+        image:    bestImg(s.image, '150x150'),
+        duration: parseInt(s.duration || 0),
+      }));
     }
   } catch {}
-  Log.info('Search fallback', { q });
+  Log.info('Search songs fallback', { q });
   return _apiSearchFallback(q, limit);
 }
 
-async function searchPlaylists(q, limit = 5) {
+async function searchPlaylists(q, limit = 15) {
   try {
     const r = await apiFetch(
-      `${SAAVN_API}/api/search/playlists?query=${encodeURIComponent(q)}&limit=${limit}`,
+      `${SIGMA_API}/search/playlists?query=${encodeURIComponent(q)}&page=1&limit=${limit}`,
       { timeout: 7000, retries: 1 }
     );
-    if (r.ok) {
-      const data = await r.json();
-      const results = data.data?.results;
-      if ((data.success === true || data.status === 'SUCCESS') && results?.length) {
-        return results.map(pl => ({
-          id:       pl.id,
-          name:     pl.name || pl.title || 'Playlist',
-          subtitle: pl.songCount ? `${pl.songCount} songs` : (pl.language || 'Playlist'),
-          image:    bestImg(pl.image, '150x150'),
-        }));
-      }
-    }
-  } catch {}
-  // Fallback: JioSaavn autocomplete also returns playlists
-  try {
-    const r = await proxyFetch(
-      `https://www.jiosaavn.com/api.php?__call=autocomplete.get&query=${encodeURIComponent(q)}&_format=json&_marker=0&ctx=wap6dot0`
-    );
     const data = await r.json();
-    return (data?.playlists?.data || []).slice(0, limit).map(pl => ({
-      id:       pl.id,
-      name:     decodeHtml(pl.title || ''),
-      subtitle: pl.more_info?.song_count ? `${pl.more_info.song_count} songs` : (pl.more_info?.language || 'Playlist'),
-      image:    (pl.image || '').replace('50x50', '150x150'),
-    }));
+    const results = data.data?.results;
+    if (data.status === 'SUCCESS' && results?.length) {
+      return results.map(pl => ({
+        id:       pl.id,
+        name:     decodeHtml(pl.name || ''),
+        subtitle: pl.songCount ? `${pl.songCount} songs` : (pl.language || 'Playlist'),
+        image:    bestImg(pl.image, '150x150'),
+      }));
+    }
   } catch {}
   return [];
 }
@@ -1137,34 +1131,19 @@ async function searchPlaylists(q, limit = 5) {
 async function searchAlbums(q, limit = 15) {
   try {
     const r = await apiFetch(
-      `${SAAVN_API}/api/search/albums?query=${encodeURIComponent(q)}&limit=${limit}`,
+      `${SIGMA_API}/search/albums?query=${encodeURIComponent(q)}&page=1&limit=${limit}`,
       { timeout: 7000, retries: 1 }
     );
-    if (r.ok) {
-      const data = await r.json();
-      const results = data.data?.results;
-      if ((data.success === true || data.status === 'SUCCESS') && results?.length) {
-        return results.map(al => ({
-          id:       al.id,
-          name:     decodeHtml(al.name || al.title || 'Album'),
-          subtitle: al.artists?.primary?.map(a => a.name).join(', ') || al.language || 'Album',
-          image:    bestImg(al.image, '150x150'),
-        }));
-      }
-    }
-  } catch {}
-  // Fallback: pull albums from JioSaavn autocomplete
-  try {
-    const r = await proxyFetch(
-      `https://www.jiosaavn.com/api.php?__call=autocomplete.get&query=${encodeURIComponent(q)}&_format=json&_marker=0&ctx=wap6dot0`
-    );
     const data = await r.json();
-    return (data?.albums?.data || []).slice(0, limit).map(al => ({
-      id:       al.id,
-      name:     decodeHtml(al.title || ''),
-      subtitle: decodeHtml(al.more_info?.music || al.more_info?.language || 'Album'),
-      image:    (al.image || '').replace('50x50', '150x150'),
-    }));
+    const results = data.data?.results;
+    if (data.status === 'SUCCESS' && results?.length) {
+      return results.map(al => ({
+        id:       al.id,
+        name:     decodeHtml(al.name || ''),
+        subtitle: Array.isArray(al.primaryArtists) ? al.primaryArtists.map(a => a.name).join(', ') : decodeHtml(al.primaryArtists || al.language || 'Album'),
+        image:    bestImg(al.image, '150x150'),
+      }));
+    }
   } catch {}
   return [];
 }
@@ -1172,34 +1151,19 @@ async function searchAlbums(q, limit = 15) {
 async function searchArtists(q, limit = 10) {
   try {
     const r = await apiFetch(
-      `${SAAVN_API}/api/search/artists?query=${encodeURIComponent(q)}&limit=${limit}`,
+      `${SIGMA_API}/search/artists?query=${encodeURIComponent(q)}&page=1&limit=${limit}`,
       { timeout: 7000, retries: 1 }
     );
-    if (r.ok) {
-      const data = await r.json();
-      const results = data.data?.results;
-      if ((data.success === true || data.status === 'SUCCESS') && results?.length) {
-        return results.map(a => ({
-          id:       a.id,
-          name:     decodeHtml(a.name || a.title || ''),
-          subtitle: a.description || 'Artist',
-          image:    bestImg(a.image, '150x150'),
-        }));
-      }
-    }
-  } catch {}
-  // Fallback: JioSaavn autocomplete artists
-  try {
-    const r = await proxyFetch(
-      `https://www.jiosaavn.com/api.php?__call=autocomplete.get&query=${encodeURIComponent(q)}&_format=json&_marker=0&ctx=wap6dot0`
-    );
     const data = await r.json();
-    return (data?.artists?.data || []).slice(0, limit).map(a => ({
-      id:       a.id,
-      name:     decodeHtml(a.title || ''),
-      subtitle: 'Artist',
-      image:    (a.image || '').replace('50x50', '150x150'),
-    }));
+    const results = data.data?.results;
+    if (data.status === 'SUCCESS' && results?.length) {
+      return results.map(a => ({
+        id:       a.id,
+        name:     decodeHtml(a.name || ''),
+        subtitle: a.role || 'Artist',
+        image:    bestImg(a.image, '150x150'),
+      }));
+    }
   } catch {}
   return [];
 }
@@ -2008,15 +1972,13 @@ async function runSearch(q) {
     return;
   }
 
-  // ── Primary path: four parallel high-limit calls → rich results in one round-trip ──
-  // The unified /api/search endpoint caps each section at ~3–5 items regardless of query,
-  // which is why searching "telugu" returned almost nothing. Parallel individual endpoints
-  // support limit=N and return up to 20 songs, 15 albums, 15 playlists, 10 artists.
-  // We also fire the unified call concurrently so we get the topQuery result for free.
+  // ── Four parallel SIGMA_API calls — all CORS-enabled, support limit=N ──────
+  // SAAVN_API (saavn.8man.dev) has no CORS headers so browser fetches always fail.
+  // SIGMA_API (jiosaavn-api-sigma-sandy.vercel.app) returns Access-Control-Allow-Origin: *
+  // and supports /search/songs, /search/albums, /search/playlists, /search/artists.
+  // topHit is derived from the first song result (no unified endpoint available on SIGMA_API).
   try {
-    const [uniRes, songs, albums, playlists, artists] = await Promise.all([
-      fetch(`${SAAVN_API}/api/search?query=${encodeURIComponent(q)}`, { signal: AbortSignal.timeout(8000) })
-        .then(r => r.ok ? r.json() : null).catch(() => null),
+    const [songs, albums, playlists, artists] = await Promise.all([
       searchSongs(q,     SEARCH_SONG_LIMIT),
       searchAlbums(q,    SEARCH_ALBUM_LIMIT),
       searchPlaylists(q, SEARCH_PLAYLIST_LIMIT),
@@ -2024,9 +1986,10 @@ async function runSearch(q) {
     ]);
     if (mySeq !== searchSeq) return;
 
-    // topHit from unified call — API wraps in .data (new) or root (legacy)
-    const uniData = uniRes?.data || uniRes;
-    const topHit  = uniData?.topQuery?.results?.[0] || null;
+    // Use first song as topHit when there's a strong name match, otherwise null
+    const ql = q.toLowerCase();
+    const topSong = songs.find(s => s.name?.toLowerCase().includes(ql));
+    const topHit  = topSong ? { ...topSong, type: 'song' } : null;
 
     const result = { topHit, songs, albums, artists, playlists };
     searchCache.set(q, result);
