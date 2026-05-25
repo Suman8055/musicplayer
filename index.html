@@ -1432,7 +1432,14 @@ function setNPLoading(on) {
 
 function togglePlay() {
   if (!nowSong || loadingUrl) return;
-  if (playing) { userPaused = true; audio.pause(); } else { userPaused = false; audio.play().catch(() => {}); }
+  if (playing) {
+    userPaused = true;
+    audio.pause();
+  } else {
+    userPaused = false;
+    if (audio.ended) audio.currentTime = 0;
+    audio.play().catch(() => {});
+  }
 }
 
 function prev() {
