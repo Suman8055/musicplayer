@@ -61,8 +61,13 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Poppins'
 .top-hit-type{font-size:10px;font-weight:700;color:var(--red);text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px}
 .top-hit-name{font-size:17px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-.2px}
 .top-hit-sub{font-size:13px;color:var(--fg2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
-.section-hdr{display:flex;align-items:baseline;padding:20px 16px 8px}
+.section-hdr{display:flex;align-items:baseline;justify-content:space-between;padding:20px 16px 8px}
 .section-hdr .section-title{padding:0}
+.section-count{font-size:12px;color:var(--fg3);font-weight:500;margin-left:6px}
+/* "See all X songs" expand row — sits at bottom of each section */
+.see-all-row{display:flex;align-items:center;justify-content:center;gap:6px;padding:10px 16px 4px;cursor:pointer;color:var(--red);font-size:13px;font-weight:600;letter-spacing:.01em;-webkit-tap-highlight-color:transparent}
+.see-all-row:active{opacity:.6}
+.see-all-row svg{flex-shrink:0}
 
 /* Song rows */
 .song-list{padding:0 0 8px}
@@ -782,7 +787,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '3.4.0';
+const APP_VERSION = '3.5.0';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -1155,6 +1160,40 @@ async function searchAlbums(q, limit = 15) {
       name:     decodeHtml(al.title || ''),
       subtitle: decodeHtml(al.more_info?.music || al.more_info?.language || 'Album'),
       image:    (al.image || '').replace('50x50', '150x150'),
+    }));
+  } catch {}
+  return [];
+}
+
+async function searchArtists(q, limit = 10) {
+  try {
+    const r = await apiFetch(
+      `${SAAVN_API}/api/search/artists?query=${encodeURIComponent(q)}&limit=${limit}`,
+      { timeout: 7000, retries: 1 }
+    );
+    if (r.ok) {
+      const data = await r.json();
+      if (data.status === 'SUCCESS' && data.data?.results?.length) {
+        return data.data.results.map(a => ({
+          id:       a.id,
+          name:     decodeHtml(a.name || a.title || ''),
+          subtitle: a.description || 'Artist',
+          image:    bestImg(a.image, '150x150'),
+        }));
+      }
+    }
+  } catch {}
+  // Fallback: JioSaavn autocomplete artists
+  try {
+    const r = await proxyFetch(
+      `https://www.jiosaavn.com/api.php?__call=autocomplete.get&query=${encodeURIComponent(q)}&_format=json&_marker=0&ctx=wap6dot0`
+    );
+    const data = await r.json();
+    return (data?.artists?.data || []).slice(0, limit).map(a => ({
+      id:       a.id,
+      name:     decodeHtml(a.title || ''),
+      subtitle: 'Artist',
+      image:    (a.image || '').replace('50x50', '150x150'),
     }));
   } catch {}
   return [];
@@ -1945,6 +1984,14 @@ function normUniSearchPlaylist(pl) {
   };
 }
 
+// Search result limits — controls how many items each section fetches from the API.
+// Higher limits give users more to browse; sections preview SEARCH_PREVIEW_COUNT rows
+// and reveal the rest via an inline "See all" tap (no extra API call needed).
+const SEARCH_SONG_LIMIT     = 20;
+const SEARCH_ALBUM_LIMIT    = 15;
+const SEARCH_PLAYLIST_LIMIT = 15;
+const SEARCH_ARTIST_LIMIT   = 10;
+
 async function runSearch(q) {
   const mySeq = ++searchSeq;
   if (searchCache.has(q)) {
@@ -1955,21 +2002,25 @@ async function runSearch(q) {
     renderSearchResults(cached);
     return;
   }
+
+  // ── Primary path: four parallel high-limit calls → rich results in one round-trip ──
+  // The unified /api/search endpoint caps each section at ~3–5 items regardless of query,
+  // which is why searching "telugu" returned almost nothing. Parallel individual endpoints
+  // support limit=N and return up to 20 songs, 15 albums, 15 playlists, 10 artists.
+  // We also fire the unified call concurrently so we get the topQuery result for free.
   try {
-    // Single unified call — returns topQuery + all sections in one round-trip
-    const r = await fetch(
-      `${SAAVN_API}/api/search?query=${encodeURIComponent(q)}`,
-      { signal: AbortSignal.timeout(8000) }
-    );
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    const data = await r.json();
+    const [uniRes, songs, albums, playlists, artists] = await Promise.all([
+      fetch(`${SAAVN_API}/api/search?query=${encodeURIComponent(q)}`, { signal: AbortSignal.timeout(8000) })
+        .then(r => r.ok ? r.json() : null).catch(() => null),
+      searchSongs(q,     SEARCH_SONG_LIMIT),
+      searchAlbums(q,    SEARCH_ALBUM_LIMIT),
+      searchPlaylists(q, SEARCH_PLAYLIST_LIMIT),
+      searchArtists(q,   SEARCH_ARTIST_LIMIT),
+    ]);
     if (mySeq !== searchSeq) return;
 
-    const topHit  = data.topQuery?.results?.[0]   || null;
-    const songs   = (data.songs?.results     || []).map(normUniSearchSong);
-    const albums  = (data.albums?.results    || []).map(normUniSearchAlbum);
-    const artists = (data.artists?.results   || []).map(normUniSearchArtist);
-    const playlists = (data.playlists?.results || []).map(normUniSearchPlaylist);
+    // topHit comes from the unified call's topQuery; falls back to null if that call failed
+    const topHit = uniRes?.topQuery?.results?.[0] || null;
 
     const result = { topHit, songs, albums, artists, playlists };
     searchCache.set(q, result);
@@ -1978,24 +2029,11 @@ async function runSearch(q) {
     showChips();
     renderSearchResults(result);
   } catch (err) {
-    // Fallback: three parallel endpoint calls (old behaviour)
-    Log.warn('Unified search failed, trying fallback', { err: err.message });
-    try {
-      const [songs, albums, playlists] = await Promise.all([
-        searchSongs(q), searchAlbums(q), searchPlaylists(q),
-      ]);
-      if (mySeq !== searchSeq) return;
-      const result = { topHit: null, songs, albums, artists: [], playlists };
-      searchCache.set(q, result);
-      if (searchCache.size > 10) searchCache.delete(searchCache.keys().next().value);
-      cacheSongs(songs);
-      showChips();
-      renderSearchResults(result);
-    } catch {
-      if (mySeq !== searchSeq) return;
-      document.getElementById('search-results').innerHTML =
-        '<div class="empty-wrap"><div class="empty-ico">⚠️</div><div class="empty-txt">Could not connect — check your internet</div></div>';
-    }
+    // ── Fallback: all individual endpoints failed too — network error ──
+    Log.warn('Search failed', { err: err.message });
+    if (mySeq !== searchSeq) return;
+    document.getElementById('search-results').innerHTML =
+      '<div class="empty-wrap"><div class="empty-ico">⚠️</div><div class="empty-txt">Could not connect — check your internet</div></div>';
   }
 }
 
@@ -2022,6 +2060,11 @@ function sortByRelevance(items, q) {
   });
 }
 
+// How many items to preview per section before showing "See all X" expand row.
+// Filters (Songs / Albums etc.) bypass this cap and show everything since the
+// user has explicitly chosen a single category.
+const SEARCH_PREVIEW_COUNT = 5;
+
 function renderSearchResults({ topHit, songs, albums, artists, playlists }) {
   const el = document.getElementById('search-results');
   el.innerHTML = '';
@@ -2042,6 +2085,29 @@ function renderSearchResults({ topHit, songs, albums, artists, playlists }) {
     return;
   }
 
+  // ── Helper: build a section header with item count badge ──────────────────
+  function makeSectionHdr(title, count) {
+    const hdr = document.createElement('div');
+    hdr.className = 'section-hdr';
+    hdr.innerHTML = `<div class="section-title">${title}</div>${count > 0 ? `<span class="section-count">${count}</span>` : ''}`;
+    return hdr;
+  }
+
+  // ── Helper: append a "See all N more" expand row that reveals hidden items ──
+  // hiddenEls is an array of already-created DOM nodes that are hidden (display:none).
+  // Tapping the row removes it and shows all hidden items inline — no extra API call.
+  function appendSeeAllRow(container, label, hiddenEls) {
+    if (!hiddenEls.length) return;
+    const row = document.createElement('div');
+    row.className = 'see-all-row';
+    row.innerHTML = `<span>See all ${hiddenEls.length} more ${label}</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>`;
+    row.addEventListener('click', () => {
+      hiddenEls.forEach(n => { n.style.display = ''; });
+      row.remove();
+    });
+    container.appendChild(row);
+  }
+
   // ── Top Hit — uses the API's own topQuery result (more accurate than client-side guessing) ──
   if (activeFilter === 'all' && topHit) {
     const type     = topHit.type || 'album';
@@ -2052,10 +2118,7 @@ function renderSearchResults({ topHit, songs, albums, artists, playlists }) {
       : decodeHtml(topHit.artist || topHit.description || '');
     const typeLabel = type === 'song' ? 'Song' : type === 'artist' ? 'Artist' : 'Album';
 
-    const hdr = document.createElement('div');
-    hdr.className = 'section-hdr';
-    hdr.innerHTML = '<div class="section-title">Top Hit</div>';
-    el.appendChild(hdr);
+    el.appendChild(makeSectionHdr('Top Hit', 0));
 
     const card = document.createElement('div');
     card.className = 'top-hit-card';
@@ -2072,12 +2135,10 @@ function renderSearchResults({ topHit, songs, albums, artists, playlists }) {
     `;
     card.addEventListener('click', () => {
       if (type === 'song') {
-        // Find in sorted songs and play it
         const match = sortedSongs.find(s => s.id === topHit.id);
         if (match) play(match, [...sortedSongs], sortedSongs.indexOf(match));
         else play(normUniSearchSong(topHit), [normUniSearchSong(topHit)], 0);
       } else {
-        // Find matching album in results to get its songIds
         const alMatch = sortedAlbums.find(a => a.id === topHit.id);
         openBrowseDetail(topHit.id, 'album', name, alMatch?.songIds || '');
       }
@@ -2085,12 +2146,45 @@ function renderSearchResults({ topHit, songs, albums, artists, playlists }) {
     el.appendChild(card);
   }
 
+  // ── Songs ──────────────────────────────────────────────────────────────────
+  // In "All" view: show SEARCH_PREVIEW_COUNT rows, rest hidden behind "See all" tap.
+  // In "Songs" filter view: show everything (user asked for songs specifically).
+  if (visibleSongs.length) {
+    // When a filter is active we skip the preview cap entirely
+    const previewCap = activeFilter === 'songs' ? visibleSongs.length : SEARCH_PREVIEW_COUNT;
+    el.appendChild(makeSectionHdr('Songs', visibleSongs.length));
+
+    const list = document.createElement('div');
+    list.className = 'song-list';
+    const hiddenSongNodes = [];
+    visibleSongs.forEach((song, i) => {
+      const row = document.createElement('div');
+      row.className = 'song-item';
+      row.innerHTML = `
+        <img class="song-art" src="${esc(artUrl(song))}" alt="" loading="lazy" onerror="this.style.opacity='.25'">
+        <div class="song-info">
+          <div class="song-title${nowSong?.id === song.id ? ' now' : ''}">${esc(song.name || '')}</div>
+          <div class="song-meta">${esc(song.artist || '')}</div>
+        </div>
+        <div class="song-more">···</div>
+      `;
+      row.querySelector('.song-more').addEventListener('click', ev => { ev.stopPropagation(); showSongSheet(song); });
+      row.addEventListener('click', () => play(song, [...sortedSongs], i));
+      if (i >= previewCap) {
+        row.style.display = 'none';
+        hiddenSongNodes.push(row);
+      }
+      list.appendChild(row);
+    });
+    el.appendChild(list);
+    appendSeeAllRow(el, 'songs', hiddenSongNodes);
+  }
+
   // ── Albums (horizontal scroll cards) ──────────────────────────────────────
+  // Albums use a horizontal scroll carousel — all cards are visible since scrolling
+  // is the natural browse gesture. No "See all" needed here.
   if (visibleAlbums.length) {
-    const hdr = document.createElement('div');
-    hdr.className = 'section-hdr';
-    hdr.innerHTML = '<div class="section-title">Albums</div>';
-    el.appendChild(hdr);
+    el.appendChild(makeSectionHdr('Albums', visibleAlbums.length));
 
     const scroll = document.createElement('div');
     scroll.className = 'album-scroll';
@@ -2112,14 +2206,13 @@ function renderSearchResults({ topHit, songs, albums, artists, playlists }) {
 
   // ── Artists ────────────────────────────────────────────────────────────────
   if (visibleArtists.length) {
-    const hdr = document.createElement('div');
-    hdr.className = 'section-hdr';
-    hdr.innerHTML = '<div class="section-title">Artists</div>';
-    el.appendChild(hdr);
+    const previewCap = activeFilter === 'artists' ? visibleArtists.length : SEARCH_PREVIEW_COUNT;
+    el.appendChild(makeSectionHdr('Artists', visibleArtists.length));
 
     const list = document.createElement('div');
     list.className = 'song-list';
-    visibleArtists.forEach(ar => {
+    const hiddenArtistNodes = [];
+    visibleArtists.forEach((ar, i) => {
       const row = document.createElement('div');
       row.className = 'song-item';
       row.innerHTML = `
@@ -2133,21 +2226,25 @@ function renderSearchResults({ topHit, songs, albums, artists, playlists }) {
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="color:var(--fg3);flex-shrink:0;margin-right:4px"><polyline points="9 18 15 12 9 6"/></svg>
       `;
       row.addEventListener('click', () => openBrowseDetail(ar.id, 'artist', ar.name, ''));
+      if (i >= previewCap) {
+        row.style.display = 'none';
+        hiddenArtistNodes.push(row);
+      }
       list.appendChild(row);
     });
     el.appendChild(list);
+    appendSeeAllRow(el, 'artists', hiddenArtistNodes);
   }
 
   // ── Playlists ──────────────────────────────────────────────────────────────
   if (visiblePlaylists.length) {
-    const hdr = document.createElement('div');
-    hdr.className = 'section-hdr';
-    hdr.innerHTML = '<div class="section-title">Playlists</div>';
-    el.appendChild(hdr);
+    const previewCap = activeFilter === 'playlists' ? visiblePlaylists.length : SEARCH_PREVIEW_COUNT;
+    el.appendChild(makeSectionHdr('Playlists', visiblePlaylists.length));
 
     const list = document.createElement('div');
     list.className = 'song-list';
-    visiblePlaylists.forEach(pl => {
+    const hiddenPlaylistNodes = [];
+    visiblePlaylists.forEach((pl, i) => {
       const row = document.createElement('div');
       row.className = 'song-item';
       row.innerHTML = `
@@ -2161,36 +2258,14 @@ function renderSearchResults({ topHit, songs, albums, artists, playlists }) {
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="color:var(--fg3);flex-shrink:0;margin-right:4px"><polyline points="9 18 15 12 9 6"/></svg>
       `;
       row.addEventListener('click', () => openBrowseDetail(pl.id, 'playlist', pl.name, ''));
+      if (i >= previewCap) {
+        row.style.display = 'none';
+        hiddenPlaylistNodes.push(row);
+      }
       list.appendChild(row);
     });
     el.appendChild(list);
-  }
-
-  // ── Songs ──────────────────────────────────────────────────────────────────
-  if (visibleSongs.length) {
-    const hdr = document.createElement('div');
-    hdr.className = 'section-hdr';
-    hdr.innerHTML = '<div class="section-title">Songs</div>';
-    el.appendChild(hdr);
-
-    const list = document.createElement('div');
-    list.className = 'song-list';
-    visibleSongs.forEach((song, i) => {
-      const row = document.createElement('div');
-      row.className = 'song-item';
-      row.innerHTML = `
-        <img class="song-art" src="${esc(artUrl(song))}" alt="" loading="lazy" onerror="this.style.opacity='.25'">
-        <div class="song-info">
-          <div class="song-title${nowSong?.id === song.id ? ' now' : ''}">${esc(song.name || '')}</div>
-          <div class="song-meta">${esc(song.artist || '')}</div>
-        </div>
-        <div class="song-more">···</div>
-      `;
-      row.querySelector('.song-more').addEventListener('click', ev => { ev.stopPropagation(); showSongSheet(song); });
-      row.addEventListener('click', () => play(song, [...sortedSongs], i));
-      list.appendChild(row);
-    });
-    el.appendChild(list);
+    appendSeeAllRow(el, 'playlists', hiddenPlaylistNodes);
   }
 }
 
