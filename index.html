@@ -506,6 +506,13 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Poppins'
           <div class="settings-label" style="font-size:12px;opacity:.7">Your listening flows</div>
           <div id="flow-pairs-list" style="font-size:12px;color:var(--fg2);line-height:1.8;padding-left:2px"></div>
         </div>
+        <div class="settings-row" id="suppressed-row" style="display:none;flex-direction:column;align-items:flex-start;gap:6px">
+          <div style="display:flex;align-items:center;justify-content:space-between;width:100%">
+            <div class="settings-label" style="font-size:12px;opacity:.7">Skipping this session</div>
+            <button class="settings-btn sec" id="clear-suppressed-btn" style="flex-shrink:0;margin:0;padding:5px 10px;font-size:12px;border-radius:8px">Clear</button>
+          </div>
+          <div id="suppressed-list" style="font-size:12px;color:#ffb400;line-height:1.8;padding-left:2px"></div>
+        </div>
         <div class="settings-row">
           <div class="settings-label">In-memory caches<small id="cache-stats-label">—</small></div>
           <button class="settings-btn sec" id="clear-cache-btn" style="flex-shrink:0;margin:0;padding:8px 14px;font-size:13px;border-radius:10px">Clear</button>
@@ -575,7 +582,7 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Poppins'
 
   <!-- Mood shift badge (floats above mini player, auto-hides after 3s) -->
   <div id="mood-badge" style="display:none;align-items:center;gap:5px;position:absolute;bottom:calc(var(--tab-h) + var(--mini-h) + 32px);left:50%;transform:translateX(-50%);background:rgba(255,180,0,.18);border:1px solid rgba(255,180,0,.4);border-radius:20px;padding:4px 12px;font-size:11px;font-weight:600;color:#ffb400;white-space:nowrap;pointer-events:none;z-index:31;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)">
-    ✦ Adapting to your mood...
+    <span id="mood-badge-text">✦ Adapting to your mood...</span>
   </div>
 
   <!-- Tab bar -->
@@ -743,7 +750,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '3.1.0';
+const APP_VERSION = '3.2.0';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -1427,7 +1434,8 @@ function next() {
         const key = _artistKey(nowSong);
         if (key && key !== 'n:') _sessionSuppressed.add(key);
         _sessionSkipStreak = 0;
-        _showMoodShiftBadge();
+        _showMoodShiftBadge(nowSong.artist || null);
+        _refreshSuppressedRow();
       }
     } else {
       // Non-fast skip still breaks streak but doesn't count toward mood shift
@@ -2474,9 +2482,15 @@ async function renderForYouSection() {
 
 // ── MOOD SHIFT — session-level skip detection ─────────────────────────────────
 let _moodBadgeTimer = null;
-function _showMoodShiftBadge() {
+function _showMoodShiftBadge(artistName) {
   const b = document.getElementById('mood-badge');
   if (!b) return;
+  const textEl = document.getElementById('mood-badge-text');
+  if (textEl) {
+    textEl.textContent = artistName
+      ? `✦ Skipping ${artistName} for now`
+      : '✦ Adapting to your mood...';
+  }
   b.style.display = 'flex';
   clearTimeout(_moodBadgeTimer);
   _moodBadgeTimer = setTimeout(() => { b.style.display = 'none'; }, 3000);
@@ -2494,12 +2508,28 @@ function _initNotNowLongPress() {
       const key = _artistKey(nowSong);
       if (key && key !== 'n:') {
         _sessionSuppressed.add(key);
-        toast(`Skip ${nowSong.artist || 'artist'} for now`);
+        _refreshSuppressedRow();
+        toast(`Skipping ${nowSong.artist || 'artist'} · session only`);
       }
     }, 600);
   });
   btn.addEventListener('pointerup',    () => { clearTimeout(_nextLongPressTimer); _nextLongPressTimer = null; });
   btn.addEventListener('pointerleave', () => { clearTimeout(_nextLongPressTimer); _nextLongPressTimer = null; });
+}
+
+// Renders the "Skipping this session" row in Settings → Memory.
+// Called whenever _sessionSuppressed changes.
+function _refreshSuppressedRow() {
+  const row  = document.getElementById('suppressed-row');
+  const list = document.getElementById('suppressed-list');
+  if (!row || !list) return;
+  if (_sessionSuppressed.size === 0) { row.style.display = 'none'; return; }
+  const d = intelLoad();
+  row.style.display = 'flex';
+  list.innerHTML = [..._sessionSuppressed].map(key => {
+    const name = d.artists[key]?.name || key;
+    return `✦ ${esc(name)}`;
+  }).join('<br>');
 }
 
 // ── SMART QUEUE — auto-fill queue from top artist when it runs out ──────────────
@@ -3342,6 +3372,9 @@ function renderMemoryCard() {
     }
   }
 
+  // Session suppression list
+  _refreshSuppressedRow();
+
   // Flow pairs — show top 5 A→B artist transitions
   const flowRow  = document.getElementById('flow-pairs-row');
   const flowList = document.getElementById('flow-pairs-list');
@@ -3416,6 +3449,12 @@ document.getElementById('clear-cache-btn').addEventListener('click', () => {
   _forYouCache = null;
   renderMemoryCard();
   toast('In-memory caches cleared');
+});
+
+document.getElementById('clear-suppressed-btn').addEventListener('click', () => {
+  _sessionSuppressed.clear();
+  _refreshSuppressedRow();
+  toast('Session skips cleared');
 });
 
 
