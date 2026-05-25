@@ -1088,9 +1088,11 @@ async function searchSongs(q, limit = 20) {
       { timeout: 7000, retries: 1 }
     );
     const data = await r.json();
-    if (data.status === 'SUCCESS' && data.data?.results?.length) {
-      Log.info('Search OK', { q, count: data.data.results.length });
-      return data.data.results.map(normSaavnSong);
+    // API uses { success: true, data: { results: [] } } — accept both old 'SUCCESS' and new boolean
+    const results = data.data?.results || (data.status === 'SUCCESS' ? data.data?.results : null);
+    if ((data.success === true || data.status === 'SUCCESS') && results?.length) {
+      Log.info('Search OK', { q, count: results.length });
+      return results.map(normSaavnSong);
     }
   } catch {}
   Log.info('Search fallback', { q });
@@ -1105,8 +1107,9 @@ async function searchPlaylists(q, limit = 5) {
     );
     if (r.ok) {
       const data = await r.json();
-      if (data.status === 'SUCCESS' && data.data?.results?.length) {
-        return data.data.results.map(pl => ({
+      const results = data.data?.results;
+      if ((data.success === true || data.status === 'SUCCESS') && results?.length) {
+        return results.map(pl => ({
           id:       pl.id,
           name:     pl.name || pl.title || 'Playlist',
           subtitle: pl.songCount ? `${pl.songCount} songs` : (pl.language || 'Playlist'),
@@ -1139,8 +1142,9 @@ async function searchAlbums(q, limit = 15) {
     );
     if (r.ok) {
       const data = await r.json();
-      if (data.status === 'SUCCESS' && data.data?.results?.length) {
-        return data.data.results.map(al => ({
+      const results = data.data?.results;
+      if ((data.success === true || data.status === 'SUCCESS') && results?.length) {
+        return results.map(al => ({
           id:       al.id,
           name:     decodeHtml(al.name || al.title || 'Album'),
           subtitle: al.artists?.primary?.map(a => a.name).join(', ') || al.language || 'Album',
@@ -1173,8 +1177,9 @@ async function searchArtists(q, limit = 10) {
     );
     if (r.ok) {
       const data = await r.json();
-      if (data.status === 'SUCCESS' && data.data?.results?.length) {
-        return data.data.results.map(a => ({
+      const results = data.data?.results;
+      if ((data.success === true || data.status === 'SUCCESS') && results?.length) {
+        return results.map(a => ({
           id:       a.id,
           name:     decodeHtml(a.name || a.title || ''),
           subtitle: a.description || 'Artist',
@@ -2019,8 +2024,9 @@ async function runSearch(q) {
     ]);
     if (mySeq !== searchSeq) return;
 
-    // topHit comes from the unified call's topQuery; falls back to null if that call failed
-    const topHit = uniRes?.topQuery?.results?.[0] || null;
+    // topHit from unified call — API wraps in .data (new) or root (legacy)
+    const uniData = uniRes?.data || uniRes;
+    const topHit  = uniData?.topQuery?.results?.[0] || null;
 
     const result = { topHit, songs, albums, artists, playlists };
     searchCache.set(q, result);
