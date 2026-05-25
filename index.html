@@ -787,7 +787,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '3.5.1';
+const APP_VERSION = '3.5.2';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -1695,19 +1695,26 @@ function refreshPlayBtns() {
   (playing && !loadingUrl) ? art.classList.add('playing') : art.classList.remove('playing');
 }
 
-function updateMediaSession() {
+let _artBlobUrl = null; // revoked on each song change
+
+async function _fetchArtBlob(url) {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
+  } catch { return null; }
+}
+
+async function updateMediaSession() {
   if (!('mediaSession' in navigator) || !nowSong) return;
-  const img = nowSong.image || '';
-  // CarPlay needs multiple standard sizes — derive smaller variant from the 500x500 URL
-  const artwork = img ? [
-    { src: img.replace(/\d+x\d+/, '150x150'), sizes: '128x128',  type: 'image/jpeg' },
-    { src: img.replace(/\d+x\d+/, '500x500'), sizes: '512x512',  type: 'image/jpeg' },
-  ] : [];
+
+  // Set text metadata immediately so speaker shows title/artist without waiting for art
   navigator.mediaSession.metadata = new MediaMetadata({
     title:  nowSong.name   || '',
     artist: nowSong.artist || '',
     album:  nowSong.album  || '',
-    artwork,
+    artwork: [],
   });
   navigator.mediaSession.playbackState = 'playing';
   navigator.mediaSession.setActionHandler('play',          () => { userPaused = false; audio.play().catch(e => Log.warn('MediaSession play failed', {err: e.message})); });
@@ -1717,6 +1724,34 @@ function updateMediaSession() {
   try { navigator.mediaSession.setActionHandler('seekbackward', null); } catch {}
   try { navigator.mediaSession.setActionHandler('seekforward',  null); } catch {}
   try { navigator.mediaSession.setActionHandler('seekto', ({seekTime}) => { if (isFinite(seekTime)) audio.currentTime = seekTime; }); } catch {}
+
+  const img = nowSong.image || '';
+  if (!img) return;
+
+  // Revoke previous blob to free memory
+  if (_artBlobUrl) { URL.revokeObjectURL(_artBlobUrl); _artBlobUrl = null; }
+
+  // Fetch artwork as a same-origin blob — Bluetooth/CarPlay displays can't fetch
+  // cross-origin CDN URLs directly, but blob: URLs always work
+  const blobUrl = await _fetchArtBlob(img.replace(/\d+x\d+/, '500x500'));
+  if (!blobUrl) {
+    // Fallback: raw CDN URL (works on CarPlay/AirPlay which go through Safari)
+    if (navigator.mediaSession.metadata) {
+      navigator.mediaSession.metadata.artwork = [
+        { src: img.replace(/\d+x\d+/, '150x150'), sizes: '128x128', type: 'image/jpeg' },
+        { src: img.replace(/\d+x\d+/, '500x500'), sizes: '512x512', type: 'image/jpeg' },
+      ];
+    }
+    return;
+  }
+  _artBlobUrl = blobUrl;
+
+  // Only update if this song is still playing (user may have skipped during fetch)
+  if (navigator.mediaSession.metadata && navigator.mediaSession.metadata.title === (nowSong.name || '')) {
+    navigator.mediaSession.metadata.artwork = [
+      { src: blobUrl, sizes: '512x512', type: 'image/jpeg' },
+    ];
+  }
 }
 
 // ── NOW PLAYING ────────────────────────────────────────────────────────────────
