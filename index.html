@@ -386,6 +386,7 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Poppins'
         <div class="disc-hd">
           <span class="disc-hd-title">✨ For You</span>
           <span id="for-you-greeting" style="font-size:12px;opacity:.55;margin-left:8px"></span>
+          <span id="for-you-slot-label" style="font-size:11px;opacity:.38;margin-left:6px;font-weight:400"></span>
         </div>
         <div id="for-you-rows"></div>
       </div>
@@ -402,6 +403,7 @@ html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Poppins'
       <!-- Trending India -->
       <div class="disc-hd">
         <span class="disc-hd-title">🔥 Trending India</span>
+        <span id="trending-slot-label" style="font-size:11px;opacity:.45;font-weight:400"></span>
       </div>
       <div class="chart-list" id="browse-charts-row">
         <div style="padding:16px;color:var(--fg2);font-size:14px">Loading…</div>
@@ -741,7 +743,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '3.0.0';
+const APP_VERSION = '3.1.0';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -1751,7 +1753,8 @@ document.getElementById('tabbar').addEventListener('click', e => {
   if (tab === 'library')  renderPlaylists();
   if (tab === 'settings') renderSettings();
   if (tab === 'browse' && !browseChartsLoaded) { browseChartsLoaded = true; loadBrowseCharts(); }
-  if (tab === 'browse') { renderForYouSection(); renderWeeklyRecap(); }
+  if (tab === 'browse') { _startTimeContextRefresh(); renderForYouSection(); renderWeeklyRecap(); }
+  else { _stopTimeContextRefresh(); }
 });
 
 // ── SEARCH ─────────────────────────────────────────────────────────────────────
@@ -2193,6 +2196,31 @@ function _isWeekend() {
   return d === 0 || d === 6;
 }
 
+// Updates all time-context UI elements to reflect the current slot.
+// Called on Discover tab open and every 60 seconds while on that tab.
+const _SLOT_LABELS = { morning: 'Morning mix', afternoon: 'Afternoon mix', evening: 'Evening mix', night: 'Night mix' };
+function _refreshTimeContext() {
+  const slot = _timeSlot();
+  const label = _SLOT_LABELS[slot];
+  const greetingEl = document.getElementById('for-you-greeting');
+  if (greetingEl) greetingEl.textContent = _timeGreeting();
+  const fySlot = document.getElementById('for-you-slot-label');
+  if (fySlot) fySlot.textContent = label ? `· ${label}` : '';
+  const trendingSlot = document.getElementById('trending-slot-label');
+  if (trendingSlot) trendingSlot.textContent = label ? `· ${label}` : '';
+}
+
+let _timeContextTimer = null;
+function _startTimeContextRefresh() {
+  _refreshTimeContext();
+  clearInterval(_timeContextTimer);
+  _timeContextTimer = setInterval(_refreshTimeContext, 60_000);
+}
+function _stopTimeContextRefresh() {
+  clearInterval(_timeContextTimer);
+  _timeContextTimer = null;
+}
+
 // Derive a stable artist key that works even when no API artist ID is available.
 // Songs from the JioSaavn autocomplete fallback only have a name string.
 function _artistKey(song) {
@@ -2393,9 +2421,8 @@ async function renderForYouSection() {
   const totalPlays = intelTotalPlays();
   section.style.display = 'block';
 
-  // Update time-aware greeting
-  const greetingEl = document.getElementById('for-you-greeting');
-  if (greetingEl) greetingEl.textContent = _timeGreeting();
+  // Update time-aware greeting and slot labels
+  _refreshTimeContext();
 
   if (totalPlays < 5) {
     rowsEl.innerHTML = `<div class="for-you-empty">
@@ -2416,18 +2443,13 @@ async function renderForYouSection() {
       return;
     }
 
-    // Build a time-slot label for the top contextual artist
-    const slot = _timeSlot();
-    const slotLabel = { morning: 'Morning mix', afternoon: 'Afternoon mix', evening: 'Evening mix', night: 'Night mix' }[slot];
-
-    rows.forEach(({ artist, songs }, rowIdx) => {
+    rows.forEach(({ artist, songs }) => {
       const wrap = document.createElement('div');
       wrap.className = 'for-you-artist-row';
 
       const hdr = document.createElement('div');
       hdr.className = 'disc-hd';
-      const slotTag = rowIdx === 0 ? ` <span style="font-size:11px;opacity:.45;font-weight:400">· ${slotLabel}</span>` : '';
-      hdr.innerHTML = `<span class="disc-hd-title" style="font-size:16px">Because you play <span style="background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent">${esc(artist.name)}</span>${slotTag}</span>`;
+      hdr.innerHTML = `<span class="disc-hd-title" style="font-size:16px">Because you play <span style="background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent">${esc(artist.name)}</span></span>`;
       wrap.appendChild(hdr);
 
       const fadeWrap = document.createElement('div');
@@ -2744,6 +2766,8 @@ function buildDiscover() {
   });
   // load first language by default after a beat
   setTimeout(() => loadBrowseLang(LANG_TILES[0].lang, LANG_TILES[0].label), 100);
+  // Populate time context labels immediately
+  _refreshTimeContext();
   // Render For You if user already has history
   if (intelTotalPlays() > 0) renderForYouSection();
 }
