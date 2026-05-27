@@ -787,7 +787,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '3.5.2';
+const APP_VERSION = '3.5.3';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -1695,21 +1695,43 @@ function refreshPlayBtns() {
   (playing && !loadingUrl) ? art.classList.add('playing') : art.classList.remove('playing');
 }
 
-let _artBlobUrl = null; // revoked on each song change
+// ── ARTWORK FOR MEDIASESSION ────────────────────────────────────────────────────
+// Why data: URLs instead of blob: URLs for Bluetooth:
+//   blob: URLs live inside the browser process only. Bluetooth speaker firmware
+//   (AVRCP) fetches artwork via its own HTTP client outside the browser — so
+//   blob: URLs always 404. data: URLs embed the image as base64 in the string
+//   itself; the OS passes the bytes directly over AVRCP with no HTTP request.
+//   Canvas resize to 128×128 keeps the base64 string small (~15 KB).
+//   CarPlay/AirPlay work fine with data: URLs too (Safari handles them natively).
 
-async function _fetchArtBlob(url) {
+async function _fetchArtDataUrl(url) {
+  // Returns a data: URL (base64 JPEG, 128×128) or null on failure.
+  // Uses a canvas to resize, which also side-steps CORS tainting issues.
   try {
     const res = await fetch(url);
     if (!res.ok) return null;
     const blob = await res.blob();
-    return URL.createObjectURL(blob);
+    return await new Promise(resolve => {
+      const img = new Image();
+      const objUrl = URL.createObjectURL(blob);
+      img.onload = () => {
+        const SIZE = 128;
+        const cv = document.createElement('canvas');
+        cv.width = SIZE; cv.height = SIZE;
+        cv.getContext('2d').drawImage(img, 0, 0, SIZE, SIZE);
+        URL.revokeObjectURL(objUrl);
+        resolve(cv.toDataURL('image/jpeg', 0.85));
+      };
+      img.onerror = () => { URL.revokeObjectURL(objUrl); resolve(null); };
+      img.src = objUrl;
+    });
   } catch { return null; }
 }
 
 async function updateMediaSession() {
   if (!('mediaSession' in navigator) || !nowSong) return;
 
-  // Set text metadata immediately so speaker shows title/artist without waiting for art
+  // Set text metadata immediately — speaker shows title/artist without waiting for art
   navigator.mediaSession.metadata = new MediaMetadata({
     title:  nowSong.name   || '',
     artist: nowSong.artist || '',
@@ -1728,28 +1750,22 @@ async function updateMediaSession() {
   const img = nowSong.image || '';
   if (!img) return;
 
-  // Revoke previous blob to free memory
-  if (_artBlobUrl) { URL.revokeObjectURL(_artBlobUrl); _artBlobUrl = null; }
-
-  // Fetch artwork as a same-origin blob — Bluetooth/CarPlay displays can't fetch
-  // cross-origin CDN URLs directly, but blob: URLs always work
-  const blobUrl = await _fetchArtBlob(img.replace(/\d+x\d+/, '500x500'));
-  if (!blobUrl) {
-    // Fallback: raw CDN URL (works on CarPlay/AirPlay which go through Safari)
-    if (navigator.mediaSession.metadata) {
-      navigator.mediaSession.metadata.artwork = [
-        { src: img.replace(/\d+x\d+/, '150x150'), sizes: '128x128', type: 'image/jpeg' },
-        { src: img.replace(/\d+x\d+/, '500x500'), sizes: '512x512', type: 'image/jpeg' },
-      ];
-    }
-    return;
-  }
-  _artBlobUrl = blobUrl;
+  // Fetch image and convert to self-contained data: URL via canvas
+  const dataUrl = await _fetchArtDataUrl(img.replace(/\d+x\d+/, '500x500'));
 
   // Only update if this song is still playing (user may have skipped during fetch)
-  if (navigator.mediaSession.metadata && navigator.mediaSession.metadata.title === (nowSong.name || '')) {
+  if (!navigator.mediaSession.metadata || navigator.mediaSession.metadata.title !== (nowSong.name || '')) return;
+
+  if (dataUrl) {
+    // data: URL — works for Bluetooth AVRCP, CarPlay, lock screen, notification shade
     navigator.mediaSession.metadata.artwork = [
-      { src: blobUrl, sizes: '512x512', type: 'image/jpeg' },
+      { src: dataUrl, sizes: '128x128', type: 'image/jpeg' },
+    ];
+  } else {
+    // Fallback: raw CDN URLs — Bluetooth may still fail but CarPlay/AirPlay will work
+    navigator.mediaSession.metadata.artwork = [
+      { src: img.replace(/\d+x\d+/, '150x150'), sizes: '128x128', type: 'image/jpeg' },
+      { src: img.replace(/\d+x\d+/, '500x500'), sizes: '512x512', type: 'image/jpeg' },
     ];
   }
 }
