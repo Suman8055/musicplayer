@@ -787,7 +787,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '3.5.3';
+const APP_VERSION = '3.6.0';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -1372,6 +1372,7 @@ async function play(song, newQueue, idx) {
   if (newQueue !== undefined) {
     queue = newQueue;
     qIdx  = idx;
+    _smartInjectedIds.clear();
     if (shuffleOn) createShuffledQueue();
   }
   nowSong = song;
@@ -1472,8 +1473,9 @@ function next() {
     intelTrackPlay(nowSong, ratio, isFast);
 
     if (_intelNaturalEnd || ratio >= 0.8) {
-      // Full play resets skip streak
+      // Full play resets skip streak; proactively top-up queue
       _sessionSkipStreak = 0;
+      smartInjectAhead();
     } else if (isFast) {
       _sessionSkipStreak++;
       if (_sessionSkipStreak >= 2) {
@@ -2759,6 +2761,8 @@ function _refreshSuppressedRow() {
 
 // ── SMART QUEUE — auto-fill queue from top artist when it runs out ──────────────
 let smartQueueActive = false;
+const _smartInjectedIds = new Set(); // IDs of songs silently injected by SmartPlay (shown with ✦ in queue)
+let _smartInjectPending = false;     // prevents concurrent inject fetches
 
 function refreshSmartQueueBadge() {
   const b = document.getElementById('sq-badge');
@@ -2788,6 +2792,64 @@ function _flowNextArtist() {
 function _flowNextArtistKey() {
   const r = _flowNextArtist();
   return r ? r.key : null;
+}
+
+// Proactive injection: called after every full play.
+// If fewer than 3 songs remain ahead in the queue, silently fetch 1–2
+// recommendations and append them. Mirrors Spotify's ~1-in-3 injection ratio.
+// Never shows a toast — the ✦ sparkle in the queue view is the only signal.
+async function smartInjectAhead() {
+  if (!smartPlayOn) return;
+  if (_smartInjectPending) return;
+
+  // Count unplayed songs remaining after current position
+  const remaining = queue.length - qIdx - 1;
+  if (remaining >= 3) return; // plenty ahead, nothing to do
+
+  _smartInjectPending = true;
+  try {
+    // Pick source artist using same priority as smartQueueFill
+    const flowResult = _flowNextArtist();
+    const d = intelLoad();
+    let artist;
+    if (flowResult && d.artists[flowResult.key]) {
+      const a = d.artists[flowResult.key];
+      artist = { key: flowResult.key, id: a.id || '', name: a.name };
+    } else {
+      const topArtists = intelGetTopArtists(1, true, true);
+      if (!topArtists.length) return;
+      artist = topArtists[0];
+    }
+
+    let apiId = artist.id;
+    if (!apiId) {
+      const sr = await saavnFetch(`${SAAVN_API}/api/search?query=${encodeURIComponent(artist.name)}`);
+      const sd = await sr.json();
+      apiId = sd.data?.artists?.results?.[0]?.id || '';
+    }
+    if (!apiId) return;
+
+    const resp = await saavnFetch(`${SAAVN_API}/api/artists/${encodeURIComponent(apiId)}/songs?limit=20`);
+    const data = await resp.json();
+    const played = intelPlayedIds();
+    // Also exclude songs already sitting in the current queue tail
+    const inQueue = new Set(queue.slice(qIdx + 1).map(s => s.id));
+    const picks = (data.data?.songs || [])
+      .map(normSaavnSong)
+      .filter(s => s.id && !played.has(s.id) && !inQueue.has(s.id))
+      .sort(() => Math.random() - 0.5)
+      .slice(0, 2); // inject up to 2 songs at a time
+
+    if (!picks.length) return;
+    picks.forEach(s => _smartInjectedIds.add(s.id));
+    queue.push(...picks);
+    smartQueueActive = true;
+    refreshSmartQueueBadge();
+  } catch {
+    // silent — proactive injection failures are non-fatal
+  } finally {
+    _smartInjectPending = false;
+  }
 }
 
 async function smartQueueFill() {
@@ -3500,10 +3562,17 @@ function showSongSheet(song) {
 
 function showQueueSheet() {
   if (!queue.length) { showSheet('Queue', [{ label: 'Queue is empty', action: () => {} }]); return; }
-  showSheet('Queue', queue.map((s, i) => ({
-    label: (i === qIdx ? '▶  ' : (i < qIdx ? '  ' : '  ')) + (s.name || ''),
-    action: () => { qIdx = i; play(s); }
-  })));
+  showSheet('Queue', queue.map((s, i) => {
+    const isPlaying = i === qIdx;
+    const isPast = i < qIdx;
+    const isSmart = _smartInjectedIds.has(s.id);
+    const prefix = isPlaying ? '▶  ' : '   ';
+    const sparkle = isSmart ? ' ✦' : '';
+    return {
+      label: prefix + (s.name || '') + sparkle + (s.artist ? '  —  ' + s.artist : ''),
+      action: () => { qIdx = i; play(s); }
+    };
+  }));
 }
 
 // ── ACTION SHEET ───────────────────────────────────────────────────────────────
