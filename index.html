@@ -787,7 +787,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '3.6.0';
+const APP_VERSION = '3.6.1';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -2457,7 +2457,7 @@ function _stopTimeContextRefresh() {
 // Derive a stable artist key that works even when no API artist ID is available.
 // Songs from the JioSaavn autocomplete fallback only have a name string.
 function _artistKey(song) {
-  return song.artistId || ('n:' + (song.artist || '').toLowerCase().trim());
+  return 'n:' + (song.artist || '').toLowerCase().trim();
 }
 
 // Called after every song advances (natural end = ratio 1.0, skip = fraction).
@@ -2832,13 +2832,18 @@ async function smartInjectAhead() {
     const resp = await saavnFetch(`${SAAVN_API}/api/artists/${encodeURIComponent(apiId)}/songs?limit=20`);
     const data = await resp.json();
     const played = intelPlayedIds();
-    // Also exclude songs already sitting in the current queue tail
+    // Exclude songs already in the queue tail or already picked in this batch
     const inQueue = new Set(queue.slice(qIdx + 1).map(s => s.id));
+    const seenIds = new Set();
     const picks = (data.data?.songs || [])
       .map(normSaavnSong)
-      .filter(s => s.id && !played.has(s.id) && !inQueue.has(s.id))
+      .filter(s => {
+        if (!s.id || played.has(s.id) || inQueue.has(s.id) || seenIds.has(s.id)) return false;
+        seenIds.add(s.id);
+        return true;
+      })
       .sort(() => Math.random() - 0.5)
-      .slice(0, 2); // inject up to 2 songs at a time
+      .slice(0, 2);
 
     if (!picks.length) return;
     picks.forEach(s => _smartInjectedIds.add(s.id));
