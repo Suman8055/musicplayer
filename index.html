@@ -578,7 +578,7 @@ body::after{
         </div>
         <div class="settings-row">
           <div class="settings-label" style="font-size:12px;color:var(--fg2);line-height:1.5">
-            Places music around your head using HRTF spatial processing. Best with headphones or earbuds. Turn off if you notice any audio quality change.
+            Places music around your head using HRTF spatial processing. Best with headphones or earbuds. Works fully on Android/iOS. On desktop browsers, stream CORS restrictions may silence audio — use the installed PWA or turn Spatial off if no sound.
           </div>
         </div>
       </div>
@@ -1083,17 +1083,22 @@ const audioPreload = document.getElementById('audio-preload');
 // (GainNode.gain.value works on iOS, unlike audio.volume which iOS hardware ignores).
 const NORM_VOLUME = 0.794; // 10^(−2/20) = −2 dB
 
-// ── WEB AUDIO GRAPH (Stage 1 — foundation for Spatial Audio) ──────────────────
-// AudioContext created lazily on first user-triggered play (iOS requires user gesture).
-// sampleRate: 48000 matches device hardware rate — prevents 44.1→48 kHz resampling
-// that caused distortion in the earlier Web Audio experiment (v2.9.1).
-// Graph: <audio> → MediaElementSourceNode → [spatial chain] → GainNode → destination
-let _audioCtx       = null;  // AudioContext singleton — created once per session
-let _audioSrc       = null;  // MediaElementSourceNode — one per <audio> element lifetime
-let _gainNode       = null;  // Master GainNode — replaces audio.volume for normalisation
-let _audioGraphFailed = false; // prevents repeated init attempts after a permanent failure
+// ── WEB AUDIO GRAPH (Spatial Audio engine) ────────────────────────────────────
+// CORS CONSTRAINT: createMediaElementSource() on a cross-origin stream (JioSaavn CDN)
+// causes the browser to output silence from the graph ("outputs zeroes due to CORS").
+// The <audio> element itself plays fine — but the Web Audio graph is blocked.
+// SOLUTION: the graph is ONLY initialised when the user actively enables Spatial Audio.
+//   • Spatial OFF → native audio.volume path, zero CORS risk, zero resampling.
+//   • Spatial ON  → Web Audio HRTF graph. User accepted the trade-off by enabling it.
+//     On device (Android/iOS installed PWA) CORS is not an issue; desktop Chrome may
+//     silence the graph for CDN streams — a known limitation noted in Settings.
+// sampleRate: 48000 matches hardware to avoid 44.1→48 kHz resampling (v2.9.1 lesson).
+let _audioCtx       = null;  // AudioContext singleton
+let _audioSrc       = null;  // MediaElementSourceNode — created once per <audio> lifetime
+let _gainNode       = null;  // Master GainNode (active only when Spatial is ON)
+let _audioGraphFailed = false;
 
-// Spatial Audio nodes (wired in Stage 2):
+// Spatial Audio nodes:
 let _splitter  = null;
 let _pannerL   = null;
 let _pannerR   = null;
@@ -1110,8 +1115,8 @@ function _ensureAudioGraph() {
     _gainNode = _audioCtx.createGain();
     _gainNode.gain.value = NORM_VOLUME;
     _gainNode.connect(_audioCtx.destination);
-    _audioSrc.connect(_gainNode); // initial direct path — caller will call _applySpatialRouting() to rewire
-    Log.info('Web Audio graph initialised');
+    _audioSrc.connect(_gainNode);
+    Log.info('Web Audio graph initialised (Spatial active)');
     return true;
   } catch (e) {
     _audioGraphFailed = true;
@@ -1545,9 +1550,10 @@ async function play(song, newQueue, idx) {
       refreshMini(); refreshNP();
       if (offlineBlobUrl) { URL.revokeObjectURL(offlineBlobUrl); offlineBlobUrl = null; }
       offlineBlobUrl = URL.createObjectURL(offline.blob);
-      if (_ensureAudioGraph()) _applySpatialRouting();
+      if (spatialOn && _ensureAudioGraph()) _applySpatialRouting();
       await _resumeAudioCtx();
-      if (_gainNode) _gainNode.gain.value = NORM_VOLUME; else audio.volume = NORM_VOLUME;
+      audio.volume = NORM_VOLUME; // always set — GainNode mirrors this when Spatial is ON
+      if (_gainNode) _gainNode.gain.value = NORM_VOLUME;
       audio.src      = offlineBlobUrl;
       await audio.play().catch(() => toast('Tap play to start'));
       if (nowSong?.id !== song.id) return;
@@ -1559,9 +1565,10 @@ async function play(song, newQueue, idx) {
     if (stream.image) nowSong.image = stream.image;
     if (stream.quality) nowSong.quality = stream.quality;
     refreshMini(); refreshNP();
-    if (_ensureAudioGraph()) _applySpatialRouting();
+    if (spatialOn && _ensureAudioGraph()) _applySpatialRouting();
     await _resumeAudioCtx();
-    if (_gainNode) _gainNode.gain.value = NORM_VOLUME; else audio.volume = NORM_VOLUME;
+    audio.volume = NORM_VOLUME; // always set — GainNode mirrors this when Spatial is ON
+    if (_gainNode) _gainNode.gain.value = NORM_VOLUME;
     audio.src = stream.url;
     await audio.play().catch(() => toast('Tap play to start'));
     if (nowSong?.id !== song.id) return;
@@ -1796,11 +1803,12 @@ seekEl.addEventListener('input', () => {
     seekEl.style.setProperty('--pct', (seekEl.value / 10).toFixed(2) + '%');
   }
 });
-// Volume slider — routes through GainNode when Web Audio is active (works on iOS too).
-// Falls back to audio.volume on desktop when Web Audio is unavailable.
+// Volume slider — always drives audio.volume (native path).
+// When Spatial is ON, GainNode is also updated so the Web Audio graph matches.
 document.getElementById('np-vol').addEventListener('input', e => {
   const v = +e.target.value * NORM_VOLUME;
-  if (_gainNode) _gainNode.gain.value = v; else audio.volume = v;
+  audio.volume = v;
+  if (_gainNode) _gainNode.gain.value = v;
 });
 
 // ── UI REFRESH ─────────────────────────────────────────────────────────────────
@@ -2110,7 +2118,16 @@ function setSpatial(on, intensity) {
   if (intensity !== undefined) spatialIntensity = intensity;
   localStorage.setItem(SPATIAL_KEY, spatialOn);
   localStorage.setItem(SPATIAL_INT_KEY, spatialIntensity);
-  if (_audioSrc) _applySpatialRouting();
+  if (spatialOn) {
+    // Init graph now if not yet created (user enabled Spatial mid-session)
+    if (_ensureAudioGraph()) _applySpatialRouting();
+    if (_gainNode) _gainNode.gain.value = audio.volume; // sync gain to current volume
+    _resumeAudioCtx();
+  } else if (_audioSrc) {
+    // Turning OFF — disconnect graph, restore native audio.volume path
+    _applySpatialRouting(); // routes direct: _audioSrc → _gainNode with spatial off
+    audio.volume = _gainNode ? _gainNode.gain.value : NORM_VOLUME;
+  }
   refreshSpatialBtn();
   refreshSpatialSettings();
 }
