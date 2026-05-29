@@ -4,6 +4,43 @@ All notable changes to this project are documented here.
 
 ---
 
+## v3.8.0 — Spatial Audio / Headphone Mode (2026-05-28)
+
+**Feature:** Spatial Audio — an HRTF-based stereo widening mode that makes music feel like it's playing around you, similar to what Dolby Atmos does on headphones.
+
+### How it works
+- Web Audio API graph: `<audio>` → `MediaElementSourceNode` → `ChannelSplitterNode` → L/R `PannerNode(HRTF)` → `ChannelMergerNode` → `GainNode(0.794)` → `destination`
+- Left channel panned left+behind; right channel panned right+behind — creates an out-of-head concert-hall effect
+- Two intensity levels: **Subtle** (±0.6x, −0.3z) and **Full** (±1.0x, −0.8z)
+- `AudioContext` with `sampleRate: 48000` — matches device hardware rate to avoid 44.1→48 kHz resampling artefacts (root cause of the v2.9.1 distortion episode)
+- Toggle/intensity changes rewire the graph mid-playback with no audio interruption
+
+### UI
+- **Spatial** button in Now Playing footer (headphones icon, accent glow when active)
+- **Settings → Sound** card with on/off checkbox and Subtle / Full intensity buttons
+- Toast on toggle: "Spatial on" / "Spatial off"
+
+### Platform notes
+- Default is **OFF** — zero audible change unless user enables it
+- `GainNode.gain.value` is used for loudness normalisation instead of `audio.volume`; this makes the **volume slider functional on iOS** (previously replaced with "Use volume buttons" note)
+- HRTF effect present on iOS 15+; older iOS falls back to equal-power panning silently
+- State persists across sessions via `localStorage` keys `mbx_spatial` (bool) and `mbx_spatial_intensity` (1=Subtle, 2=Full)
+- `AudioContext` is a singleton — created once per session, never recreated per song
+- Falls back silently to `audio.volume` path if `AudioContext` is not supported
+
+### Stage breakdown
+- **Stage 1:** Web Audio graph foundation — lazy `AudioContext` singleton, `MediaElementSourceNode`, `GainNode`, `_resumeAudioCtx()` wired into all play paths
+- **Stage 2:** HRTF engine — `ChannelSplitterNode`, dual `PannerNode(HRTF)`, `ChannelMergerNode`, `setSpatial()`, toggle mid-playback by disconnect/reconnect
+- **Stage 3:** Now Playing "Spatial" button — headphones SVG, accent glow, toast
+- **Stage 4:** Settings → Sound card — checkbox, intensity segmented control, explanatory note, two-way sync with NP button
+- **Stage 5:** Full audit, `_audioGraphFailed` guard, iOS volume slider consolidated, version bump
+
+### Files changed
+- `index.html` — all feature code
+- `sw.js` — cache bumped to `mbx-shell-v3.8.0`
+
+---
+
 ## v3.5.3 — Bluetooth album art fix (2026-05-27)
 
 **Problem:** Album art not showing on Bluetooth speaker displays even after the v3.5.2 fix.
