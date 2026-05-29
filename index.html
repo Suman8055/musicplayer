@@ -18,6 +18,7 @@
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
+  --env-banner-h:0px;
   --bg:#000814;--bg2:#071020;--bg3:#0f1f35;--bg4:#162842;
   --fg:#fff;--fg2:rgba(255,255,255,.65);--fg3:rgba(255,255,255,.38);
   --red:#00e6e6;--red2:#22d3ee;
@@ -71,7 +72,7 @@ body::after{
 #app{height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden}
 #content{flex:1;overflow:hidden;position:relative}
 .tab-pane{position:absolute;inset:0;overflow-y:auto;-webkit-overflow-scrolling:touch;
-  padding-top:var(--safe-top);padding-bottom:calc(var(--mini-h) + var(--tab-h) + 16px);display:none}
+  padding-top:calc(var(--safe-top) + var(--env-banner-h));padding-bottom:calc(var(--mini-h) + var(--tab-h) + 16px);display:none}
 .tab-pane.active{display:block}
 .tab-header{padding:20px 16px 4px;font-size:32px;font-weight:800;letter-spacing:-.6px}
 
@@ -447,6 +448,11 @@ body::after{
   <div id="gate-err"></div>
 </div>
 
+<div id="env-staging-banner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:#f59e0b;color:#000;font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;align-items:center;justify-content:center;gap:8px;padding:6px 16px;padding-top:calc(6px + env(safe-area-inset-top));box-shadow:0 2px 8px rgba(0,0,0,.3)">
+  <span>&#9888; STAGING</span>
+  <span style="font-weight:400;opacity:.75">— not production</span>
+</div>
+
 <div id="app">
 
   <div id="content">
@@ -560,6 +566,18 @@ body::after{
       <div class="settings-section">About</div>
       <div class="settings-card">
         <div class="settings-row"><div class="settings-label">Version</div><div class="settings-value" id="cfg-version"></div></div>
+        <div class="settings-row">
+          <div class="settings-label">Environment<small id="env-label-sub">Switch between staging and production</small></div>
+          <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+            <span id="env-label-val" style="font-size:13px;color:var(--fg2)">Production</span>
+            <label style="position:relative;display:inline-block;width:44px;height:26px;flex-shrink:0">
+              <input type="checkbox" id="env-toggle" style="opacity:0;width:0;height:0;position:absolute">
+              <span id="env-toggle-track" style="position:absolute;inset:0;border-radius:13px;background:var(--bg3);cursor:pointer;transition:background .2s">
+                <span id="env-toggle-thumb" style="position:absolute;left:3px;top:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:transform .2s;display:block"></span>
+              </span>
+            </label>
+          </div>
+        </div>
         <div class="settings-row"><div class="settings-label">Data source</div><div class="settings-value">JioSaavn</div></div>
         <div class="settings-row"><div class="settings-label">Log entries</div><div class="settings-value" id="cfg-logcount"></div></div>
         <div class="settings-row">
@@ -868,6 +886,45 @@ const DES_KEY     = '38346591';
 const GH_CFG_KEY  = 'mbx_ghcfg';
 const GH_REPO     = 'Suman8055/musicplayer';
 const GH_LOG_PATH = 'logs/musicplayer-log.json';
+const ENV_KEY     = 'mbx_env';  // 'production' | 'staging'
+
+// ── ENVIRONMENT ────────────────────────────────────────────────────────────────
+const ENVS = {
+  production: {
+    label:    'Production',
+    sigma:    'https://jiosaavn-api-sigma-sandy.vercel.app',
+    lyra:     'https://hayasaka.8man.in',
+    saavn:    'https://saavn.8man.dev',
+  },
+  staging: {
+    label:    'Staging',
+    sigma:    'https://jiosaavn-api-sigma-sandy.vercel.app',  // swap with staging endpoints when ready
+    lyra:     'https://hayasaka.8man.in',
+    saavn:    'https://saavn.8man.dev',
+  },
+};
+
+function getEnv()      { return localStorage.getItem(ENV_KEY) || 'production'; }
+function isStaging()   { return getEnv() === 'staging'; }
+function getEnvCfg()   { return ENVS[getEnv()] || ENVS.production; }
+
+function setEnv(env) {
+  localStorage.setItem(ENV_KEY, env);
+  _applyEnvBanner();
+  // Swap live API constants so subsequent calls use the right endpoints
+  const cfg = getEnvCfg();
+  SIGMA_API = cfg.sigma;
+  LYRA_API  = cfg.lyra;
+  SAAVN_API = cfg.saavn;
+}
+
+function _applyEnvBanner() {
+  const banner  = document.getElementById('env-staging-banner');
+  const staging = isStaging();
+  if (banner) banner.style.display = staging ? 'flex' : 'none';
+  // Push down tab-pane safe-top so banner doesn't cover content
+  document.documentElement.style.setProperty('--env-banner-h', staging ? '38px' : '0px');
+}
 
 // Two free CORS proxies — tried in order, falls back if first is slow/down
 const PROXIES = [
@@ -3125,9 +3182,9 @@ async function startSmartRadio(song) {
 }
 
 // ── BROWSE (JioSaavn-style) ────────────────────────────────────────────────────
-const SIGMA_API = 'https://jiosaavn-api-sigma-sandy.vercel.app';
-const LYRA_API  = 'https://hayasaka.8man.in';
-const SAAVN_API = 'https://saavn.8man.dev';
+let SIGMA_API = getEnvCfg().sigma;
+let LYRA_API  = getEnvCfg().lyra;
+let SAAVN_API = getEnvCfg().saavn;
 
 // Resilient fetch: exponential backoff + jitter, skips retry on 4xx client errors
 async function apiFetch(url, { timeout = 8000, retries = 2 } = {}) {
@@ -3888,6 +3945,7 @@ function renderSettings() {
   const cfg = getGhCfg();
   const toggle = document.getElementById('gh-auto-toggle');
   if (toggle) toggle.checked = !!cfg.autoUpload;
+  _renderEnvToggle();
   renderGhStatus();
   renderLogs(document.getElementById('log-filter').value);
   renderStorageMeter();
@@ -4004,6 +4062,30 @@ document.getElementById('gh-save-btn').addEventListener('click', () => {
 
 document.getElementById('gh-upload-btn').addEventListener('click', () => uploadLogsToGithub(false));
 
+// ── ENVIRONMENT TOGGLE ────────────────────────────────────────────────────────
+function _renderEnvToggle() {
+  const env    = getEnv();
+  const toggle = document.getElementById('env-toggle');
+  const track  = document.getElementById('env-toggle-track');
+  const thumb  = document.getElementById('env-toggle-thumb');
+  const label  = document.getElementById('env-label-val');
+  if (!toggle) return;
+  const staging = env === 'staging';
+  toggle.checked      = staging;
+  track.style.background  = staging ? '#f59e0b' : 'var(--bg3)';
+  thumb.style.transform   = staging ? 'translateX(18px)' : 'translateX(0)';
+  label.textContent       = staging ? 'Staging' : 'Production';
+  label.style.color       = staging ? '#f59e0b' : 'var(--fg2)';
+}
+
+document.getElementById('env-toggle').addEventListener('change', e => {
+  const newEnv = e.target.checked ? 'staging' : 'production';
+  setEnv(newEnv);
+  _renderEnvToggle();
+  Log.info('Environment switched', { env: newEnv });
+  toast(newEnv === 'staging' ? 'Switched to Staging' : 'Switched to Production');
+});
+
 document.getElementById('gh-auto-toggle').addEventListener('change', e => {
   const cfg = getGhCfg();
   cfg.autoUpload = e.target.checked;
@@ -4073,6 +4155,7 @@ if ('serviceWorker' in navigator) {
 })();
 
 // ── INIT ────────────────────────────────────────────────────────────────────────
+setEnv(getEnv()); // apply saved env — patches SIGMA_API/LYRA_API/SAAVN_API and shows banner
 Log.init();
 intelPrune(); // trim stale listening history once per session
 buildDiscover();
