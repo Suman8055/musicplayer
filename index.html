@@ -563,6 +563,32 @@ body::after{
     <div id="tab-settings" class="tab-pane">
       <div class="tab-header">Settings</div>
 
+      <div class="settings-section">Sound</div>
+      <div class="settings-card">
+        <div class="settings-row">
+          <div class="settings-label">
+            Spatial Audio
+            <small>HRTF headphone widening — concert-hall feel</small>
+          </div>
+          <input type="checkbox" id="spatial-toggle"
+                 style="width:22px;height:22px;accent-color:var(--accent);cursor:pointer;flex-shrink:0">
+        </div>
+        <div class="settings-row" id="spatial-intensity-row">
+          <div class="settings-label">Intensity</div>
+          <div style="display:flex;gap:6px;flex-shrink:0">
+            <button class="settings-btn sec" id="spatial-subtle-btn"
+                    style="flex:none;padding:6px 14px;font-size:13px;border-radius:10px;margin:0">Subtle</button>
+            <button class="settings-btn sec" id="spatial-full-btn"
+                    style="flex:none;padding:6px 14px;font-size:13px;border-radius:10px;margin:0">Full</button>
+          </div>
+        </div>
+        <div class="settings-row">
+          <div class="settings-label" style="font-size:12px;color:var(--fg2);line-height:1.5">
+            Places music around your head using HRTF spatial processing. Best with headphones or earbuds. Turn off if you notice any audio quality change.
+          </div>
+        </div>
+      </div>
+
       <div class="settings-section">About</div>
       <div class="settings-card">
         <div class="settings-row"><div class="settings-label">Version</div><div class="settings-value" id="cfg-version"></div></div>
@@ -784,6 +810,9 @@ body::after{
       </button>
       <button class="np-foot" id="np-smartplay-btn" title="SmartPlay">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2zm-1 14.5v-9l7 4.5-7 4.5z"/></svg>Smart
+      </button>
+      <button class="np-foot" id="np-spatial-btn" title="Spatial Audio">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>Spatial
       </button>
     </div>
   </div>
@@ -1104,19 +1133,61 @@ let _prevFullPlayArtistKey = null; // artist key of the last fully-played song (
 const audio        = document.getElementById('audio');
 const audioPreload = document.getElementById('audio-preload');
 
-// ── LOUDNESS NORMALISATION (zero-distortion, native path) ─────────────────────
+// ── LOUDNESS NORMALISATION ─────────────────────────────────────────────────────
 // JioSaavn 320kbps AAC masters average ~−8 to −10 LUFS (hot masters).
-// Spotify targets −14 LUFS. We normalise purely via audio.volume — no Web Audio,
-// no resampling, no extra processing thread — zero risk of distortion.
-// audio.volume = 0.794 ≡ −2 dB → brings ~−8 LUFS masters to ~−10 LUFS perceived,
-// matching Spotify "Normal" loudness without any signal processing artefacts.
-// On iOS, audio.volume is ignored by hardware (hardware volume controls output),
-// so this only takes effect on desktop/Android Chrome — on iOS it's a no-op (safe).
+// audio.volume = 0.794 ≡ −2 dB → brings ~−8 LUFS masters to ~−10 LUFS perceived.
+// When the Web Audio graph is active, this value is applied to the GainNode instead
+// (GainNode.gain.value works on iOS, unlike audio.volume which iOS hardware ignores).
 const NORM_VOLUME = 0.794; // 10^(−2/20) = −2 dB
+
+// ── WEB AUDIO GRAPH (Stage 1 — foundation for Spatial Audio) ──────────────────
+// AudioContext created lazily on first user-triggered play (iOS requires user gesture).
+// sampleRate: 48000 matches device hardware rate — prevents 44.1→48 kHz resampling
+// that caused distortion in the earlier Web Audio experiment (v2.9.1).
+// Graph: <audio> → MediaElementSourceNode → [spatial chain] → GainNode → destination
+let _audioCtx       = null;  // AudioContext singleton — created once per session
+let _audioSrc       = null;  // MediaElementSourceNode — one per <audio> element lifetime
+let _gainNode       = null;  // Master GainNode — replaces audio.volume for normalisation
+let _audioGraphFailed = false; // prevents repeated init attempts after a permanent failure
+
+// Spatial Audio nodes (wired in Stage 2):
+let _splitter  = null;
+let _pannerL   = null;
+let _pannerR   = null;
+let _mergeNode = null;
+
+function _ensureAudioGraph() {
+  if (_audioSrc) return true;
+  if (_audioGraphFailed) return false;
+  if (!window.AudioContext && !window.webkitAudioContext) return false;
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    _audioCtx = new AC({ sampleRate: 48000 });
+    _audioSrc = _audioCtx.createMediaElementSource(audio);
+    _gainNode = _audioCtx.createGain();
+    _gainNode.gain.value = NORM_VOLUME;
+    _gainNode.connect(_audioCtx.destination);
+    _audioSrc.connect(_gainNode); // initial direct path — caller will call _applySpatialRouting() to rewire
+    Log.info('Web Audio graph initialised');
+    return true;
+  } catch (e) {
+    _audioGraphFailed = true;
+    Log.warn('Web Audio graph failed permanently', { err: e.message });
+    return false;
+  }
+}
+
+async function _resumeAudioCtx() {
+  if (_audioCtx && _audioCtx.state === 'suspended') {
+    try { await _audioCtx.resume(); } catch {}
+  }
+}
 
 // Resume playback after screen lock / app foreground
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden && !userPaused && audio.paused && nowSong) audio.play().catch(() => {});
+  if (!document.hidden && !userPaused && audio.paused && nowSong) {
+    _resumeAudioCtx().then(() => audio.play().catch(() => {}));
+  }
 });
 
 // ── STORAGE ────────────────────────────────────────────────────────────────────
@@ -1526,7 +1597,9 @@ async function play(song, newQueue, idx) {
       refreshMini(); refreshNP();
       if (offlineBlobUrl) { URL.revokeObjectURL(offlineBlobUrl); offlineBlobUrl = null; }
       offlineBlobUrl = URL.createObjectURL(offline.blob);
-      audio.volume   = NORM_VOLUME;
+      if (_ensureAudioGraph()) _applySpatialRouting();
+      await _resumeAudioCtx();
+      if (_gainNode) _gainNode.gain.value = NORM_VOLUME; else audio.volume = NORM_VOLUME;
       audio.src      = offlineBlobUrl;
       await audio.play().catch(() => toast('Tap play to start'));
       if (nowSong?.id !== song.id) return;
@@ -1538,7 +1611,9 @@ async function play(song, newQueue, idx) {
     if (stream.image) nowSong.image = stream.image;
     if (stream.quality) nowSong.quality = stream.quality;
     refreshMini(); refreshNP();
-    audio.volume = NORM_VOLUME;
+    if (_ensureAudioGraph()) _applySpatialRouting();
+    await _resumeAudioCtx();
+    if (_gainNode) _gainNode.gain.value = NORM_VOLUME; else audio.volume = NORM_VOLUME;
     audio.src = stream.url;
     await audio.play().catch(() => toast('Tap play to start'));
     if (nowSong?.id !== song.id) return;
@@ -1564,7 +1639,7 @@ function setNPLoading(on) {
   document.getElementById('np-loading').classList.toggle('show', on);
 }
 
-function togglePlay() {
+async function togglePlay() {
   if (!nowSong || loadingUrl) return;
   if (playing) {
     userPaused = true;
@@ -1572,6 +1647,7 @@ function togglePlay() {
   } else {
     userPaused = false;
     if (audio.ended) audio.currentTime = 0;
+    await _resumeAudioCtx();
     audio.play().catch(() => {});
   }
 }
@@ -1772,13 +1848,12 @@ seekEl.addEventListener('input', () => {
     seekEl.style.setProperty('--pct', (seekEl.value / 10).toFixed(2) + '%');
   }
 });
-// iOS ignores audio.volume — replace slider with a note
-if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
-  const wrap = document.getElementById('np-vol-wrap');
-  wrap.innerHTML = '<span style="flex:1;text-align:center;font-size:12px;color:var(--fg3)">Use volume buttons to adjust</span>';
-} else {
-  document.getElementById('np-vol').addEventListener('input', e => { audio.volume = +e.target.value * NORM_VOLUME; });
-}
+// Volume slider — routes through GainNode when Web Audio is active (works on iOS too).
+// Falls back to audio.volume on desktop when Web Audio is unavailable.
+document.getElementById('np-vol').addEventListener('input', e => {
+  const v = +e.target.value * NORM_VOLUME;
+  if (_gainNode) _gainNode.gain.value = v; else audio.volume = v;
+});
 
 // ── UI REFRESH ─────────────────────────────────────────────────────────────────
 function refreshMini() {
@@ -1953,7 +2028,7 @@ async function updateMediaSession() {
     artwork: [],
   });
   navigator.mediaSession.playbackState = 'playing';
-  navigator.mediaSession.setActionHandler('play',          () => { userPaused = false; audio.play().catch(e => Log.warn('MediaSession play failed', {err: e.message})); });
+  navigator.mediaSession.setActionHandler('play',          async () => { userPaused = false; await _resumeAudioCtx(); audio.play().catch(e => Log.warn('MediaSession play failed', {err: e.message})); });
   navigator.mediaSession.setActionHandler('pause',         () => { userPaused = true; audio.pause(); });
   navigator.mediaSession.setActionHandler('previoustrack', prev);
   navigator.mediaSession.setActionHandler('nexttrack',     next);
@@ -2025,6 +2100,73 @@ document.getElementById('np-menu-btn').addEventListener('click', () => { if (now
 document.getElementById('np-add-pl-btn').addEventListener('click', () => { if (nowSong) showAddToPlaylist(nowSong); });
 document.getElementById('np-queue-btn').addEventListener('click', showQueueSheet);
 
+// ── SPATIAL AUDIO ENGINE (Stage 2) ────────────────────────────────────────────
+const SPATIAL_KEY     = 'mbx_spatial';
+const SPATIAL_INT_KEY = 'mbx_spatial_intensity';
+let spatialOn        = localStorage.getItem(SPATIAL_KEY) === 'true';       // default OFF
+let spatialIntensity = parseInt(localStorage.getItem(SPATIAL_INT_KEY) || '2', 10); // 1=Subtle 2=Full
+
+function _buildSpatialChain() {
+  if (!_audioCtx || _splitter) return;
+  _splitter  = _audioCtx.createChannelSplitter(2);
+  _pannerL   = _audioCtx.createPanner();
+  _pannerR   = _audioCtx.createPanner();
+  _mergeNode = _audioCtx.createChannelMerger(2);
+  [_pannerL, _pannerR].forEach(p => {
+    p.panningModel  = 'HRTF';
+    p.distanceModel = 'inverse';
+    p.refDistance   = 1;
+    p.maxDistance   = 10000;
+    p.rolloffFactor = 0; // no volume change with distance — pure positional effect
+  });
+  _setSpatialPositions();
+}
+
+function _setSpatialPositions() {
+  if (!_pannerL || !_pannerR) return;
+  const pos = spatialIntensity === 1
+    ? { lx: -0.6, rx: 0.6, z: -0.3 }
+    : { lx: -1.0, rx: 1.0, z: -0.8 };
+  _pannerL.positionX.value = pos.lx;
+  _pannerL.positionY.value = 0;
+  _pannerL.positionZ.value = pos.z;
+  _pannerR.positionX.value = pos.rx;
+  _pannerR.positionY.value = 0;
+  _pannerR.positionZ.value = pos.z;
+}
+
+function _applySpatialRouting() {
+  if (!_audioSrc || !_gainNode) return;
+  try { _audioSrc.disconnect(); } catch {}
+  if (_splitter)  { try { _splitter.disconnect();  } catch {} }
+  if (_pannerL)   { try { _pannerL.disconnect();   } catch {} }
+  if (_pannerR)   { try { _pannerR.disconnect();   } catch {} }
+  if (_mergeNode) { try { _mergeNode.disconnect(); } catch {} }
+
+  if (spatialOn) {
+    _buildSpatialChain();
+    _setSpatialPositions();
+    _audioSrc.connect(_splitter);
+    _splitter.connect(_pannerL, 0);
+    _splitter.connect(_pannerR, 1);
+    _pannerL.connect(_mergeNode, 0, 0);
+    _pannerR.connect(_mergeNode, 0, 1);
+    _mergeNode.connect(_gainNode);
+  } else {
+    _audioSrc.connect(_gainNode);
+  }
+}
+
+function setSpatial(on, intensity) {
+  spatialOn = on;
+  if (intensity !== undefined) spatialIntensity = intensity;
+  localStorage.setItem(SPATIAL_KEY, spatialOn);
+  localStorage.setItem(SPATIAL_INT_KEY, spatialIntensity);
+  if (_audioSrc) _applySpatialRouting();
+  refreshSpatialBtn();
+  refreshSpatialSettings();
+}
+
 // ── SMARTPLAY TOGGLE ──────────────────────────────────────────────────────────
 const SP_KEY = 'mbx_smartplay_on';
 let smartPlayOn = localStorage.getItem(SP_KEY) !== 'false'; // default true
@@ -2039,6 +2181,32 @@ document.getElementById('np-smartplay-btn').addEventListener('click', () => {
   localStorage.setItem(SP_KEY, smartPlayOn);
   refreshSmartPlayBtn();
   toast(smartPlayOn ? 'SmartPlay on' : 'SmartPlay off');
+});
+
+// ── SPATIAL BUTTON (Now Playing footer) ───────────────────────────────────────
+function refreshSpatialBtn() {
+  const btn = document.getElementById('np-spatial-btn');
+  if (btn) btn.classList.toggle('active', spatialOn);
+}
+
+function refreshSpatialSettings() {
+  const toggle = document.getElementById('spatial-toggle');
+  if (toggle) toggle.checked = spatialOn;
+  const row = document.getElementById('spatial-intensity-row');
+  if (row) row.style.display = spatialOn ? '' : 'none';
+  const subtleBtn = document.getElementById('spatial-subtle-btn');
+  const fullBtn   = document.getElementById('spatial-full-btn');
+  if (subtleBtn && fullBtn) {
+    subtleBtn.style.background = spatialIntensity === 1 ? 'var(--accent-grad)' : '';
+    subtleBtn.style.color      = spatialIntensity === 1 ? '#fff' : '';
+    fullBtn.style.background   = spatialIntensity === 2 ? 'var(--accent-grad)' : '';
+    fullBtn.style.color        = spatialIntensity === 2 ? '#fff' : '';
+  }
+}
+
+document.getElementById('np-spatial-btn').addEventListener('click', () => {
+  setSpatial(!spatialOn);
+  toast(spatialOn ? 'Spatial on' : 'Spatial off');
 });
 
 // ── WHY CHIP — shows source of current SmartQueue fill ───────────────────────
@@ -3935,6 +4103,7 @@ function renderMemoryCard() {
 }
 
 function renderSettings() {
+  refreshSpatialSettings();
   document.getElementById('cfg-version').textContent  = 'v' + APP_VERSION;
   document.getElementById('cfg-logcount').textContent = Log.all().length + ' / ' + LOG_MAX;
   const cfg = getGhCfg();
@@ -4088,6 +4257,22 @@ document.getElementById('gh-auto-toggle').addEventListener('change', e => {
   toast(e.target.checked ? 'Auto-upload enabled' : 'Auto-upload disabled');
 });
 
+// ── SPATIAL AUDIO SETTINGS CONTROLS ───────────────────────────────────────────
+document.getElementById('spatial-toggle').addEventListener('change', e => {
+  setSpatial(e.target.checked);
+  toast(spatialOn ? 'Spatial on' : 'Spatial off');
+});
+
+document.getElementById('spatial-subtle-btn').addEventListener('click', () => {
+  setSpatial(true, 1);
+  toast('Spatial: Subtle');
+});
+
+document.getElementById('spatial-full-btn').addEventListener('click', () => {
+  setSpatial(true, 2);
+  toast('Spatial: Full');
+});
+
 // ── PULL LATEST BUILD ──────────────────────────────────────────────────────────
 document.getElementById('update-app-btn').addEventListener('click', async () => {
   const btn = document.getElementById('update-app-btn');
@@ -4156,6 +4341,7 @@ intelPrune(); // trim stale listening history once per session
 buildDiscover();
 _initNotNowLongPress();
 refreshSmartPlayBtn();
+refreshSpatialBtn();
 
 // Seed downloadedIds from IndexedDB so badges & sheet options are correct immediately
 idbGetAll().then(songs => {
