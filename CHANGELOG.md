@@ -4,6 +4,27 @@ All notable changes to this project are documented here.
 
 ---
 
+## v3.8.1 — Spatial Audio CORS fix (2026-05-28)
+
+**Bugfix:** Audio was silenced after the v3.8.0 Web Audio graph changes.
+
+**Root cause:** `createMediaElementSource()` on JioSaavn CDN streams
+(`aac.saavncdn.com`) triggers CORS enforcement — Chrome outputs silence
+("MediaElementAudioSource outputs zeroes due to CORS access restrictions")
+while the `<audio>` element technically plays. The v3.8.0 build routed
+all playback through the Web Audio graph unconditionally, silencing audio
+for all users with Spatial OFF (the default).
+
+**Fix:** Web Audio graph is now only initialised when the user enables
+Spatial Audio. When Spatial is OFF (default), playback uses the native
+`audio.volume` path with zero CORS risk — identical to v3.7.0 behaviour.
+When Spatial is ON, the HRTF graph is created on-demand; this works
+correctly on Android/iOS PWA installs where CORS is not enforced.
+
+**Files changed:** `index.html` (version → 3.8.1), `sw.js` (cache → mbx-shell-v3.8.1)
+
+---
+
 ## v3.8.0 — Spatial Audio / Headphone Mode (2026-05-28)
 
 **Feature:** Spatial Audio — an HRTF-based stereo widening mode that makes music feel like it's playing around you, similar to what Dolby Atmos does on headphones.
