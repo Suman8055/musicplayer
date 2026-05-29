@@ -4214,22 +4214,76 @@ document.getElementById('spatial-full-btn').addEventListener('click', () => {
 });
 
 // ── PULL LATEST BUILD ──────────────────────────────────────────────────────────
+// Correct update flow:
+// 1. Delete all caches so SW installs fresh shell on next fetch
+// 2. Tell the SW to check for an update right now (reg.update())
+// 3. If a new SW installs, skip waiting so it takes control immediately
+// 4. controllerchange fires → reload with the new build
+// 5. Fallback: if no SW or update completes fast, hard-reload after cache clear
 document.getElementById('update-app-btn').addEventListener('click', async () => {
   const btn = document.getElementById('update-app-btn');
-  btn.textContent = 'Updating…';
+  btn.textContent = 'Checking…';
   btn.disabled = true;
   try {
+    // Step 1 — wipe all caches so the new SW fetches fresh files
     const keys = await caches.keys();
     await Promise.all(keys.map(k => caches.delete(k)));
+
     if ('serviceWorker' in navigator) {
       const regs = await navigator.serviceWorker.getRegistrations();
-      await Promise.all(regs.map(r => r.unregister()));
+      if (regs.length) {
+        const reg = regs[0];
+
+        // If a new SW is already waiting, activate it now
+        if (reg.waiting) {
+          reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+          // controllerchange listener (registered at startup) will reload
+          btn.textContent = 'Reloading…';
+          return;
+        }
+
+        btn.textContent = 'Downloading…';
+
+        // Ask the SW to fetch its own script and compare — triggers updatefound if changed
+        await reg.update();
+
+        if (reg.installing) {
+          // New SW is downloading — wait for it to reach 'installed' then activate
+          await new Promise((resolve, reject) => {
+            const sw = reg.installing;
+            const timer = setTimeout(() => reject(new Error('timeout')), 30000);
+            sw.addEventListener('statechange', () => {
+              if (sw.state === 'installed') {
+                clearTimeout(timer);
+                sw.postMessage({ type: 'SKIP_WAITING' });
+                resolve();
+              } else if (sw.state === 'redundant') {
+                clearTimeout(timer);
+                reject(new Error('redundant'));
+              }
+            });
+          });
+          btn.textContent = 'Reloading…';
+          // controllerchange will fire and reload; belt-and-suspenders fallback:
+          setTimeout(() => location.reload(), 2000);
+          return;
+        }
+
+        // No new SW found (already on latest) — just reload with cleared cache
+        btn.textContent = 'Up to date — reloading…';
+        setTimeout(() => location.reload(), 800);
+      } else {
+        // No SW registered at all — plain reload
+        location.reload();
+      }
+    } else {
+      // No SW support — plain reload
+      location.reload();
     }
-    location.reload();
-  } catch {
+  } catch (e) {
     btn.textContent = 'Update';
     btn.disabled = false;
-    toast('Update failed — check internet');
+    toast('Update failed — check your connection');
   }
 });
 
