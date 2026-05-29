@@ -878,7 +878,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '3.7.0';
+const APP_VERSION = '3.8.0';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -1347,31 +1347,26 @@ async function fetchStream(id) {
     }
   }
 
-  // ── Fallback: CORS proxy → JioSaavn → DES decrypt ────────────────────────────
-  const r = await proxyFetch(
-    `https://www.jiosaavn.com/api.php?__call=song.getDetails&cc=in&_format=json&pids=${encodeURIComponent(id)}`
+  // ── Fallback: SIGMA_API /songs?id= (CORS-open, returns pre-decrypted CDN URLs) ─
+  const r2 = await fetch(`${SIGMA_API}/songs?id=${encodeURIComponent(id)}`, {
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!r2.ok) throw new Error('SIGMA stream HTTP ' + r2.status);
+  const data2 = await r2.json();
+  const song2 = Array.isArray(data2?.data) ? data2.data[0] : null;
+  if (!song2) throw new Error('No song in SIGMA response');
+  const targetTier2 = QUALITY_RANK[getNetworkQuality()];
+  const urls2 = (song2.downloadUrl || []).slice().sort(
+    (a, b) => (QUALITY_RANK[b.quality] || 0) - (QUALITY_RANK[a.quality] || 0)
   );
-  const data = await r.json();
-  const key  = Object.keys(data)[0];
-  const song = data[key];
-  if (!song?.encrypted_media_url) throw new Error('No stream URL');
-  const url96 = desDecrypt(song.encrypted_media_url, DES_KEY);
-  if (!url96) throw new Error('Decrypt failed');
-  let url, quality;
-  const netQ = getNetworkQuality();
-  if (netQ === '96kbps') {
-    url = url96; quality = '96kbps';
-  } else if (song['320kbps'] === 'true' && netQ === '320kbps') {
-    url = url96.replace(/_96([._])/g, '_320$1'); quality = '320kbps';
-  } else {
-    url = url96.replace(/_96([._])/g, '_160$1'); quality = '160kbps';
-  }
-  Log.info('Stream OK (fallback)', { id, quality, network: netQ });
+  const best2 = urls2.find(u => (QUALITY_RANK[u.quality] || 0) <= targetTier2) || urls2[urls2.length - 1];
+  if (!best2?.link) throw new Error('No stream link in SIGMA response');
+  Log.info('Stream OK (SIGMA fallback)', { id, quality: best2.quality, network: getNetworkQuality() });
   return {
-    url,
-    quality,
-    image:    (song.image || '').replace('50x50', '500x500').replace('150x150', '500x500'),
-    duration: parseInt(song.duration || 0),
+    url:      best2.link,
+    quality:  best2.quality,
+    image:    bestImg(song2.image, '500x500'),
+    duration: parseInt(song2.duration || 0),
   };
 }
 
