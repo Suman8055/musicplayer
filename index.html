@@ -919,7 +919,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.2';
+const APP_VERSION = '4.1.3';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -2245,14 +2245,38 @@ function _teardownEqChain() {
 
 // Insert EQ chain between _gainNode and destination.
 // Called once AudioContext is created, and again when EQ is toggled.
+function _getAudioState() {
+  return {
+    hasCtx:      !!_audioCtx,
+    ctxState:    _audioCtx?.state ?? 'none',
+    hasMediaSrc: !!_mediaSource,
+    hasGain:     !!_gainNode,
+    eqNodeCount: _eqNodes.length,
+    eqOn:        _eqOn,
+    hasAnalyser: !!_autoEqAnalyser,
+    rewiring:    _rewiring,
+  };
+}
+
+let _rewiring = false;
+
 function _rewireEq() {
   if (!_audioCtx) return;
-  _teardownEqChain();
-  _autoEqAnalyser = null; // will be re-tapped on next analysis
-  _gainNode.disconnect();
-  _buildEqChain(_audioCtx);
-  _gainNode.connect(_eqNodes[0]);
-  _eqNodes[_eqNodes.length - 1].connect(_audioCtx.destination);
+  if (_rewiring) return;
+  _rewiring = true;
+  try {
+    Log.info('_rewireEq start', _getAudioState());
+    _teardownEqChain();
+    _autoEqAnalyser = null;
+    _gainNode.disconnect();
+    if (_mediaSource) _mediaSource.connect(_gainNode);
+    _buildEqChain(_audioCtx);
+    _gainNode.connect(_eqNodes[0]);
+    _eqNodes[_eqNodes.length - 1].connect(_audioCtx.destination);
+    Log.info('_rewireEq done', _getAudioState());
+  } finally {
+    _rewiring = false;
+  }
 }
 
 function _setEqBandGain(index, gain) {
@@ -2333,7 +2357,7 @@ function _initEqUI() {
     _eqOn = e.target.checked;
     const panel = document.getElementById('eq-panel');
     if (panel) panel.classList.toggle('eq-hidden', !_eqOn);
-    if (!_eqNodes.length && _eqOn) _rewireEq();
+    if (_eqOn) _rewireEq();
     _applyEqOnOff();
     _saveEq();
   });
@@ -2400,7 +2424,7 @@ const _AUTO_EQ_BAND_RANGES = [
 ];
 
 function _ensureAutoEqAnalyser() {
-  if (!_audioCtx || !_mediaSource || _autoEqAnalyser) return;
+  if (!_audioCtx || !_mediaSource || _autoEqAnalyser || _rewiring) return;
   _autoEqAnalyser = _audioCtx.createAnalyser();
   _autoEqAnalyser.fftSize = 8192;
   _autoEqAnalyser.smoothingTimeConstant = 0.3;
