@@ -594,6 +594,10 @@ body::after{
             <button class="eq-preset-btn" data-preset="vocal">Vocal</button>
             <button class="eq-preset-btn" data-preset="treble">Treble</button>
             <button class="eq-preset-btn" data-preset="vshape">V-Shape</button>
+            <button class="eq-preset-btn" data-preset="bollywood">Bollywood</button>
+            <button class="eq-preset-btn" data-preset="punjabi">Punjabi</button>
+            <button class="eq-preset-btn" data-preset="classical">Classical</button>
+            <button class="eq-preset-btn" data-preset="podcast">Podcast</button>
           </div>
           <div class="eq-bands" id="eq-bands-container">
             <!-- bands injected by JS -->
@@ -919,7 +923,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.5';
+const APP_VERSION = '4.1.6';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -2232,7 +2236,11 @@ const EQ_PRESETS = {
   bass:   [ 5,  4,  3,  1,  0,  0,  0,  0,  0,  0],
   vocal:  [-1, -1,  0,  1,  3,  3,  2,  1,  0, -1],
   treble: [ 0,  0,  0,  0,  0,  0,  1,  2,  4,  5],
-  vshape: [ 4,  3,  1,  0, -2, -2,  0,  1,  3,  4],
+  vshape:    [  4,  3,  1,  0, -2, -2,  0,  1,  3,  4],
+  bollywood: [  3,  4,  2,  1,  0, -1,  1,  2,  1,  1],
+  punjabi:   [  4,  5,  3,  2,  0, -1,  0,  1,  2,  2],
+  classical: [  0,  0,  1,  1,  2,  2,  2,  1,  1,  2],
+  podcast:   [ -3, -2,  0,  1,  3,  4,  3,  2,  0, -1],
 };
 
 let _eqOn     = localStorage.getItem(EQ_KEY + '_on') === 'true';
@@ -2242,12 +2250,14 @@ let _eqGains  = (() => {
 })();
 let _eqNodes  = [];   // BiquadFilterNode array, parallel to EQ_BANDS
 
+const _EQ_Q_VALUES = [1.0, 0.7, 0.7, 0.7, 1.0, 1.0, 1.0, 1.4, 1.4, 1.0];
+
 function _buildEqChain(ctx) {
   _eqNodes = EQ_BANDS.map((b, i) => {
     const node = ctx.createBiquadFilter();
     node.type            = b.type;
     node.frequency.value = b.freq;
-    node.Q.value         = 1.0;
+    node.Q.value         = _EQ_Q_VALUES[i];
     node.gain.value      = _eqOn ? _eqGains[i] : 0;
     return node;
   });
@@ -2423,9 +2433,21 @@ const _autoEqCache = new Map();
 let _autoEqAnalyser = null; // live tap AnalyserNode, rewired with EQ chain
 let _manualEqAdjusted = false; // true if user moved a slider during active Auto-EQ analysis
 
-// Harman in-ear target: energy per band (dB, relative to midrange).
-// Positive = target louder here → boost; Negative = target quieter → cut.
-const HARMAN_TARGET_DB = [4, 3, 1, 0, -1, -2, -1, 0, 1, 2];
+// Per-language Harman targets: each int[10] is dB offset per band relative to midrange.
+const HARMAN_TARGETS = {
+  //             32   64  125  250  500   1k   2k   4k   8k  16k
+  hindi:    [  3,  4,  2,  1,  0, -1,  1,  2,  1,  1 ],
+  punjabi:  [  4,  5,  3,  2,  0, -1,  0,  1,  2,  2 ],
+  english:  [  4,  3,  1,  0, -1, -2, -1,  0,  1,  2 ],
+  tamil:    [  3,  3,  2,  1,  0, -1,  0,  2,  2,  2 ],
+  telugu:   [  3,  3,  2,  1,  0, -1,  0,  1,  2,  2 ],
+  default:  [  4,  3,  1,  0, -1, -2, -1,  0,  1,  2 ],
+};
+
+function _getHarmanTarget(song) {
+  const lang = (song?.language ?? '').toLowerCase().trim();
+  return (HARMAN_TARGETS[lang] ?? HARMAN_TARGETS.default).slice();
+}
 
 const _AUTO_EQ_BAND_RANGES = [
   [20,   50],   // 32 Hz  lowshelf
@@ -2443,7 +2465,7 @@ const _AUTO_EQ_BAND_RANGES = [
 function _ensureAutoEqAnalyser() {
   if (!_audioCtx || !_mediaSource || _autoEqAnalyser || _rewiring) return;
   _autoEqAnalyser = _audioCtx.createAnalyser();
-  _autoEqAnalyser.fftSize = 8192;
+  _autoEqAnalyser.fftSize = 16384;
   _autoEqAnalyser.smoothingTimeConstant = 0.3;
   // Tap after the last EQ node (pre-destination)
   const last = _eqNodes[_eqNodes.length - 1];
@@ -2461,13 +2483,14 @@ async function _analyseAndAutoEq(song) {
     return;
   }
   try {
+    const target = _getHarmanTarget(song);
     _ensureAutoEqAnalyser();
     if (!_autoEqAnalyser) return;
 
     const freqData = new Float32Array(_autoEqAnalyser.frequencyBinCount);
     const SR = _audioCtx.sampleRate;
     const binHz = SR / _autoEqAnalyser.fftSize;
-    const NUM_SAMPLES = 20; // 20 × 250ms = 5 seconds of analysis
+    const NUM_SAMPLES = 28; // 28 × 250ms = 7 seconds of analysis
     const accumulator = new Float64Array(_AUTO_EQ_BAND_RANGES.length);
     const counts = new Uint32Array(_AUTO_EQ_BAND_RANGES.length);
 
@@ -2502,7 +2525,7 @@ async function _analyseAndAutoEq(song) {
     const autoGains = bandEnergy.map((e, i) => {
       if (e === null) return 0; // no data for band → leave flat
       const measured   = e - midRef;
-      const correction = HARMAN_TARGET_DB[i] - measured;
+      const correction = target[i] - measured;
       return Math.max(-6, Math.min(6, Math.round(correction)));
     });
 
