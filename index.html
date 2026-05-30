@@ -1193,6 +1193,13 @@ let _splitter     = null;
 let _merger       = null;
 let _hrtfReady    = false;   // true once convolver chain is built and loaded
 let _hrtfPromise  = null;    // in-flight build promise — all callers share it
+let _hrtfGainNode = null;    // post-convolver gain to compensate IR energy loss
+
+// Measured compensation (OfflineAudioContext RMS benchmark, 440Hz sine, 0.5s):
+//   Subtle IR: −40 dB loss → ×100.6 linear compensation
+//   Full   IR: −55 dB loss → ×548.9 linear compensation
+const HRTF_GAIN_SUBTLE = 100.6;
+const HRTF_GAIN_FULL   = 548.9;
 
 // Fetch and decode a single HRTF WAV file, with caching.
 async function _loadHrtfBuffer(url) {
@@ -1257,16 +1264,23 @@ function _buildHrtfChain() {
       _audioCtx._hrtfSubtle = subtleIR;
       _audioCtx._hrtfFull   = fullIR;
 
-      _splitter = _audioCtx.createChannelSplitter(2);
-      _merger   = _audioCtx.createChannelMerger(2);
+      _splitter    = _audioCtx.createChannelSplitter(2);
+      _merger      = _audioCtx.createChannelMerger(2);
+      _hrtfGainNode = _audioCtx.createGain();
 
       const ir    = spatialIntensity === 1 ? subtleIR : fullIR;
       _convolverL = _makeConvolver(ir);
       _convolverR = _makeConvolver(ir);
 
-      _merger.connect(_gainNode);
+      // Apply measured compensation so spatial output matches non-spatial volume
+      _hrtfGainNode.gain.value = spatialIntensity === 1 ? HRTF_GAIN_SUBTLE : HRTF_GAIN_FULL;
+
+      // Chain: merger → hrtfGainNode → masterGainNode → destination
+      _merger.connect(_hrtfGainNode);
+      _hrtfGainNode.connect(_gainNode);
+
       _hrtfReady = true;
-      Log.info('HRTF chain ready', { intensity: spatialIntensity });
+      Log.info('HRTF chain ready', { intensity: spatialIntensity, compensation: _hrtfGainNode.gain.value });
     } catch (e) {
       _hrtfPromise = null;  // allow retry on next call
       Log.warn('HRTF build failed — using direct path', { err: e.message });
@@ -1278,13 +1292,13 @@ function _buildHrtfChain() {
 // Switch convolver IR when intensity changes mid-session.
 function _applyHrtfIntensity() {
   if (!_hrtfReady || !_audioCtx) return;
-  const ir = spatialIntensity === 1
-    ? _audioCtx._hrtfSubtle
-    : _audioCtx._hrtfFull;
+  const ir   = spatialIntensity === 1 ? _audioCtx._hrtfSubtle : _audioCtx._hrtfFull;
+  const gain = spatialIntensity === 1 ? HRTF_GAIN_SUBTLE      : HRTF_GAIN_FULL;
   if (!ir) return;
-  if (_convolverL) _convolverL.buffer = ir;
-  if (_convolverR) _convolverR.buffer = ir;
-  Log.info('HRTF intensity applied', { intensity: spatialIntensity });
+  if (_convolverL)   _convolverL.buffer      = ir;
+  if (_convolverR)   _convolverR.buffer      = ir;
+  if (_hrtfGainNode) _hrtfGainNode.gain.value = gain;
+  Log.info('HRTF intensity applied', { intensity: spatialIntensity, compensation: gain });
 }
 
 // Kick off HRTF load as soon as AudioContext is created.
