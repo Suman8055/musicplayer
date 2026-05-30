@@ -919,7 +919,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.3';
+const APP_VERSION = '4.1.4';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -1162,7 +1162,8 @@ const AC = window.AudioContext || window.webkitAudioContext || null;
 let _audioCtx     = null;   // AudioContext singleton
 let _gainNode     = null;   // master GainNode (normalisation)
 let _mediaSource  = null;   // MediaElementAudioSourceNode (created once)
-let _ctxFailed    = false;  // permanent failure flag
+let _ctxFailed      = false;  // permanent failure flag
+let _corsAvailable  = false;  // true when MediaElementSource connected successfully
 
 function _ensureAudioCtx() {
   if (_audioCtx) return true;
@@ -1179,10 +1180,12 @@ function _ensureAudioCtx() {
       _mediaSource = _audioCtx.createMediaElementSource(audio);
       _mediaSource.connect(_gainNode);
       audio.volume = 1; // volume now controlled by _gainNode
+      _corsAvailable = true;
     } catch (corsErr) {
       // CDN stream is cross-origin without CORS headers — EQ runs silent,
       // playback continues normally via audio.volume fallback.
       _mediaSource = null;
+      _corsAvailable = false;
       audio.volume = NORM_VOLUME;
       Log.warn('Web Audio routing unavailable (CORS)', { err: corsErr.message });
     }
@@ -1681,6 +1684,7 @@ async function play(song, newQueue, idx) {
       offlineBlobUrl = URL.createObjectURL(offline.blob);
       // Resume AudioContext and set src synchronously before play — iOS requires
       // audio.play() within the user-gesture stack with no async gap after src set.
+      audio.crossOrigin = null;       // blob:// URLs are same-origin; crossOrigin must be null
       _ensureAudioCtx();
       await _resumeAudioCtx();
       audio.src = offlineBlobUrl;
@@ -1700,8 +1704,10 @@ async function play(song, newQueue, idx) {
       refreshMini(); refreshNP();
       // Resume AudioContext, set src, and call play() immediately — no awaits
       // between audio.src and audio.play() so iOS keeps the user-gesture context.
-      // Direct CDN URLs are CORS-open so createMediaElementSource works without blobs.
-      // (WebKit bug #232076: blob URLs cause HTTP 416 range errors on iOS Safari.)
+      // crossOrigin='anonymous' enables createMediaElementSource on CDN URLs that
+      // send Access-Control-Allow-Origin: * (WebKit requires this attribute set
+      // before src). (WebKit bug #232076: blob URLs cause HTTP 416 range errors.)
+      audio.crossOrigin = 'anonymous'; // required for Web Audio routing on network streams
       _ensureAudioCtx();
       await _resumeAudioCtx();
       if (offlineBlobUrl) { URL.revokeObjectURL(offlineBlobUrl); offlineBlobUrl = null; }
@@ -1945,7 +1951,7 @@ seekEl.addEventListener('input', () => {
 // Falls back to audio.volume on desktop when Web Audio is unavailable.
 document.getElementById('np-vol').addEventListener('input', e => {
   const v = +e.target.value * NORM_VOLUME;
-  if (_gainNode) _gainNode.gain.value = v; else audio.volume = v;
+  if (_corsAvailable) _gainNode.gain.value = v; else audio.volume = v;
 });
 
 // ── UI REFRESH ─────────────────────────────────────────────────────────────────
