@@ -908,7 +908,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '3.9.5';
+const APP_VERSION = '3.9.6';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -1292,6 +1292,27 @@ function _buildResonanceScene(ctx) {
   transientShelf.frequency.value = 12000;
   transientShelf.gain.value      = 1.5;
 
+  // Harman target curve — Sonos-style perceptual tuning baked into wet path.
+  // Targets the Harman in-ear research curve: sub-bass warmth, clean mids,
+  // air-band sparkle. Three filters cover the key deviation points.
+  // Sub-bass lift: +3 dB low-shelf at 150 Hz — warmth and body without boom
+  const harmSubBass = ctx.createBiquadFilter();
+  harmSubBass.type            = 'lowshelf';
+  harmSubBass.frequency.value = 150;
+  harmSubBass.gain.value      = 3.0;
+  // Upper-bass/boxiness cut: −2 dB peak at 300 Hz — removes muddy resonance
+  const harmBoxCut = ctx.createBiquadFilter();
+  harmBoxCut.type            = 'peaking';
+  harmBoxCut.frequency.value = 300;
+  harmBoxCut.Q.value         = 0.9;
+  harmBoxCut.gain.value      = -2.0;
+  // Presence dip: −2.5 dB peak at 3 kHz — prevents ear fatigue on vocals
+  const harmPresence = ctx.createBiquadFilter();
+  harmPresence.type            = 'peaking';
+  harmPresence.frequency.value = 3000;
+  harmPresence.Q.value         = 1.2;
+  harmPresence.gain.value      = -2.5;
+
   // Wet/dry mix — blend spatial + clean for clarity without room feel
   const wetGain = ctx.createGain(); wetGain.gain.value = wetRatio;
   const dryGain = ctx.createGain(); dryGain.gain.value = dryRatio;
@@ -1302,11 +1323,14 @@ function _buildResonanceScene(ctx) {
   _hrtfGainNode.gain.value = 1.0;
 
   // Dry path: bypass Resonance — preserve original stereo signal
-  // Wet path: Resonance → pinna EQ → transient shelf → wetGain
+  // Wet path: Resonance → pinna EQ → transient shelf → Harman curve → wetGain
   // Both paths → crossfeed → output
   scene.output.connect(pinnaPeak);
   pinnaPeak.connect(transientShelf);
-  transientShelf.connect(wetGain);
+  transientShelf.connect(harmSubBass);
+  harmSubBass.connect(harmBoxCut);
+  harmBoxCut.connect(harmPresence);
+  harmPresence.connect(wetGain);
   wetGain.connect(_xfeedNodes.splitter);
   dryGain.connect(_xfeedNodes.splitter);   // dry also enters crossfeed for blending
   _xfeedNodes.merger.connect(_hrtfGainNode);
