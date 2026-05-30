@@ -4680,13 +4680,18 @@ document.getElementById('update-app-btn').addEventListener('click', async () => 
   btn.textContent = 'Updating…';
   btn.disabled = true;
   try {
+    // 1. Nuke all caches
     const keys = await caches.keys();
     await Promise.all(keys.map(k => caches.delete(k)));
+    // 2. Unregister all service workers
     if ('serviceWorker' in navigator) {
       const regs = await navigator.serviceWorker.getRegistrations();
       await Promise.all(regs.map(r => r.unregister()));
     }
-    location.reload();
+    // 3. Force-fetch latest HTML from network (bypasses browser cache too)
+    await fetch(location.href, { cache: 'no-store' }).catch(() => {});
+    // 4. Hard reload — no-store ensures browser fetches fresh copy
+    location.href = location.href.split('?')[0] + '?bust=' + Date.now();
   } catch {
     btn.textContent = 'Update';
     btn.disabled = false;
@@ -4696,7 +4701,7 @@ document.getElementById('update-app-btn').addEventListener('click', async () => 
 
 // ── SERVICE WORKER (live sync) ─────────────────────────────────────────────────
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js').then(reg => {
+  navigator.serviceWorker.register('sw.js?v=' + APP_VERSION).then(reg => {
     // If a new SW is already waiting (page was open during last deploy), activate it now
     if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
 
