@@ -919,7 +919,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '3.9.9';
+const APP_VERSION = '4.0.0';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -1160,6 +1160,7 @@ const AC = window.AudioContext || window.webkitAudioContext || null;
 
 let _audioCtx     = null;   // AudioContext singleton
 let _gainNode     = null;   // master GainNode (normalisation)
+let _mediaSource  = null;   // MediaElementAudioSourceNode (created once)
 let _ctxFailed    = false;  // permanent failure flag
 
 function _ensureAudioCtx() {
@@ -1169,6 +1170,10 @@ function _ensureAudioCtx() {
     _audioCtx = new AC({ sampleRate: 48000 });
     _gainNode = _audioCtx.createGain();
     _gainNode.gain.value = NORM_VOLUME;
+    // Route <audio> element through Web Audio so EQ nodes actually affect playback
+    _mediaSource = _audioCtx.createMediaElementSource(audio);
+    _mediaSource.connect(_gainNode);
+    audio.volume = 1; // gain is now handled by _gainNode, not hardware volume
     _rewireEq();
     Log.info('AudioContext created');
     return true;
@@ -1599,12 +1604,12 @@ async function play(song, newQueue, idx) {
       if (offlineBlobUrl) { URL.revokeObjectURL(offlineBlobUrl); offlineBlobUrl = null; }
       offlineBlobUrl = URL.createObjectURL(offline.blob);
       _ensureAudioCtx();
-      audio.volume = NORM_VOLUME;
       audio.src = offlineBlobUrl;
       await audio.play().catch(() => toast('Tap play to start'));
       if (nowSong?.id !== song.id) return;
       playing = true;
       Log.info('Playback (offline)', { name: song.name });
+      setTimeout(() => { if (nowSong?.id === song.id) _analyseAndAutoEq(song); }, 3000);
 
     } else {
       // ── Network stream path ────────────────────────────────────────────────
@@ -1614,7 +1619,6 @@ async function play(song, newQueue, idx) {
       if (stream.quality) nowSong.quality = stream.quality;
       refreshMini(); refreshNP();
       _ensureAudioCtx();
-      audio.volume = NORM_VOLUME;
       audio.src = stream.url;
       await audio.play().catch(() => toast('Tap play to start'));
       Log.info('Playback started', { name: song.name, artist: song.artist });
@@ -1622,7 +1626,7 @@ async function play(song, newQueue, idx) {
       playing = true;
       _intelPlayStartTs = Date.now();
       // Kick off spectral analysis in background — adjusts EQ after ~2s
-      setTimeout(() => { if (nowSong?.id === song.id) _analyseAndAutoEq(song, stream.url); }, 2000);
+      setTimeout(() => { if (nowSong?.id === song.id) _analyseAndAutoEq(song); }, 3000);
     }
     setTimeout(preloadNext, 1500);
   } catch (e) {
@@ -1651,7 +1655,6 @@ async function togglePlay() {
     userPaused = false;
     await _resumeAudioCtx();
     if (audio.ended) audio.currentTime = 0;
-    audio.volume = NORM_VOLUME;
     audio.play().catch(() => {});
   }
 }
@@ -2151,10 +2154,11 @@ function _teardownEqChain() {
 }
 
 // Insert EQ chain between _gainNode and destination.
-// Called once AudioContext is created.
+// Called once AudioContext is created, and again when EQ is toggled.
 function _rewireEq() {
   if (!_audioCtx) return;
   _teardownEqChain();
+  _autoEqAnalyser = null; // will be re-tapped on next analysis
   _gainNode.disconnect();
   _buildEqChain(_audioCtx);
   _gainNode.connect(_eqNodes[0]);
@@ -2262,7 +2266,7 @@ function _initEqUI() {
         if (_autoEqCache.has(nowSong.id)) {
           _applyAutoEqGains(_autoEqCache.get(nowSong.id));
         } else if (audio.src) {
-          _analyseAndAutoEq(nowSong, audio.src);
+          _analyseAndAutoEq(nowSong);
         }
       } else {
         _clearAutoEqForSong();
@@ -2274,89 +2278,97 @@ function _initEqUI() {
 }
 
 // ── Spectral Auto-EQ (AI per-song adaptation) ────────────────────────────────
-// Analyses the first 8s of each song's decoded audio using OfflineAudioContext
-// + AnalyserNode FFT, measures energy in each of the 10 EQ band ranges,
-// computes the deviation from the Harman target curve, and silently applies
-// a correction to the EQ nodes. User's manual EQ stays on top.
+// Analyses the live audio stream via a tap AnalyserNode wired into the playing
+// audio graph. Samples FFT data every 250ms for up to 5 seconds, accumulates
+// average band energy, then applies Harman-target correction to the EQ nodes.
 //
-// Pipeline: fetch url → ArrayBuffer → decodeAudioData (OfflineAudioContext)
-//           → AnalyserNode FFT → band RMS → Harman delta → setEqBandGain
+// Pipeline: _mediaSource → _gainNode → EQ chain → [tap AnalyserNode] → destination
 
 const AUTO_EQ_KEY = 'mbx_autoeq_v1';
 let _autoEqOn = localStorage.getItem(AUTO_EQ_KEY + '_on') !== 'false'; // default ON
-// Per-song auto-EQ cache: songId → float32 gains[10]
+// Per-song auto-EQ cache: songId → int gains[10]
 const _autoEqCache = new Map();
+let _autoEqAnalyser = null; // live tap AnalyserNode, rewired with EQ chain
 
-// Harman in-ear target: reference energy per band (dB relative, normalised to
-// the midrange). Derived from published Harman curve research.
-// Positive = target has MORE energy here than flat, so we SUBTRACT from correction.
+// Harman in-ear target: energy per band (dB, relative to midrange).
+// Positive = target louder here → boost; Negative = target quieter → cut.
 const HARMAN_TARGET_DB = [4, 3, 1, 0, -1, -2, -1, 0, 1, 2];
 
-async function _analyseAndAutoEq(song, streamUrl) {
-  if (!_autoEqOn || !AC) return;
+const _AUTO_EQ_BAND_RANGES = [
+  [20,   50],   // 32 Hz  lowshelf
+  [50,   90],   // 64 Hz
+  [90,  180],   // 125 Hz
+  [180,  350],  // 250 Hz
+  [350,  700],  // 500 Hz
+  [700, 1400],  // 1k Hz
+  [1400, 2800], // 2k Hz
+  [2800, 5600], // 4k Hz
+  [5600,11200], // 8k Hz
+  [11200,20000],// 16k Hz highshelf
+];
+
+function _ensureAutoEqAnalyser() {
+  if (!_audioCtx || _autoEqAnalyser) return;
+  _autoEqAnalyser = _audioCtx.createAnalyser();
+  _autoEqAnalyser.fftSize = 8192;
+  _autoEqAnalyser.smoothingTimeConstant = 0.3;
+  // Tap after the last EQ node (pre-destination)
+  const last = _eqNodes[_eqNodes.length - 1];
+  if (last) {
+    last.disconnect();
+    last.connect(_autoEqAnalyser);
+    _autoEqAnalyser.connect(_audioCtx.destination);
+  }
+}
+
+async function _analyseAndAutoEq(song) {
+  if (!_autoEqOn || !_audioCtx) return;
   if (_autoEqCache.has(song.id)) {
     _applyAutoEqGains(_autoEqCache.get(song.id));
     return;
   }
   try {
-    const ANALYSIS_SECS = 8;
-    const SR = 44100;
-    const resp = await fetch(streamUrl, { signal: AbortSignal.timeout(15000) });
-    if (!resp.ok) return;
-    const ab = await resp.arrayBuffer();
+    _ensureAutoEqAnalyser();
+    if (!_autoEqAnalyser) return;
 
-    // Decode into an OfflineAudioContext at standard sample rate
-    const offCtx = new OfflineAudioContext(2, SR * ANALYSIS_SECS, SR);
-    const buf = await offCtx.decodeAudioData(ab);
+    const freqData = new Float32Array(_autoEqAnalyser.frequencyBinCount);
+    const SR = _audioCtx.sampleRate;
+    const binHz = SR / _autoEqAnalyser.fftSize;
+    const NUM_SAMPLES = 20; // 20 × 250ms = 5 seconds of analysis
+    const accumulator = new Float64Array(_AUTO_EQ_BAND_RANGES.length);
+    const counts = new Uint32Array(_AUTO_EQ_BAND_RANGES.length);
 
-    // Render only the first ANALYSIS_SECS seconds
-    const src = offCtx.createBufferSource();
-    src.buffer = buf;
+    for (let s = 0; s < NUM_SAMPLES; s++) {
+      await new Promise(r => setTimeout(r, 250));
+      if (!nowSong || nowSong.id !== song.id) return; // song changed, abort
+      _autoEqAnalyser.getFloatFrequencyData(freqData);
 
-    // AnalyserNode to capture frequency data
-    const analyser = offCtx.createAnalyser();
-    analyser.fftSize = 8192;
-    analyser.smoothingTimeConstant = 0;
-    src.connect(analyser);
-    analyser.connect(offCtx.destination);
-    src.start(0);
-    await offCtx.startRendering();
+      _AUTO_EQ_BAND_RANGES.forEach(([lo, hi], bi) => {
+        const startBin = Math.max(1, Math.round(lo / binHz));
+        const endBin   = Math.min(freqData.length - 1, Math.round(hi / binHz));
+        for (let i = startBin; i <= endBin; i++) {
+          if (isFinite(freqData[i]) && freqData[i] > -100) {
+            accumulator[bi] += freqData[i];
+            counts[bi]++;
+          }
+        }
+      });
+    }
 
-    const freqData = new Float32Array(analyser.frequencyBinCount);
-    analyser.getFloatFrequencyData(freqData);
+    // Average dB per band across all samples
+    const bandEnergy = Array.from(accumulator).map((sum, i) =>
+      counts[i] > 0 ? sum / counts[i] : null
+    );
 
-    const binHz = SR / analyser.fftSize;
+    // Need at least the midrange bands to compute a reference
+    if (bandEnergy[4] === null && bandEnergy[5] === null && bandEnergy[6] === null) return;
 
-    // Measure average dB energy in each EQ band's frequency range
-    const bandRanges = [
-      [20,   50],   // 32 Hz  lowshelf
-      [50,   90],   // 64 Hz
-      [90,  180],   // 125 Hz
-      [180,  350],  // 250 Hz
-      [350,  700],  // 500 Hz
-      [700, 1400],  // 1k Hz
-      [1400, 2800], // 2k Hz
-      [2800, 5600], // 4k Hz
-      [5600,11200], // 8k Hz
-      [11200,20000],// 16k Hz highshelf
-    ];
+    const midBands = [bandEnergy[4], bandEnergy[5], bandEnergy[6]].filter(v => v !== null);
+    const midRef   = midBands.reduce((a, b) => a + b, 0) / midBands.length;
 
-    const bandEnergy = bandRanges.map(([lo, hi]) => {
-      const startBin = Math.max(1, Math.round(lo / binHz));
-      const endBin   = Math.min(freqData.length - 1, Math.round(hi / binHz));
-      let sum = 0, count = 0;
-      for (let i = startBin; i <= endBin; i++) {
-        if (isFinite(freqData[i]) && freqData[i] > -140) { sum += freqData[i]; count++; }
-      }
-      return count > 0 ? sum / count : -60;
-    });
-
-    // Normalise band energy relative to the midrange average (500Hz–2kHz bands 4–6)
-    const midRef = (bandEnergy[4] + bandEnergy[5] + bandEnergy[6]) / 3;
-    const normEnergy = bandEnergy.map(e => e - midRef);
-
-    // Auto-EQ gain = Harman target - measured energy, clamped to ±6 dB
-    const autoGains = normEnergy.map((measured, i) => {
+    const autoGains = bandEnergy.map((e, i) => {
+      if (e === null) return 0; // no data for band → leave flat
+      const measured   = e - midRef;
       const correction = HARMAN_TARGET_DB[i] - measured;
       return Math.max(-6, Math.min(6, Math.round(correction)));
     });
@@ -2366,7 +2378,6 @@ async function _analyseAndAutoEq(song, streamUrl) {
     _refreshAutoEqUI();
     Log.info('Auto-EQ analysed', { name: song.name, gains: autoGains.join(',') });
   } catch (e) {
-    // Silent fail — playback continues with manual EQ untouched
     Log.warn('Auto-EQ analysis failed', { err: e.message });
   }
 }
