@@ -919,7 +919,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.0.1';
+const APP_VERSION = '4.0.2';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -1170,10 +1170,21 @@ function _ensureAudioCtx() {
     _audioCtx = new AC({ sampleRate: 48000 });
     _gainNode = _audioCtx.createGain();
     _gainNode.gain.value = NORM_VOLUME;
-    // Route <audio> element through Web Audio so EQ nodes actually affect playback
-    _mediaSource = _audioCtx.createMediaElementSource(audio);
-    _mediaSource.connect(_gainNode);
-    audio.volume = 1; // gain is now handled by _gainNode, not hardware volume
+    // Route <audio> through Web Audio so EQ nodes affect playback.
+    // Requires stream URLs to have CORS headers (Access-Control-Allow-Origin).
+    // If the CDN doesn't send CORS headers this throws a SecurityError —
+    // we catch it and fall back to audio.volume so playback always works.
+    try {
+      _mediaSource = _audioCtx.createMediaElementSource(audio);
+      _mediaSource.connect(_gainNode);
+      audio.volume = 1; // volume now controlled by _gainNode
+    } catch (corsErr) {
+      // CDN stream is cross-origin without CORS headers — EQ runs silent,
+      // playback continues normally via audio.volume fallback.
+      _mediaSource = null;
+      audio.volume = NORM_VOLUME;
+      Log.warn('Web Audio routing unavailable (CORS)', { err: corsErr.message });
+    }
     _rewireEq();
     Log.info('AudioContext created');
     return true;
@@ -2308,7 +2319,7 @@ const _AUTO_EQ_BAND_RANGES = [
 ];
 
 function _ensureAutoEqAnalyser() {
-  if (!_audioCtx || _autoEqAnalyser) return;
+  if (!_audioCtx || !_mediaSource || _autoEqAnalyser) return;
   _autoEqAnalyser = _audioCtx.createAnalyser();
   _autoEqAnalyser.fftSize = 8192;
   _autoEqAnalyser.smoothingTimeConstant = 0.3;
