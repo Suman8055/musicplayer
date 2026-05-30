@@ -1329,6 +1329,12 @@ async function _apiSearchFallback(q, limit = 20) {
   }));
 }
 
+// CORS-safe artist songs fetch using SIGMA search/songs — replaces SAAVN_API artist endpoint
+// SAAVN_API has no CORS headers and always fails in the browser.
+async function fetchArtistSongs(artistName, limit = 30) {
+  return searchSongs(artistName, limit);
+}
+
 async function searchSongs(q, limit = 20) {
   // SIGMA_API has Access-Control-Allow-Origin: * — works in all browsers.
   // SAAVN_API (saavn.8man.dev) has no CORS headers so browser fetches always fail.
@@ -3321,19 +3327,8 @@ async function buildForYouRows() {
 
   await Promise.all(topArtists.map(async artist => {
     try {
-      // Resolve real artist ID if we only stored a name-based key
-      let apiId = artist.id;
-      if (!apiId) {
-        const sr = await saavnFetch(`${SAAVN_API}/api/search?query=${encodeURIComponent(artist.name)}`);
-        const sd = await sr.json();
-        apiId = sd.data?.artists?.results?.[0]?.id || '';
-      }
-      if (!apiId) return; // can't resolve — skip
-
-      const resp = await saavnFetch(`${SAAVN_API}/api/artists/${encodeURIComponent(apiId)}/songs?limit=30`);
-      const data = await resp.json();
-      const songs = (data.data?.songs || [])
-        .map(normSaavnSong)
+      const allSongs = await fetchArtistSongs(artist.name, 30);
+      const songs = allSongs
         .filter(s => s.id && !played.has(s.id))
         .sort(() => Math.random() - 0.5)
         .slice(0, 10);
@@ -3574,22 +3569,11 @@ async function smartInjectAhead() {
       artist = topArtists[0];
     }
 
-    let apiId = artist.id;
-    if (!apiId) {
-      const sr = await saavnFetch(`${SAAVN_API}/api/search?query=${encodeURIComponent(artist.name)}`);
-      const sd = await sr.json();
-      apiId = sd.data?.artists?.results?.[0]?.id || '';
-    }
-    if (!apiId) return;
-
-    const resp = await saavnFetch(`${SAAVN_API}/api/artists/${encodeURIComponent(apiId)}/songs?limit=20`);
-    const data = await resp.json();
     const played = intelPlayedIds();
-    // Exclude songs already in the queue tail or already picked in this batch
     const inQueue = new Set(queue.slice(qIdx + 1).map(s => s.id));
     const seenIds = new Set();
-    const picks = (data.data?.songs || [])
-      .map(normSaavnSong)
+    const allSongs = await fetchArtistSongs(artist.name, 20);
+    const picks = allSongs
       .filter(s => {
         if (!s.id || played.has(s.id) || inQueue.has(s.id) || seenIds.has(s.id)) return false;
         seenIds.add(s.id);
@@ -3635,19 +3619,9 @@ async function smartQueueFill() {
   refreshSmartQueueBadge();
 
   try {
-    let apiId = artist.id;
-    if (!apiId) {
-      const sr = await saavnFetch(`${SAAVN_API}/api/search?query=${encodeURIComponent(artist.name)}`);
-      const sd = await sr.json();
-      apiId = sd.data?.artists?.results?.[0]?.id || '';
-    }
-    if (!apiId) { smartQueueActive = false; refreshSmartQueueBadge(); return false; }
-
-    const resp = await saavnFetch(`${SAAVN_API}/api/artists/${encodeURIComponent(apiId)}/songs?limit=30`);
-    const data = await resp.json();
     const played = intelPlayedIds();
-    const songs = (data.data?.songs || [])
-      .map(normSaavnSong)
+    const allSongs = await fetchArtistSongs(artist.name, 30);
+    const songs = allSongs
       .filter(s => s.id && !played.has(s.id))
       .sort(() => Math.random() - 0.5)
       .slice(0, 10);
@@ -3692,17 +3666,8 @@ async function startSmartRadio(song) {
 
   for (const seed of seedArtists) {
     try {
-      let apiId = seed.artistId;
-      if (!apiId) {
-        const sr = await saavnFetch(`${SAAVN_API}/api/search?query=${encodeURIComponent(seed.artist || '')}`);
-        const sd = await sr.json();
-        apiId = sd.data?.artists?.results?.[0]?.id || '';
-      }
-      if (!apiId) continue;
-      const resp = await saavnFetch(`${SAAVN_API}/api/artists/${encodeURIComponent(apiId)}/songs?limit=20`);
-      const data = await resp.json();
-      const songs = (data.data?.songs || []).map(normSaavnSong).filter(s => s.id);
-      queue.push(...songs);
+      const songs = await fetchArtistSongs(seed.artist || '', 20);
+      queue.push(...songs.filter(s => s.id));
     } catch {}
   }
 
