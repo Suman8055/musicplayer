@@ -447,7 +447,6 @@ body::after{
 .sp-info-row-value.accent{color:var(--accent);font-weight:600;transition:var(--color-transition)}
 .sp-info-close{display:block;width:calc(100% - 40px);margin:14px 20px 0;padding:14px;text-align:center;background:hsla(var(--accent-h),var(--accent-s),var(--accent-l),.12);border:1px solid hsla(var(--accent-h),var(--accent-s),var(--accent-l),.25);border-radius:14px;color:var(--accent);font-size:16px;font-weight:600;font-family:inherit;cursor:pointer;transition:var(--color-transition)}
 </style>
-<script src="https://cdn.jsdelivr.net/npm/resonance-audio/build/resonance-audio.min.js"></script>
 </head>
 <body>
 
@@ -577,32 +576,6 @@ body::after{
     <!-- Settings -->
     <div id="tab-settings" class="tab-pane">
       <div class="tab-header">Settings</div>
-
-      <div class="settings-section">Sound</div>
-      <div class="settings-card">
-        <div class="settings-row">
-          <div class="settings-label">
-            Spatial Audio
-            <small>DTS-style HRTF surround — headphones recommended</small>
-          </div>
-          <input type="checkbox" id="spatial-toggle"
-                 style="width:22px;height:22px;accent-color:var(--accent);cursor:pointer;flex-shrink:0">
-        </div>
-        <div class="settings-row" id="spatial-intensity-row">
-          <div class="settings-label">Intensity</div>
-          <div style="display:flex;gap:6px;flex-shrink:0">
-            <button class="settings-btn sec" id="spatial-subtle-btn"
-                    style="flex:none;padding:6px 14px;font-size:13px;border-radius:10px;margin:0">Subtle</button>
-            <button class="settings-btn sec" id="spatial-full-btn"
-                    style="flex:none;padding:6px 14px;font-size:13px;border-radius:10px;margin:0">Full</button>
-          </div>
-        </div>
-        <div class="settings-row">
-          <div class="settings-label" style="font-size:12px;color:var(--fg2);line-height:1.5">
-            DTS-style headphone surround — HRTF convolution places instruments around your head. Use headphones or earbuds. Auto-disables on CarPlay / AirPlay and slow networks.
-          </div>
-        </div>
-      </div>
 
       <div class="settings-section">Equalizer</div>
       <div class="settings-card">
@@ -849,9 +822,6 @@ body::after{
       <button class="np-foot" id="np-smartplay-btn" title="SmartPlay">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2zm-1 14.5v-9l7 4.5-7 4.5z"/></svg>Smart
       </button>
-      <button class="np-foot" id="np-spatial-btn" title="Spatial Audio">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>Spatial
-      </button>
     </div>
   </div>
 </div>
@@ -945,7 +915,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '3.9.7';
+const APP_VERSION = '3.9.8';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -1178,320 +1148,28 @@ const audioPreload = document.getElementById('audio-preload');
 // (GainNode.gain.value works on iOS, unlike audio.volume which iOS hardware ignores).
 const NORM_VOLUME = 0.794; // 10^(−2/20) = −2 dB
 
-// ── SPATIAL AUDIO ENGINE — Stage 1: Graph Foundation ─────────────────────────
-//
-// Architecture (avoids createMediaElementSource CORS tainting):
-//   stream URL → fetch() → ArrayBuffer → decodeAudioData() → AudioBufferSourceNode
-//               → [spatial chain — Stage 2] → GainNode → AudioContext.destination
-//
-// The <audio> element is kept as the CarPlay/AirPlay path and fallback:
-//   • spatial OFF  : <audio> plays normally, graph not used
-//   • spatial ON   : <audio> is muted + paused; graph drives output
-//   • CarPlay/AirPlay detected : spatial forced OFF, <audio> restored
-//
+// ── AUDIO ENGINE ───────────────────────────────────────────────────────────────
+// AudioContext drives the EQ chain only. All playback uses <audio> element.
 // AudioContext is created lazily on first user gesture (iOS requirement).
 
 const AC = window.AudioContext || window.webkitAudioContext || null;
 
-let _audioCtx        = null;   // AudioContext singleton
-let _gainNode        = null;   // master GainNode (normalisation)
-let _spatialSrc      = null;   // current AudioBufferSourceNode (replaced on each play)
-let _spatialBuf      = null;   // decoded AudioBuffer for current song
-let _spatialStarted  = false;  // true while _spatialSrc is playing
-let _spatialStartAt  = 0;      // AudioContext time when source was started
-let _spatialOffset   = 0;      // seek offset at last start (seconds)
-let _spatialCtxFailed = false; // permanent failure — don't retry
-
-// ── STAGE 2: Resonance Audio spatial engine ──────────────────────────────────
-//
-// Uses Google's Resonance Audio library (Ambisonics-based binaural renderer).
-// Unlike the browser's built-in PannerNode which uses a single dry KEMAR HRTF,
-// Resonance Audio applies:
-//   • Higher-order Ambisonics HRTF decode (far better externalization)
-//   • Room acoustics simulation (early reflections + late reverb)
-//   • Distance modeling per virtual speaker
-// This is what eliminates the "in a box" / "in head" problem.
-//
-// On top of Resonance Audio we add:
-//   • Crossfeed (BS2B-style): fixes unnaturally wide headphone stereo
-//   • Pinna-notch boost at 8.5 kHz: adds elevation cue the brain uses to
-//     perceive sound as coming from outside and above, not inside the head
-//
-// Subtle (intensity 1): virtual stereo speakers at ±30° in a small studio room.
-//   Clear, natural out-of-head headstage — like a near-field monitor setup.
-//
-// Full (intensity 2): 5.1 virtual speakers (FL/FR/C/SL/SR) in a concert hall.
-//   Full immersive wrap-around effect — instruments appear at distinct positions.
-//
-// Chain:
-//   src → splitter → [pinnaCue EQ] → [Resonance sources (L+R)]
-//                                          ↓  (Resonance binaural render)
-//                                    [crossfeed network]
-//                                          ↓
-//                                    [_hrtfGainNode] → _gainNode → destination
-
-let _hrtfReady    = false;
-let _hrtfPromise  = null;
-let _hrtfGainNode = null;   // master output gain for this chain
-let _resonance    = null;   // ResonanceAudio scene
-let _resSrcL      = null;   // Resonance source — left channel
-let _resSrcR      = null;   // Resonance source — right channel
-let _resSplitter  = null;   // ChannelSplitter to separate L/R before Resonance
-let _xfeedNodes   = null;   // crossfeed network { splitter, merger, lpL, lpR, gL, gR }
-
-// Both modes use a near-anechoic room — highly absorptive surfaces kill the
-// reverb tail so Resonance contributes HRTF externalization only, not room color.
-// We want sound that feels "outside your head in open air", not "in a room".
-const RES_ROOM_ANECHOIC = {
-  dimensions: { width: 8, height: 3, depth: 10 },
-  materials: {
-    left:  'fiber-glass-insulation',
-    right: 'fiber-glass-insulation',
-    front: 'fiber-glass-insulation',
-    back:  'fiber-glass-insulation',
-    down:  'fiber-glass-insulation',
-    up:    'fiber-glass-insulation',
-  },
-};
-
-// Subtle: tight stereo pair close in front — precise, intimate headstage
-const RES_POS_SUBTLE = {
-  L: { x: -0.9, y: 0.05, z: -1.8 },
-  R: { x:  0.9, y: 0.05, z: -1.8 },
-};
-
-// Full: wider spread + gentle surrounds for depth — immersive but still clean
-const RES_POS_FULL = {
-  L:  { x: -1.5, y: 0.0, z: -2.5 },
-  R:  { x:  1.5, y: 0.0, z: -2.5 },
-  SL: { x: -3.0, y: 0.0, z:  0.0 },
-  SR: { x:  3.0, y: 0.0, z:  0.0 },
-};
-
-// Wet/dry ratios: how much Resonance (spatial) vs dry (clean) signal to blend.
-// Higher wet = more immersion but also more room feel.
-// Lower wet = cleaner sound but less 3D effect.
-const RES_WET_SUBTLE = 0.55;   // 55% spatial, 45% dry
-const RES_WET_FULL   = 0.65;   // 65% spatial, 35% dry
-
-// Create the BS2B-style crossfeed network.
-// Blends a low-pass of each channel into the opposite ear at low level —
-// simulates natural loudspeaker crosstalk that makes headphone stereo feel real.
-function _buildCrossfeed(ctx, feedGain, cutHz) {
-  const splitter = ctx.createChannelSplitter(2);
-  const merger   = ctx.createChannelMerger(2);
-
-  // Direct path (main signal)
-  splitter.connect(merger, 0, 0);
-  splitter.connect(merger, 1, 1);
-
-  // Cross-channel low-pass bleed: R→L and L→R
-  const lpL = ctx.createBiquadFilter();
-  lpL.type = 'lowpass'; lpL.frequency.value = cutHz; lpL.Q.value = 0.707;
-  const lpR = ctx.createBiquadFilter();
-  lpR.type = 'lowpass'; lpR.frequency.value = cutHz; lpR.Q.value = 0.707;
-  const gL = ctx.createGain(); gL.gain.value = feedGain;
-  const gR = ctx.createGain(); gR.gain.value = feedGain;
-
-  splitter.connect(lpR, 1); lpR.connect(gR); gR.connect(merger, 0, 0);  // R bleed → L
-  splitter.connect(lpL, 0); lpL.connect(gL); gL.connect(merger, 0, 1);  // L bleed → R
-
-  return { splitter, merger, lpL, lpR, gL, gR };
-}
-
-// Build the Resonance Audio scene for the given intensity.
-// Uses a wet/dry mix: spatial (wet) blended with clean original (dry).
-// This gives the 3D positioning and externalization from Resonance without
-// the room coloring — the dry signal keeps the sound clean and clear.
-function _buildResonanceScene(ctx) {
-  const isSubtle = spatialIntensity === 1;
-  const pos      = isSubtle ? RES_POS_SUBTLE : RES_POS_FULL;
-  const wetRatio = isSubtle ? RES_WET_SUBTLE : RES_WET_FULL;
-  const dryRatio = 1.0 - wetRatio;
-
-  const scene = new ResonanceAudio(ctx, { ambisonicOrder: 3 });
-  scene.setRoomProperties(RES_ROOM_ANECHOIC.dimensions, RES_ROOM_ANECHOIC.materials);
-
-  // Pinna-notch boost: +2.5 dB peak at 8.5 kHz
-  // Compensates for generic HRTF pinna mismatch — makes sound feel
-  // external/elevated rather than inside-head. Applied to wet path only.
-  const pinnaPeak = ctx.createBiquadFilter();
-  pinnaPeak.type            = 'peaking';
-  pinnaPeak.frequency.value = 8500;
-  pinnaPeak.Q.value         = 2.0;
-  pinnaPeak.gain.value      = 2.5;
-
-  // Transient sharpener: +1.5 dB high-shelf at 12 kHz
-  // Restores attack edge (kick/snare transients) lost through HRTF processing.
-  // DTS-style clarity — each beat hits with its original crispness.
-  const transientShelf = ctx.createBiquadFilter();
-  transientShelf.type            = 'highshelf';
-  transientShelf.frequency.value = 12000;
-  transientShelf.gain.value      = 1.5;
-
-  // Harman target curve — Sonos-style perceptual tuning baked into wet path.
-  // Targets the Harman in-ear research curve: sub-bass warmth, clean mids,
-  // air-band sparkle. Three filters cover the key deviation points.
-  // Sub-bass lift: +3 dB low-shelf at 150 Hz — warmth and body without boom
-  const harmSubBass = ctx.createBiquadFilter();
-  harmSubBass.type            = 'lowshelf';
-  harmSubBass.frequency.value = 150;
-  harmSubBass.gain.value      = 3.0;
-  // Upper-bass/boxiness cut: −2 dB peak at 300 Hz — removes muddy resonance
-  const harmBoxCut = ctx.createBiquadFilter();
-  harmBoxCut.type            = 'peaking';
-  harmBoxCut.frequency.value = 300;
-  harmBoxCut.Q.value         = 0.9;
-  harmBoxCut.gain.value      = -2.0;
-  // Presence dip: −2.5 dB peak at 3 kHz — prevents ear fatigue on vocals
-  const harmPresence = ctx.createBiquadFilter();
-  harmPresence.type            = 'peaking';
-  harmPresence.frequency.value = 3000;
-  harmPresence.Q.value         = 1.2;
-  harmPresence.gain.value      = -2.5;
-
-  // Wet/dry mix — blend spatial + clean for clarity without room feel
-  const wetGain = ctx.createGain(); wetGain.gain.value = wetRatio;
-  const dryGain = ctx.createGain(); dryGain.gain.value = dryRatio;
-
-  // Crossfeed on the final mix (fixes headphone boxing)
-  _xfeedNodes = _buildCrossfeed(ctx, isSubtle ? 0.18 : 0.14, 200);
-  _hrtfGainNode = ctx.createGain();
-  _hrtfGainNode.gain.value = 1.0;
-
-  // Dry path: bypass Resonance — preserve original stereo signal
-  // Wet path: Resonance → pinna EQ → transient shelf → Harman curve → wetGain
-  // Both paths → crossfeed → output
-  scene.output.connect(pinnaPeak);
-  pinnaPeak.connect(transientShelf);
-  transientShelf.connect(harmSubBass);
-  harmSubBass.connect(harmBoxCut);
-  harmBoxCut.connect(harmPresence);
-  harmPresence.connect(wetGain);
-  wetGain.connect(_xfeedNodes.splitter);
-  dryGain.connect(_xfeedNodes.splitter);   // dry also enters crossfeed for blending
-  _xfeedNodes.merger.connect(_hrtfGainNode);
-  _hrtfGainNode.connect(_gainNode);
-
-  // Splitter to separate L/R source channels
-  _resSplitter = ctx.createChannelSplitter(2);
-
-  // Dry tap — re-merge L/R to stereo before dry gain
-  const dryMerger = ctx.createChannelMerger(2);
-  _resSplitter.connect(dryMerger, 0, 0);
-  _resSplitter.connect(dryMerger, 1, 1);
-  dryMerger.connect(dryGain);
-
-  // Left channel → Resonance source L
-  _resSrcL = scene.createSource({ rolloffFactor: 0 });
-  _resSrcL.setPosition(pos.L.x, pos.L.y, pos.L.z);
-  const monoL = ctx.createChannelMerger(1);
-  _resSplitter.connect(monoL, 0, 0);
-  monoL.connect(_resSrcL.input);
-
-  // Right channel → Resonance source R
-  _resSrcR = scene.createSource({ rolloffFactor: 0 });
-  _resSrcR.setPosition(pos.R.x, pos.R.y, pos.R.z);
-  const monoR = ctx.createChannelMerger(1);
-  _resSplitter.connect(monoR, 1, 0);
-  monoR.connect(_resSrcR.input);
-
-  // Full mode: surround sends at reduced gain for depth cues
-  if (!isSubtle) {
-    const srcSL = scene.createSource({ rolloffFactor: 0 });
-    srcSL.setPosition(pos.SL.x, pos.SL.y, pos.SL.z);
-    const gSL = ctx.createGain(); gSL.gain.value = 0.3;
-    const monoSL = ctx.createChannelMerger(1);
-    _resSplitter.connect(monoSL, 0, 0);
-    monoSL.connect(gSL); gSL.connect(srcSL.input);
-
-    const srcSR = scene.createSource({ rolloffFactor: 0 });
-    srcSR.setPosition(pos.SR.x, pos.SR.y, pos.SR.z);
-    const gSR = ctx.createGain(); gSR.gain.value = 0.3;
-    const monoSR = ctx.createChannelMerger(1);
-    _resSplitter.connect(monoSR, 1, 0);
-    monoSR.connect(gSR); gSR.connect(srcSR.input);
-  }
-
-  return scene;
-}
-
-// Tear down existing Resonance scene and supporting nodes.
-function _teardownResonance() {
-  if (_xfeedNodes) {
-    ['lpL','lpR','gL','gR','splitter','merger'].forEach(k => {
-      try { _xfeedNodes[k].disconnect(); } catch {}
-    });
-    _xfeedNodes = null;
-  }
-  if (_hrtfGainNode) { try { _hrtfGainNode.disconnect(); } catch {} _hrtfGainNode = null; }
-  if (_resSplitter)  { try { _resSplitter.disconnect();  } catch {} _resSplitter  = null; }
-  _resSrcL = null; _resSrcR = null;
-  if (_resonance) {
-    try { _resonance.output.disconnect(); } catch {}
-    _resonance = null;
-  }
-}
-
-// Load Resonance Audio and build the full spatial chain.
-// Returns a shared Promise — concurrent callers all await the same in-flight load.
-function _buildHrtfChain() {
-  if (_hrtfReady)   return Promise.resolve();
-  if (_hrtfPromise) return _hrtfPromise;
-  if (!_audioCtx)   return Promise.resolve();
-
-  _hrtfPromise = (async () => {
-    try {
-      if (typeof ResonanceAudio === 'undefined') {
-        throw new Error('ResonanceAudio library not loaded');
-      }
-      _resonance = _buildResonanceScene(_audioCtx);
-      _hrtfReady = true;
-      Log.info('Resonance Audio chain ready', { intensity: spatialIntensity });
-    } catch (e) {
-      _hrtfPromise = null;
-      Log.warn('Resonance Audio init failed — using direct path', { err: e.message });
-    }
-  })();
-  return _hrtfPromise;
-}
-
-// Rebuild the Resonance scene when intensity changes mid-session.
-function _applyHrtfIntensity() {
-  if (!_audioCtx) return;
-  _teardownResonance();
-  _hrtfReady   = false;
-  _hrtfPromise = null;
-  _buildHrtfChain().then(() => {
-    if (_spatialSrc && _spatialStarted && _spatialBuf) {
-      const pos = _spatialCurrentTime();
-      _startSpatialSrc(Math.min(pos, _spatialBuf.duration - 0.1));
-    }
-  });
-}
-
-// Kick off chain load as soon as AudioContext is created.
-async function _ensureHrtfChain() {
-  if (_hrtfReady) return true;
-  if (!_audioCtx) return false;
-  await _buildHrtfChain();
-  return _hrtfReady;
-}
+let _audioCtx     = null;   // AudioContext singleton
+let _gainNode     = null;   // master GainNode (normalisation)
+let _ctxFailed    = false;  // permanent failure flag
 
 function _ensureAudioCtx() {
   if (_audioCtx) return true;
-  if (_spatialCtxFailed || !AC) return false;
+  if (_ctxFailed || !AC) return false;
   try {
     _audioCtx = new AC({ sampleRate: 48000 });
     _gainNode = _audioCtx.createGain();
     _gainNode.gain.value = NORM_VOLUME;
-    _rewireEq();   // insert EQ chain between _gainNode and destination
+    _rewireEq();
     Log.info('AudioContext created');
-    // Pre-load HRTF IRs in background so chain is ready when first song plays
-    _buildHrtfChain().catch(() => {});
     return true;
   } catch (e) {
-    _spatialCtxFailed = true;
+    _ctxFailed = true;
     Log.warn('AudioContext failed', { err: e.message });
     return false;
   }
@@ -1503,176 +1181,12 @@ async function _resumeAudioCtx() {
   }
 }
 
-// Fetch stream URL as ArrayBuffer and decode into AudioBuffer.
-// Returns null on any failure (caller falls back to <audio> path).
-async function _fetchAndDecode(url) {
-  if (!_ensureAudioCtx()) return null;
-  try {
-    const resp = await fetch(url, { signal: AbortSignal.timeout(20000) });
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    const ab = await resp.arrayBuffer();
-    const buf = await _audioCtx.decodeAudioData(ab);
-    Log.info('Spatial buffer decoded', { duration: buf.duration.toFixed(1) + 's' });
-    return buf;
-  } catch (e) {
-    Log.warn('Spatial decode failed, falling back to <audio>', { err: e.message });
-    return null;
-  }
-}
-
-// Stop and discard the current AudioBufferSourceNode.
-function _stopSpatialSrc() {
-  if (_spatialSrc) {
-    try { _spatialSrc.stop(); } catch {}
-    try { _spatialSrc.disconnect(); } catch {}
-    _spatialSrc = null;
-  }
-  _spatialStarted = false;
-  if (typeof _stopSpatialStallGuard === 'function') _stopSpatialStallGuard();
-}
-
-// Build and start an AudioBufferSourceNode from _spatialBuf at offsetSec.
-// Connects: source → [spatial chain if wired] → _gainNode → destination.
-function _startSpatialSrc(offsetSec) {
-  if (!_audioCtx || !_spatialBuf) return;
-  _stopSpatialSrc();
-  const src = _audioCtx.createBufferSource();
-  src.buffer = _spatialBuf;
-  // Connect through spatial chain (Stage 2) if available, else direct to gain
-  _connectSpatialChain(src);
-  _spatialSrc = src;
-  _spatialOffset = offsetSec;
-  _spatialStartAt = _audioCtx.currentTime;
-  src.start(0, offsetSec);
-  _spatialStarted = true;
-  if (typeof _startSeekLoop === 'function') _startSeekLoop();
-  if (typeof _startSpatialStallGuard === 'function') _startSpatialStallGuard();
-  src.onended = () => {
-    if (src === _spatialSrc) {
-      _spatialStarted = false;
-      // Drive intel + next() just like audio.ended does in non-spatial mode
-      _intelNaturalEnd = true;
-      next();
-    }
-  };
-}
-
-// Returns the current playback position within the spatial buffer (seconds).
-function _spatialCurrentTime() {
-  if (!_audioCtx || !_spatialStarted || !_spatialBuf) return 0;
-  const t = _spatialOffset + (_audioCtx.currentTime - _spatialStartAt);
-  return Math.max(0, Math.min(t, _spatialBuf.duration));
-}
-
-// Connect src into the Resonance Audio chain (if ready) or directly to gainNode.
-// Chain: src → _resSplitter → [Resonance sources] → room render → crossfeed → _gainNode
-function _connectSpatialChain(src) {
-  if (_hrtfReady && _resSplitter) {
-    src.connect(_resSplitter);
-  } else {
-    src.connect(_gainNode);
-  }
-}
-
-// Mute/unmute <audio> element based on spatial state.
-// On iOS audio.volume is ignored by hardware, so we also pause it.
-function _syncAudioElement() {
-  if (spatialOn && _spatialStarted) {
-    audio.volume = 0;
-  } else {
-    audio.volume = NORM_VOLUME;
-  }
-}
-
-// CarPlay / AirPlay detection — force spatial OFF when wireless output is active.
-audio.addEventListener('webkitcurrentplaybacktargetiswirelesschanged', () => {
-  if (audio.webkitCurrentPlaybackTargetIsWireless && spatialOn) {
-    setSpatial(false);
-    toast('Spatial off — CarPlay / AirPlay active');
-  }
-});
-
 // Resume after screen lock
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden && !userPaused && nowSong) {
-    if (spatialOn && _spatialBuf && !_spatialStarted) {
-      _resumeAudioCtx().then(() => {
-        _startSpatialSrc(audio.currentTime);
-        _syncAudioElement();
-      });
-    } else if (!spatialOn && audio.paused) {
-      audio.play().catch(() => {});
-    }
+  if (!document.hidden && !userPaused && nowSong && audio.paused) {
+    audio.play().catch(() => {});
   }
 });
-
-// ── STAGE 3: Sync, stall recovery, network-adaptive bypass ───────────────────
-
-// Clamp spatial position to buffer bounds.
-function _spatialCurrentTimeSafe() {
-  if (!_audioCtx || !_spatialStarted || !_spatialBuf) return 0;
-  const t = _spatialOffset + (_audioCtx.currentTime - _spatialStartAt);
-  return Math.max(0, Math.min(t, _spatialBuf.duration));
-}
-
-// Network-adaptive check: skip spatial decode on slow networks (2G / saveData).
-// Spatial decode fetches the full stream file (~3-8 MB) as an ArrayBuffer.
-function _spatialAllowedOnCurrentNetwork() {
-  const c = navigator.connection;
-  if (!c) return true;
-  if (c.saveData) return false;
-  const t = c.effectiveType;
-  if (t === '2g' || t === 'slow-2g') return false;
-  return true;
-}
-
-// Stall recovery for spatial playback.
-// If the AudioBufferSourceNode stops unexpectedly (network decode issue,
-// AudioContext suspend) and the song isn't finished, restart from last position.
-function _checkSpatialStall() {
-  if (!spatialOn || !_spatialBuf || !playing || userPaused) return;
-  if (_spatialStarted) return; // still running — no stall
-  const pos = _spatialCurrentTimeSafe();
-  const remaining = _spatialBuf.duration - pos;
-  if (remaining > 1.0) {
-    // More than 1s left — this is a stall, not a natural end
-    Log.warn('Spatial stall detected — restarting from ' + pos.toFixed(1) + 's');
-    _resumeAudioCtx().then(() => _startSpatialSrc(pos));
-  }
-}
-
-// Poll for stalls every 5s while spatial is active
-let _spatialStallTimer = null;
-function _startSpatialStallGuard() {
-  _stopSpatialStallGuard();
-  _spatialStallTimer = setInterval(_checkSpatialStall, 5000);
-}
-function _stopSpatialStallGuard() {
-  if (_spatialStallTimer) { clearInterval(_spatialStallTimer); _spatialStallTimer = null; }
-}
-
-// When network changes while spatial is ON + playing, check if we should fall back
-if (navigator.connection) {
-  navigator.connection.addEventListener('change', () => {
-    if (spatialOn && !_spatialAllowedOnCurrentNetwork() && _spatialStarted) {
-      const pos = _spatialCurrentTimeSafe();
-      _stopSpatialSrc();
-      _spatialBuf = null;
-      _stopSpatialStallGuard();
-      audio.volume = NORM_VOLUME;
-      if (nowSong && !userPaused) {
-        if (isFinite(pos) && pos > 0) audio.currentTime = pos;
-        audio.play().catch(() => {});
-      }
-      toast('Spatial off — slow network');
-      spatialOn = false;
-      localStorage.setItem(SPATIAL_KEY, 'false');
-      refreshSpatialBtn();
-      refreshSpatialSettings();
-      Log.info('Spatial disabled — network too slow');
-    }
-  });
-}
 
 // ── STORAGE ────────────────────────────────────────────────────────────────────
 function loadData() {
@@ -2049,8 +1563,6 @@ function cacheSongs(arr) { arr.forEach(cacheSong); }
 // ── PLAYER ─────────────────────────────────────────────────────────────────────
 async function play(song, newQueue, idx) {
   audioPreload.src = '';  // cancel any in-progress preload
-  _stopSpatialSrc();      // tear down any running spatial source
-  _spatialBuf = null;
 
   if (newQueue !== undefined) {
     queue = newQueue;
@@ -2060,6 +1572,7 @@ async function play(song, newQueue, idx) {
   }
   nowSong = song;
   cacheSong(song);
+  _clearAutoEqForSong();
 
   if (!smartQueueActive) {
     refreshSmartQueueBadge();
@@ -2081,32 +1594,10 @@ async function play(song, newQueue, idx) {
       refreshMini(); refreshNP();
       if (offlineBlobUrl) { URL.revokeObjectURL(offlineBlobUrl); offlineBlobUrl = null; }
       offlineBlobUrl = URL.createObjectURL(offline.blob);
-
-      if (spatialOn && _ensureAudioCtx()) {
-        await _resumeAudioCtx();
-        _gainNode.gain.value = NORM_VOLUME;
-        await _ensureHrtfChain();
-        const buf = await _fetchAndDecode(offlineBlobUrl);
-        if (nowSong?.id !== song.id) return;
-        if (buf) {
-          _spatialBuf = buf;
-          // Set audio.src so MediaSession / duration still works, but mute it
-          audio.src = offlineBlobUrl;
-          await audio.play().catch(() => {});
-          audio.volume = 0;
-          _startSpatialSrc(0);
-          Log.info('Spatial playback (offline)', { name: song.name });
-        } else {
-          // Spatial decode failed — fall through to normal path
-          audio.volume = NORM_VOLUME;
-          audio.src = offlineBlobUrl;
-          await audio.play().catch(() => toast('Tap play to start'));
-        }
-      } else {
-        audio.volume = NORM_VOLUME;
-        audio.src = offlineBlobUrl;
-        await audio.play().catch(() => toast('Tap play to start'));
-      }
+      _ensureAudioCtx();
+      audio.volume = NORM_VOLUME;
+      audio.src = offlineBlobUrl;
+      await audio.play().catch(() => toast('Tap play to start'));
       if (nowSong?.id !== song.id) return;
       playing = true;
       Log.info('Playback (offline)', { name: song.name });
@@ -2118,37 +1609,16 @@ async function play(song, newQueue, idx) {
       if (stream.image)   nowSong.image   = stream.image;
       if (stream.quality) nowSong.quality = stream.quality;
       refreshMini(); refreshNP();
-
-      if (spatialOn && _ensureAudioCtx() && _spatialAllowedOnCurrentNetwork()) {
-        await _resumeAudioCtx();
-        _gainNode.gain.value = NORM_VOLUME;
-        // Load HRTF chain + stream bytes in parallel (HRTF may already be cached)
-        const [, buf] = await Promise.all([
-          _ensureHrtfChain(),
-          _fetchAndDecode(stream.url),
-          (async () => { audio.src = stream.url; await audio.play().catch(() => {}); })(),
-        ]);
-        if (nowSong?.id !== song.id) return;
-        if (buf) {
-          _spatialBuf = buf;
-          audio.volume = 0;          // mute <audio>, graph handles output
-          audio.pause();             // stop <audio> decode thread
-          _startSpatialSrc(0);
-          Log.info('Spatial playback started', { name: song.name, artist: song.artist });
-        } else {
-          // Spatial decode failed — <audio> already playing from parallel load above
-          audio.volume = NORM_VOLUME;
-          Log.info('Playback started (spatial decode failed)', { name: song.name });
-        }
-      } else {
-        audio.volume = NORM_VOLUME;
-        audio.src = stream.url;
-        await audio.play().catch(() => toast('Tap play to start'));
-        Log.info('Playback started', { name: song.name, artist: song.artist });
-      }
+      _ensureAudioCtx();
+      audio.volume = NORM_VOLUME;
+      audio.src = stream.url;
+      await audio.play().catch(() => toast('Tap play to start'));
+      Log.info('Playback started', { name: song.name, artist: song.artist });
       if (nowSong?.id !== song.id) return;
       playing = true;
       _intelPlayStartTs = Date.now();
+      // Kick off spectral analysis in background — adjusts EQ after ~2s
+      setTimeout(() => { if (nowSong?.id === song.id) _analyseAndAutoEq(song, stream.url); }, 2000);
     }
     setTimeout(preloadNext, 1500);
   } catch (e) {
@@ -2172,40 +1642,22 @@ async function togglePlay() {
   if (!nowSong || loadingUrl) return;
   if (playing) {
     userPaused = true;
-    if (spatialOn && _spatialStarted) {
-      _stopSpatialSrc();
-    }
     audio.pause();
   } else {
     userPaused = false;
     await _resumeAudioCtx();
-    if (spatialOn && _spatialBuf) {
-      const offset = _spatialCurrentTime();
-      // If buffer exhausted, replay from start
-      const resumeAt = offset >= _spatialBuf.duration ? 0 : offset;
-      _startSpatialSrc(resumeAt);
-      // <audio> resumes just for MediaSession position sync
-      audio.currentTime = resumeAt;
-      audio.play().catch(() => {});
-      audio.volume = 0;
-    } else {
-      if (audio.ended) audio.currentTime = 0;
-      audio.volume = NORM_VOLUME;
-      audio.play().catch(() => {});
-    }
+    if (audio.ended) audio.currentTime = 0;
+    audio.volume = NORM_VOLUME;
+    audio.play().catch(() => {});
   }
 }
 
 function prev() {
   if (loadingUrl) return;
-  const curTime = (spatialOn && _spatialBuf) ? _spatialCurrentTime() : audio.currentTime;
-  if (curTime > 3) {
-    if (spatialOn && _spatialBuf) { _startSpatialSrc(0); audio.currentTime = 0; }
-    else { audio.currentTime = 0; }
-    return;
-  }
+  const curTime = audio.currentTime;
+  if (curTime > 3) { audio.currentTime = 0; return; }
   // Going back past start = user rejected this song — track as skip
-  const totDur = (spatialOn && _spatialBuf) ? _spatialBuf.duration : audio.duration;
+  const totDur = audio.duration;
   if (nowSong && totDur > 0) intelTrackPlay(nowSong, curTime / totDur);
   if (shuffleOn && shufflePos > 0) {
     shufflePos--;
@@ -2219,9 +1671,8 @@ function prev() {
 function next() {
   // Track play completion before advancing
   if (nowSong) {
-    // Use spatial position when graph is active, else <audio> position
-    const currentPos  = (spatialOn && _spatialBuf) ? _spatialCurrentTime() : audio.currentTime;
-    const totalDur    = (spatialOn && _spatialBuf) ? _spatialBuf.duration   : audio.duration;
+    const currentPos  = audio.currentTime;
+    const totalDur    = audio.duration;
     const ratio = _intelNaturalEnd ? 1.0 : (totalDur > 0 ? currentPos / totalDur : 0);
     const isFast = !_intelNaturalEnd && _intelPlayStartTs > 0 && (Date.now() - _intelPlayStartTs) < 5000;
     intelTrackPlay(nowSong, ratio, isFast);
@@ -2248,11 +1699,7 @@ function next() {
   _intelNaturalEnd = false;
 
   if (loadingUrl) { _pendingNext = true; return; }
-  if (repeatMode === 2) {
-    if (spatialOn && _spatialBuf) { _startSpatialSrc(0); audio.currentTime = 0; }
-    else { audio.currentTime = 0; audio.play(); }
-    return;
-  }
+  if (repeatMode === 2) { audio.currentTime = 0; audio.play(); return; }
   let ni;
   if (shuffleOn) {
     const nextPos = shufflePos + 1;
@@ -2346,11 +1793,7 @@ audio.addEventListener('stalled', () => {
     }, stallWait);
   }
 });
-audio.addEventListener('ended', () => {
-  // Only let <audio>.ended drive next() when spatial is NOT active.
-  // When spatial is on, _startSpatialSrc().onended fires instead.
-  if (!spatialOn || !_spatialBuf) { _intelNaturalEnd = true; next(); }
-});
+audio.addEventListener('ended', () => { _intelNaturalEnd = true; next(); });
 audio.addEventListener('error', () => {
   if (!loadingUrl) {
     const MEDIA_ERR = { 1:'ABORTED', 2:'NETWORK', 3:'DECODE', 4:'SRC_NOT_SUPPORTED' };
@@ -2375,15 +1818,10 @@ if (navigator.connection) {
 }
 
 let _posStateTs = 0;
-// Seek bar + time display — spatial-aware.
-// When spatial is active the graph drives playback; we poll _spatialCurrentTime()
-// via a rAF loop (audio.timeupdate doesn't fire when <audio> is paused/muted).
-let _seekRafId = null;
 function _updateSeekBar() {
   if (seeking) return;
-  const useSpatial = spatialOn && _spatialBuf && _spatialStarted;
-  const cur = useSpatial ? _spatialCurrentTime() : audio.currentTime;
-  const dur = useSpatial ? _spatialBuf.duration  : audio.duration;
+  const cur = audio.currentTime;
+  const dur = audio.duration;
   if (!dur) return;
   const pct = Math.min(cur / dur, 1);
   const el  = document.getElementById('np-seek');
@@ -2392,29 +1830,13 @@ function _updateSeekBar() {
   document.getElementById('mini-bar').style.width   = (pct * 100) + '%';
   document.getElementById('np-elapsed').textContent = fmt(cur);
   document.getElementById('np-remain').textContent  = '−' + fmt(dur - cur);
-  // CarPlay / Bluetooth position state — throttled to 1Hz
   const now = Date.now();
   if ('setPositionState' in navigator.mediaSession && isFinite(dur) && now - _posStateTs > 1000) {
     _posStateTs = now;
     try { navigator.mediaSession.setPositionState({ duration: dur, playbackRate: 1, position: cur }); } catch {}
   }
 }
-
-// When spatial active, run a rAF loop; otherwise rely on timeupdate from <audio>
-function _startSeekLoop() {
-  if (_seekRafId) return;
-  const tick = () => {
-    _updateSeekBar();
-    if (spatialOn && _spatialStarted) _seekRafId = requestAnimationFrame(tick);
-    else _seekRafId = null;
-  };
-  _seekRafId = requestAnimationFrame(tick);
-}
-
-audio.addEventListener('timeupdate', () => {
-  if (!spatialOn || !_spatialStarted) _updateSeekBar();
-  else if (!_seekRafId) _startSeekLoop();
-});
+audio.addEventListener('timeupdate', _updateSeekBar);
 
 const seekEl = document.getElementById('np-seek');
 seekEl.addEventListener('mousedown',  () => seeking = true);
@@ -2423,13 +1845,7 @@ seekEl.addEventListener('mouseup',    () => { seeking = false; });
 seekEl.addEventListener('touchend',   () => { seeking = false; });
 seekEl.addEventListener('input', () => {
   seekEl.style.setProperty('--pct', (seekEl.value / 10).toFixed(2) + '%');
-  if (spatialOn && _spatialBuf) {
-    const targetTime = (seekEl.value / 1000) * _spatialBuf.duration;
-    _startSpatialSrc(targetTime);
-    audio.currentTime = targetTime;
-  } else if (audio.duration) {
-    audio.currentTime = (seekEl.value / 1000) * audio.duration;
-  }
+  if (audio.duration) audio.currentTime = (seekEl.value / 1000) * audio.duration;
 });
 // Volume slider — routes through GainNode when Web Audio is active (works on iOS too).
 // Falls back to audio.volume on desktop when Web Audio is unavailable.
@@ -2683,12 +2099,6 @@ document.getElementById('np-menu-btn').addEventListener('click', () => { if (now
 document.getElementById('np-add-pl-btn').addEventListener('click', () => { if (nowSong) showAddToPlaylist(nowSong); });
 document.getElementById('np-queue-btn').addEventListener('click', showQueueSheet);
 
-// ── SPATIAL STATE ─────────────────────────────────────────────────────────────
-const SPATIAL_KEY     = 'mbx_spatial';
-const SPATIAL_INT_KEY = 'mbx_spatial_intensity';
-let spatialOn        = localStorage.getItem(SPATIAL_KEY) === 'true';
-let spatialIntensity = parseInt(localStorage.getItem(SPATIAL_INT_KEY) || '2', 10); // 1=Subtle 2=Full
-
 // ── 10-Band EQ ────────────────────────────────────────────────────────────────
 const EQ_KEY = 'mbx_eq_v1';
 const EQ_BANDS = [
@@ -2838,62 +2248,122 @@ function _initEqUI() {
   });
 }
 
-// ── End EQ ───────────────────────────────────────────────────────────────────
+// ── Spectral Auto-EQ (AI per-song adaptation) ────────────────────────────────
+// Analyses the first 8s of each song's decoded audio using OfflineAudioContext
+// + AnalyserNode FFT, measures energy in each of the 10 EQ band ranges,
+// computes the deviation from the Harman target curve, and silently applies
+// a correction to the EQ nodes. User's manual EQ stays on top.
+//
+// Pipeline: fetch url → ArrayBuffer → decodeAudioData (OfflineAudioContext)
+//           → AnalyserNode FFT → band RMS → Harman delta → setEqBandGain
 
-// Toggle spatial on/off while a song is playing.
-// If turning ON: re-play current song through the graph from current position.
-// If turning OFF: hand back to <audio> element.
-function setSpatial(on, intensity) {
-  const wasOn = spatialOn;
-  spatialOn = on;
-  if (intensity !== undefined) spatialIntensity = intensity;
-  localStorage.setItem(SPATIAL_KEY, String(spatialOn));
-  localStorage.setItem(SPATIAL_INT_KEY, spatialIntensity);
+const AUTO_EQ_KEY = 'mbx_autoeq_v1';
+let _autoEqOn = localStorage.getItem(AUTO_EQ_KEY + '_on') !== 'false'; // default ON
+// Per-song auto-EQ cache: songId → float32 gains[10]
+const _autoEqCache = new Map();
 
-  if (!nowSong) { refreshSpatialBtn(); refreshSpatialSettings(); return; }
+// Harman in-ear target: reference energy per band (dB relative, normalised to
+// the midrange). Derived from published Harman curve research.
+// Positive = target has MORE energy here than flat, so we SUBTRACT from correction.
+const HARMAN_TARGET_DB = [4, 3, 1, 0, -1, -2, -1, 0, 1, 2];
 
-  if (spatialOn && !wasOn) {
-    // Turning ON: fetch+decode current song and start graph from current time
-    const currentPos = audio.currentTime;
-    if (_ensureAudioCtx()) {
-      _resumeAudioCtx().then(async () => {
-        _gainNode.gain.value = NORM_VOLUME;
-        // Ensure HRTF chain is loaded (may already be ready from background load)
-        await _ensureHrtfChain();
-        const streamData = streamCache.get(nowSong.id);
-        const url = streamData?.url || audio.src;
-        if (!url) return;
-        const buf = await _fetchAndDecode(url);
-        if (!buf || nowSong === null) return;
-        _spatialBuf = buf;
-        audio.pause();
-        audio.volume = 0;
-        _startSpatialSrc(Math.min(currentPos, buf.duration - 0.1));
-      });
-    }
-  } else if (spatialOn && wasOn && intensity !== undefined) {
-    // Intensity changed while spatial is already ON — swap IR
-    _applyHrtfIntensity();
-    // Restart src with new chain if playing
-    if (_spatialBuf && _spatialStarted) {
-      const pos = _spatialCurrentTime();
-      _startSpatialSrc(Math.min(pos, _spatialBuf.duration - 0.1));
-    }
-  } else if (!spatialOn && wasOn) {
-    // Turning OFF: stop graph, resume <audio> from same position
-    const pos = _spatialCurrentTime();
-    _stopSpatialSrc();
-    _spatialBuf = null;
-    audio.volume = NORM_VOLUME;
-    if (nowSong && !userPaused) {
-      if (isFinite(pos) && pos > 0) audio.currentTime = pos;
-      audio.play().catch(() => {});
-    }
+async function _analyseAndAutoEq(song, streamUrl) {
+  if (!_autoEqOn || !AC) return;
+  if (_autoEqCache.has(song.id)) {
+    _applyAutoEqGains(_autoEqCache.get(song.id));
+    return;
   }
+  try {
+    const ANALYSIS_SECS = 8;
+    const SR = 44100;
+    const resp = await fetch(streamUrl, { signal: AbortSignal.timeout(15000) });
+    if (!resp.ok) return;
+    const ab = await resp.arrayBuffer();
 
-  refreshSpatialBtn();
-  refreshSpatialSettings();
+    // Decode into an OfflineAudioContext at standard sample rate
+    const offCtx = new OfflineAudioContext(2, SR * ANALYSIS_SECS, SR);
+    const buf = await offCtx.decodeAudioData(ab);
+
+    // Render only the first ANALYSIS_SECS seconds
+    const src = offCtx.createBufferSource();
+    src.buffer = buf;
+
+    // AnalyserNode to capture frequency data
+    const analyser = offCtx.createAnalyser();
+    analyser.fftSize = 8192;
+    analyser.smoothingTimeConstant = 0;
+    src.connect(analyser);
+    analyser.connect(offCtx.destination);
+    src.start(0);
+    await offCtx.startRendering();
+
+    const freqData = new Float32Array(analyser.frequencyBinCount);
+    analyser.getFloatFrequencyData(freqData);
+
+    const binHz = SR / analyser.fftSize;
+
+    // Measure average dB energy in each EQ band's frequency range
+    const bandRanges = [
+      [20,   50],   // 32 Hz  lowshelf
+      [50,   90],   // 64 Hz
+      [90,  180],   // 125 Hz
+      [180,  350],  // 250 Hz
+      [350,  700],  // 500 Hz
+      [700, 1400],  // 1k Hz
+      [1400, 2800], // 2k Hz
+      [2800, 5600], // 4k Hz
+      [5600,11200], // 8k Hz
+      [11200,20000],// 16k Hz highshelf
+    ];
+
+    const bandEnergy = bandRanges.map(([lo, hi]) => {
+      const startBin = Math.max(1, Math.round(lo / binHz));
+      const endBin   = Math.min(freqData.length - 1, Math.round(hi / binHz));
+      let sum = 0, count = 0;
+      for (let i = startBin; i <= endBin; i++) {
+        if (isFinite(freqData[i]) && freqData[i] > -140) { sum += freqData[i]; count++; }
+      }
+      return count > 0 ? sum / count : -60;
+    });
+
+    // Normalise band energy relative to the midrange average (500Hz–2kHz bands 4–6)
+    const midRef = (bandEnergy[4] + bandEnergy[5] + bandEnergy[6]) / 3;
+    const normEnergy = bandEnergy.map(e => e - midRef);
+
+    // Auto-EQ gain = Harman target - measured energy, clamped to ±6 dB
+    const autoGains = normEnergy.map((measured, i) => {
+      const correction = HARMAN_TARGET_DB[i] - measured;
+      return Math.max(-6, Math.min(6, Math.round(correction)));
+    });
+
+    _autoEqCache.set(song.id, autoGains);
+    _applyAutoEqGains(autoGains);
+    Log.info('Auto-EQ analysed', { name: song.name, gains: autoGains.join(',') });
+  } catch (e) {
+    // Silent fail — playback continues with manual EQ untouched
+    Log.warn('Auto-EQ analysis failed', { err: e.message });
+  }
 }
+
+function _applyAutoEqGains(autoGains) {
+  // Blend auto-EQ with manual EQ: auto sets the base, manual is additive on top
+  autoGains.forEach((autoG, i) => {
+    const manualG = _eqGains[i];
+    const blended = Math.max(-12, Math.min(12, autoG + manualG));
+    if (_eqNodes[i]) _eqNodes[i].gain.value = _eqOn ? blended : 0;
+  });
+}
+
+function _clearAutoEqForSong() {
+  // Reset EQ nodes back to pure manual gains (called when song changes)
+  if (_eqNodes.length) {
+    _eqNodes.forEach((n, i) => { n.gain.value = _eqOn ? _eqGains[i] : 0; });
+  }
+}
+
+// ── End Auto-EQ ───────────────────────────────────────────────────────────────
+
+// ── End EQ ───────────────────────────────────────────────────────────────────
 
 // ── SMARTPLAY TOGGLE ──────────────────────────────────────────────────────────
 const SP_KEY = 'mbx_smartplay_on';
@@ -2909,32 +2379,6 @@ document.getElementById('np-smartplay-btn').addEventListener('click', () => {
   localStorage.setItem(SP_KEY, smartPlayOn);
   refreshSmartPlayBtn();
   toast(smartPlayOn ? 'SmartPlay on' : 'SmartPlay off');
-});
-
-// ── SPATIAL BUTTON (Now Playing footer) ───────────────────────────────────────
-function refreshSpatialBtn() {
-  const btn = document.getElementById('np-spatial-btn');
-  if (btn) btn.classList.toggle('active', spatialOn);
-}
-
-function refreshSpatialSettings() {
-  const toggle = document.getElementById('spatial-toggle');
-  if (toggle) toggle.checked = spatialOn;
-  const row = document.getElementById('spatial-intensity-row');
-  if (row) row.style.display = spatialOn ? '' : 'none';
-  const subtleBtn = document.getElementById('spatial-subtle-btn');
-  const fullBtn   = document.getElementById('spatial-full-btn');
-  if (subtleBtn && fullBtn) {
-    subtleBtn.style.background = spatialIntensity === 1 ? 'var(--accent-grad)' : '';
-    subtleBtn.style.color      = spatialIntensity === 1 ? '#fff' : '';
-    fullBtn.style.background   = spatialIntensity === 2 ? 'var(--accent-grad)' : '';
-    fullBtn.style.color        = spatialIntensity === 2 ? '#fff' : '';
-  }
-}
-
-document.getElementById('np-spatial-btn').addEventListener('click', () => {
-  setSpatial(!spatialOn);
-  toast(spatialOn ? 'Spatial on' : 'Spatial off');
 });
 
 // ── WHY CHIP — shows source of current SmartQueue fill ───────────────────────
@@ -4831,7 +4275,6 @@ function renderMemoryCard() {
 }
 
 function renderSettings() {
-  refreshSpatialSettings();
   _initEqUI();
   _refreshEqUI();
   document.getElementById('cfg-version').textContent  = 'v' + APP_VERSION;
@@ -4987,22 +4430,6 @@ document.getElementById('gh-auto-toggle').addEventListener('change', e => {
   toast(e.target.checked ? 'Auto-upload enabled' : 'Auto-upload disabled');
 });
 
-// ── SPATIAL AUDIO SETTINGS CONTROLS ───────────────────────────────────────────
-document.getElementById('spatial-toggle').addEventListener('change', e => {
-  setSpatial(e.target.checked);
-  toast(spatialOn ? 'Spatial on' : 'Spatial off');
-});
-
-document.getElementById('spatial-subtle-btn').addEventListener('click', () => {
-  setSpatial(true, 1);
-  toast('Spatial: Subtle');
-});
-
-document.getElementById('spatial-full-btn').addEventListener('click', () => {
-  setSpatial(true, 2);
-  toast('Spatial: Full');
-});
-
 // ── PULL LATEST BUILD ──────────────────────────────────────────────────────────
 document.getElementById('update-app-btn').addEventListener('click', async () => {
   const btn = document.getElementById('update-app-btn');
@@ -5076,8 +4503,6 @@ intelPrune(); // trim stale listening history once per session
 buildDiscover();
 _initNotNowLongPress();
 refreshSmartPlayBtn();
-refreshSpatialBtn();
-
 // Seed downloadedIds from IndexedDB so badges & sheet options are correct immediately
 idbGetAll().then(songs => {
   songs.forEach(s => downloadedIds.add(s.id));
