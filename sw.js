@@ -1,5 +1,5 @@
 'use strict';
-const CACHE = 'mbx-shell-v4.0.0';
+const CACHE = 'mbx-shell-v4.0.1';
 // Derive base path from SW location so this works on any subdirectory (prod or staging)
 const BASE = self.location.pathname.replace(/\/sw\.js.*$/, '') || '';
 const SHELL = [
@@ -28,18 +28,19 @@ self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys()
       .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+      // clients.claim() makes new SW take control immediately, then all clients
+      // get a 'controllerchange' event and reload — ensuring the new HTML is served.
       .then(() => self.clients.claim())
   );
 });
 
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
-  if (url.origin !== location.origin) return; // let API calls pass through unmodified
+  if (url.origin !== location.origin) return;
 
-  // Static assets (icons, sw, manifest) — cache-first, fast
+  // Static assets — cache-first
   const isStatic = /\.(png|jpg|svg|ico|webp|woff2?)$/.test(url.pathname)
-    || url.pathname.endsWith('manifest.json')
-    || url.pathname.endsWith('sw.js');
+    || url.pathname.endsWith('manifest.json');
   if (isStatic) {
     e.respondWith(caches.match(e.request).then(hit => hit || fetch(e.request).then(r => {
       const copy = r.clone();
@@ -49,17 +50,20 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // HTML documents — stale-while-revalidate: serve cache instantly, refresh in background
+  // sw.js itself — always network-first so the browser always sees the latest version
+  if (url.pathname.endsWith('sw.js')) {
+    e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
+    return;
+  }
+
+  // HTML documents — network-first with cache fallback (ensures fresh HTML on every load)
   if (e.request.destination === 'document') {
     e.respondWith(
-      caches.open(CACHE).then(async cache => {
-        const cached = await cache.match(e.request);
-        const fetchPromise = fetch(e.request).then(r => {
-          cache.put(e.request, r.clone());
-          return r;
-        }).catch(() => null);
-        return cached || fetchPromise;
-      })
+      fetch(e.request).then(r => {
+        const copy = r.clone();
+        caches.open(CACHE).then(c => c.put(e.request, copy));
+        return r;
+      }).catch(() => caches.match(e.request))
     );
     return;
   }

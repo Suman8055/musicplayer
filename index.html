@@ -919,7 +919,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.0.0';
+const APP_VERSION = '4.0.1';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -4513,7 +4513,11 @@ document.getElementById('update-app-btn').addEventListener('click', async () => 
 
 // ── SERVICE WORKER (live sync) ─────────────────────────────────────────────────
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js?v=' + APP_VERSION).then(reg => {
+  // updateViaCache:'none' tells the browser to always fetch sw.js from the network,
+  // bypassing HTTP cache — the single most important fix for stale-SW problems on iOS.
+  // No ?v= query string: a changing URL creates a new registration instead of updating
+  // the existing one, which breaks the waiting→activate lifecycle on iOS Safari.
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(reg => {
     // If a new SW is already waiting (page was open during last deploy), activate it now
     if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
 
@@ -4527,11 +4531,11 @@ if ('serviceWorker' in navigator) {
       });
     });
 
-    // Once a new SW takes control, reload the page to run the latest build
+    // Once a new SW takes control, reload so the new HTML is served (not stale cache)
     navigator.serviceWorker.addEventListener('controllerchange', () => location.reload());
 
-    // Poll for new builds every 30 minutes (± random jitter to avoid thundering herd)
-    setInterval(() => reg.update(), 30 * 60 * 1000 + Math.random() * 5 * 60 * 1000);
+    // iOS doesn't auto-check for SW updates — poll every 5 minutes to catch deploys fast
+    setInterval(() => reg.update(), 5 * 60 * 1000);
   }).catch(() => {});
 }
 
