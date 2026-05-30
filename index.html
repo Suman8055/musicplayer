@@ -907,7 +907,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '3.9.0-stage2';
+const APP_VERSION = '3.9.0-stage3';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -1346,6 +1346,7 @@ function _stopSpatialSrc() {
     _spatialSrc = null;
   }
   _spatialStarted = false;
+  if (typeof _stopSpatialStallGuard === 'function') _stopSpatialStallGuard();
 }
 
 // Build and start an AudioBufferSourceNode from _spatialBuf at offsetSec.
@@ -1362,8 +1363,8 @@ function _startSpatialSrc(offsetSec) {
   _spatialStartAt = _audioCtx.currentTime;
   src.start(0, offsetSec);
   _spatialStarted = true;
-  // Kick off the seek bar rAF loop (defined later in the file, safe to call by name)
   if (typeof _startSeekLoop === 'function') _startSeekLoop();
+  if (typeof _startSpatialStallGuard === 'function') _startSpatialStallGuard();
   src.onended = () => {
     if (src === _spatialSrc) {
       _spatialStarted = false;
@@ -1376,8 +1377,9 @@ function _startSpatialSrc(offsetSec) {
 
 // Returns the current playback position within the spatial buffer (seconds).
 function _spatialCurrentTime() {
-  if (!_audioCtx || !_spatialStarted) return 0;
-  return _spatialOffset + (_audioCtx.currentTime - _spatialStartAt);
+  if (!_audioCtx || !_spatialStarted || !_spatialBuf) return 0;
+  const t = _spatialOffset + (_audioCtx.currentTime - _spatialStartAt);
+  return Math.max(0, Math.min(t, _spatialBuf.duration));
 }
 
 // Connect src into the HRTF chain (if ready) or directly to gainNode.
@@ -1427,6 +1429,74 @@ document.addEventListener('visibilitychange', () => {
     }
   }
 });
+
+// ── STAGE 3: Sync, stall recovery, network-adaptive bypass ───────────────────
+
+// Clamp spatial position to buffer bounds.
+function _spatialCurrentTimeSafe() {
+  if (!_audioCtx || !_spatialStarted || !_spatialBuf) return 0;
+  const t = _spatialOffset + (_audioCtx.currentTime - _spatialStartAt);
+  return Math.max(0, Math.min(t, _spatialBuf.duration));
+}
+
+// Network-adaptive check: skip spatial decode on slow networks (2G / saveData).
+// Spatial decode fetches the full stream file (~3-8 MB) as an ArrayBuffer.
+function _spatialAllowedOnCurrentNetwork() {
+  const c = navigator.connection;
+  if (!c) return true;
+  if (c.saveData) return false;
+  const t = c.effectiveType;
+  if (t === '2g' || t === 'slow-2g') return false;
+  return true;
+}
+
+// Stall recovery for spatial playback.
+// If the AudioBufferSourceNode stops unexpectedly (network decode issue,
+// AudioContext suspend) and the song isn't finished, restart from last position.
+function _checkSpatialStall() {
+  if (!spatialOn || !_spatialBuf || !playing || userPaused) return;
+  if (_spatialStarted) return; // still running — no stall
+  const pos = _spatialCurrentTimeSafe();
+  const remaining = _spatialBuf.duration - pos;
+  if (remaining > 1.0) {
+    // More than 1s left — this is a stall, not a natural end
+    Log.warn('Spatial stall detected — restarting from ' + pos.toFixed(1) + 's');
+    _resumeAudioCtx().then(() => _startSpatialSrc(pos));
+  }
+}
+
+// Poll for stalls every 5s while spatial is active
+let _spatialStallTimer = null;
+function _startSpatialStallGuard() {
+  _stopSpatialStallGuard();
+  _spatialStallTimer = setInterval(_checkSpatialStall, 5000);
+}
+function _stopSpatialStallGuard() {
+  if (_spatialStallTimer) { clearInterval(_spatialStallTimer); _spatialStallTimer = null; }
+}
+
+// When network changes while spatial is ON + playing, check if we should fall back
+if (navigator.connection) {
+  navigator.connection.addEventListener('change', () => {
+    if (spatialOn && !_spatialAllowedOnCurrentNetwork() && _spatialStarted) {
+      const pos = _spatialCurrentTimeSafe();
+      _stopSpatialSrc();
+      _spatialBuf = null;
+      _stopSpatialStallGuard();
+      audio.volume = NORM_VOLUME;
+      if (nowSong && !userPaused) {
+        if (isFinite(pos) && pos > 0) audio.currentTime = pos;
+        audio.play().catch(() => {});
+      }
+      toast('Spatial off — slow network');
+      spatialOn = false;
+      localStorage.setItem(SPATIAL_KEY, 'false');
+      refreshSpatialBtn();
+      refreshSpatialSettings();
+      Log.info('Spatial disabled — network too slow');
+    }
+  });
+}
 
 // ── STORAGE ────────────────────────────────────────────────────────────────────
 function loadData() {
@@ -1873,7 +1943,7 @@ async function play(song, newQueue, idx) {
       if (stream.quality) nowSong.quality = stream.quality;
       refreshMini(); refreshNP();
 
-      if (spatialOn && _ensureAudioCtx()) {
+      if (spatialOn && _ensureAudioCtx() && _spatialAllowedOnCurrentNetwork()) {
         await _resumeAudioCtx();
         _gainNode.gain.value = NORM_VOLUME;
         // Load HRTF chain + stream bytes in parallel (HRTF may already be cached)
@@ -1952,9 +2022,15 @@ async function togglePlay() {
 
 function prev() {
   if (loadingUrl) return;
-  if (audio.currentTime > 3) { audio.currentTime = 0; return; }
+  const curTime = (spatialOn && _spatialBuf) ? _spatialCurrentTime() : audio.currentTime;
+  if (curTime > 3) {
+    if (spatialOn && _spatialBuf) { _startSpatialSrc(0); audio.currentTime = 0; }
+    else { audio.currentTime = 0; }
+    return;
+  }
   // Going back past start = user rejected this song — track as skip
-  if (nowSong && audio.duration > 0) intelTrackPlay(nowSong, audio.currentTime / audio.duration);
+  const totDur = (spatialOn && _spatialBuf) ? _spatialBuf.duration : audio.duration;
+  if (nowSong && totDur > 0) intelTrackPlay(nowSong, curTime / totDur);
   if (shuffleOn && shufflePos > 0) {
     shufflePos--;
     qIdx = shuffledQueue[shufflePos];
