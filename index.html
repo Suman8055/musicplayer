@@ -583,6 +583,10 @@ body::after{
           <div class="settings-label">10-Band EQ<small>Sonos-style parametric equalizer</small></div>
           <input type="checkbox" id="eq-toggle" style="width:22px;height:22px;accent-color:var(--accent);cursor:pointer;flex-shrink:0">
         </div>
+        <div class="settings-row">
+          <div class="settings-label">Auto-EQ<small id="autoeq-status">AI tunes each song to Harman target curve</small></div>
+          <input type="checkbox" id="autoeq-toggle" style="width:22px;height:22px;accent-color:var(--accent);cursor:pointer;flex-shrink:0">
+        </div>
         <div id="eq-panel" class="eq-hidden">
           <div class="eq-presets">
             <button class="eq-preset-btn" data-preset="flat">Flat</button>
@@ -915,7 +919,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '3.9.8';
+const APP_VERSION = '3.9.9';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -2246,6 +2250,27 @@ function _initEqUI() {
   document.getElementById('eq-reset-btn').addEventListener('click', () => {
     _applyPreset('flat');
   });
+
+  const autoEqToggle = document.getElementById('autoeq-toggle');
+  if (autoEqToggle && !autoEqToggle._bound) {
+    autoEqToggle._bound = true;
+    autoEqToggle.addEventListener('change', e => {
+      _autoEqOn = e.target.checked;
+      localStorage.setItem(AUTO_EQ_KEY + '_on', String(_autoEqOn));
+      if (_autoEqOn && nowSong) {
+        // Re-apply cached gains if available, otherwise re-analyse
+        if (_autoEqCache.has(nowSong.id)) {
+          _applyAutoEqGains(_autoEqCache.get(nowSong.id));
+        } else if (audio.src) {
+          _analyseAndAutoEq(nowSong, audio.src);
+        }
+      } else {
+        _clearAutoEqForSong();
+      }
+      _refreshAutoEqUI();
+      toast(_autoEqOn ? 'Auto-EQ on' : 'Auto-EQ off');
+    });
+  }
 }
 
 // ── Spectral Auto-EQ (AI per-song adaptation) ────────────────────────────────
@@ -2338,6 +2363,7 @@ async function _analyseAndAutoEq(song, streamUrl) {
 
     _autoEqCache.set(song.id, autoGains);
     _applyAutoEqGains(autoGains);
+    _refreshAutoEqUI();
     Log.info('Auto-EQ analysed', { name: song.name, gains: autoGains.join(',') });
   } catch (e) {
     // Silent fail — playback continues with manual EQ untouched
@@ -2358,6 +2384,24 @@ function _clearAutoEqForSong() {
   // Reset EQ nodes back to pure manual gains (called when song changes)
   if (_eqNodes.length) {
     _eqNodes.forEach((n, i) => { n.gain.value = _eqOn ? _eqGains[i] : 0; });
+  }
+}
+
+function _refreshAutoEqUI() {
+  const toggle = document.getElementById('autoeq-toggle');
+  if (toggle) toggle.checked = _autoEqOn;
+  const status = document.getElementById('autoeq-status');
+  if (!status) return;
+  if (!_autoEqOn) {
+    status.textContent = 'Off — using manual EQ only';
+    return;
+  }
+  if (nowSong && _autoEqCache.has(nowSong.id)) {
+    const gains = _autoEqCache.get(nowSong.id);
+    const nonZero = gains.filter(g => g !== 0).length;
+    status.textContent = 'Active — ' + nonZero + ' band' + (nonZero !== 1 ? 's' : '') + ' adjusted for this song';
+  } else {
+    status.textContent = 'On — will analyse when next song plays';
   }
 }
 
@@ -4277,6 +4321,7 @@ function renderMemoryCard() {
 function renderSettings() {
   _initEqUI();
   _refreshEqUI();
+  _refreshAutoEqUI();
   document.getElementById('cfg-version').textContent  = 'v' + APP_VERSION;
   document.getElementById('cfg-logcount').textContent = Log.all().length + ' / ' + LOG_MAX;
   const cfg = getGhCfg();
