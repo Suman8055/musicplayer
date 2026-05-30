@@ -907,7 +907,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '3.9.1';
+const APP_VERSION = '3.9.2';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -1164,85 +1164,82 @@ let _spatialStartAt  = 0;      // AudioContext time when source was started
 let _spatialOffset   = 0;      // seek offset at last start (seconds)
 let _spatialCtxFailed = false; // permanent failure — don't retry
 
-// ── STAGE 2: HRTF ConvolverNode chain ────────────────────────────────────────
+// ── STAGE 2: PannerNode HRTF surround virtualisation ─────────────────────────
 //
-// HRTF dataset: VoidXH/HRTF — stereo 48kHz IEEE-Float WAVs, MIT-aligned.
-// Filename format: <azimuth>_<elevation>.wav  (counter-clockwise azimuth)
-//   0_0   = front centre
-//   90_0  = right side   (counter-clockwise from front)
-//   180_0 = rear centre
-//   270_0 = left side
-//   0_45  = front elevated (45°)
+// Uses the browser's built-in HRTF dataset (panningModel:'HRTF') which correctly
+// computes different left-ear and right-ear signals for each virtual speaker
+// position, producing real ITD and ILD binaural cues the brain perceives as 3D.
 //
-// Subtle preset: front-centre IR — slight head externalisation, still natural
-// Full preset  : blended IR (front + L/R + rear mixed) — full concert-hall surround
+// Subtle (intensity 1): Wide stereo headstage — two front speakers at ±30°.
+//   Sounds like a large speaker pair in front, "outside your head".
+//
+// Full (intensity 2): 5.1 surround virtualisation — FL/FR + wide side + rear centre.
+//   Instruments appear at distinct positions around the listener.
+//
+// Chain:
+//   src → splitter → [gainL, gainR] → panners → merger → _hrtfGainNode → _gainNode
+//
+// Each stereo channel (L/R) feeds a set of PannerNodes at speaker positions.
+// The per-intensity speaker layout controls how immersive the effect sounds.
 
-const HRTF_BASE = 'https://raw.githubusercontent.com/VoidXH/HRTF/master/Aligned%20-%2064%20samples/';
-const HRTF_URLS = {
-  front: HRTF_BASE + '0_0.wav',
-  right: HRTF_BASE + '90_0.wav',
-  rear:  HRTF_BASE + '180_0.wav',
-  left:  HRTF_BASE + '270_0.wav',
-  high:  HRTF_BASE + '0_45.wav',
-};
+let _hrtfReady    = false;
+let _hrtfPromise  = null;
+let _hrtfGainNode = null;
+let _hrtfSplitter = null;
+let _hrtfMerger   = null;
+let _hrtfPanners  = [];     // all active PannerNodes for the current intensity
 
-let _hrtfCache    = {};   // url → AudioBuffer, cached for session
-let _convolverL   = null;
-let _convolverR   = null;
-let _splitter     = null;
-let _merger       = null;
-let _hrtfReady    = false;   // true once convolver chain is built and loaded
-let _hrtfPromise  = null;    // in-flight build promise — all callers share it
-let _hrtfGainNode = null;    // post-convolver gain to compensate IR energy loss
+// Virtual speaker layouts (azimuth degrees, 0=front, +right, −left; elevation=0)
+// Each entry: { az, el, chL, chR, gainL, gainR }
+//   chL/chR = which source channel feeds this speaker (0=left, 1=right)
+//   gainL/gainR = mix weight
+const HRTF_LAYOUT_SUBTLE = [
+  // Wide front stereo pair — externalises sound to ~30° off-centre each side
+  { az: -30, el: 0, ch: 0, g: 0.85 },   // front-left  (feeds L channel)
+  { az:  30, el: 0, ch: 1, g: 0.85 },   // front-right (feeds R channel)
+  // Cross-feed at low gain for naturalness (prevents mono collapse in centre)
+  { az: -30, el: 0, ch: 1, g: 0.15 },
+  { az:  30, el: 0, ch: 0, g: 0.15 },
+];
 
-// Measured compensation (OfflineAudioContext RMS benchmark, 440Hz sine, 0.5s):
-//   Subtle IR: −40 dB loss → ×100.6 linear compensation
-//   Full   IR: −55 dB loss → ×548.9 linear compensation
-const HRTF_GAIN_SUBTLE = 100.6;
-const HRTF_GAIN_FULL   = 548.9;
+const HRTF_LAYOUT_FULL = [
+  // Front left/right — main stereo image
+  { az: -30, el: 5, ch: 0, g: 0.6 },
+  { az:  30, el: 5, ch: 1, g: 0.6 },
+  // Wide sides — creates sense of space and envelopment
+  { az: -90, el: 0, ch: 0, g: 0.35 },
+  { az:  90, el: 0, ch: 1, g: 0.35 },
+  // Rear — depth and ambience from behind
+  { az:-130, el: 0, ch: 0, g: 0.18 },
+  { az: 130, el: 0, ch: 1, g: 0.18 },
+  // Cross-feed for cohesion
+  { az: -30, el: 5, ch: 1, g: 0.12 },
+  { az:  30, el: 5, ch: 0, g: 0.12 },
+];
 
-// Fetch and decode a single HRTF WAV file, with caching.
-async function _loadHrtfBuffer(url) {
-  if (_hrtfCache[url]) return _hrtfCache[url];
-  const resp = await fetch(url, { signal: AbortSignal.timeout(15000) });
-  if (!resp.ok) throw new Error('HRTF HTTP ' + resp.status);
-  const ab  = await resp.arrayBuffer();
-  const buf = await _audioCtx.decodeAudioData(ab);
-  _hrtfCache[url] = buf;
-  return buf;
+// Build a PannerNode at the given azimuth/elevation (degrees).
+function _makePanner(azDeg, elDeg) {
+  const p = _audioCtx.createPanner();
+  p.panningModel      = 'HRTF';
+  p.distanceModel     = 'inverse';
+  p.refDistance       = 1;
+  p.maxDistance       = 10000;
+  p.rolloffFactor     = 0;   // no distance attenuation — pure directional HRTF
+  p.coneInnerAngle    = 360;
+  p.coneOuterAngle    = 360;
+  p.coneOuterGain     = 0;
+  // Convert spherical (azimuth, elevation) → Cartesian for setPosition
+  const azRad = azDeg * Math.PI / 180;
+  const elRad = elDeg * Math.PI / 180;
+  const x = Math.sin(azRad) * Math.cos(elRad);
+  const y = Math.sin(elRad);
+  const z = -Math.cos(azRad) * Math.cos(elRad);  // negative Z = in front
+  p.setPosition(x, y, z);
+  return p;
 }
 
-// Blend two stereo AudioBuffers by summing with weights into a new AudioBuffer.
-function _blendBuffers(bufs, weights) {
-  if (!bufs.length) return null;
-  const len      = bufs[0].length;
-  const sr       = bufs[0].sampleRate;
-  const out      = _audioCtx.createBuffer(2, len, sr);
-  const outL     = out.getChannelData(0);
-  const outR     = out.getChannelData(1);
-  bufs.forEach((b, i) => {
-    const w  = weights[i] || 0;
-    const bL = b.getChannelData(0);
-    const bR = b.getChannelData(1);
-    for (let s = 0; s < len; s++) {
-      outL[s] += bL[s] * w;
-      outR[s] += bR[s] * w;
-    }
-  });
-  return out;
-}
-
-// Build a single ConvolverNode from an AudioBuffer.
-function _makeConvolver(buf) {
-  const cv  = _audioCtx.createConvolver();
-  cv.normalize = true;
-  cv.buffer    = buf;
-  return cv;
-}
-
-// Load HRTF IRs and build the convolver chain.
+// Build the PannerNode surround chain for the given intensity (1=Subtle, 2=Full).
 // Returns a shared Promise — concurrent callers all await the same in-flight load.
-// Chain: source → splitter → [convolverL, convolverR] → merger → gainNode
 function _buildHrtfChain() {
   if (_hrtfReady)   return Promise.resolve();
   if (_hrtfPromise) return _hrtfPromise;
@@ -1250,59 +1247,66 @@ function _buildHrtfChain() {
 
   _hrtfPromise = (async () => {
     try {
-      const [front, right, rear, left, high] = await Promise.all([
-        _loadHrtfBuffer(HRTF_URLS.front),
-        _loadHrtfBuffer(HRTF_URLS.right),
-        _loadHrtfBuffer(HRTF_URLS.rear),
-        _loadHrtfBuffer(HRTF_URLS.left),
-        _loadHrtfBuffer(HRTF_URLS.high),
-      ]);
+      const layout = spatialIntensity === 1 ? HRTF_LAYOUT_SUBTLE : HRTF_LAYOUT_FULL;
 
-      const subtleIR = _blendBuffers([front, right, left, high],         [0.6, 0.15, 0.15, 0.1]);
-      const fullIR   = _blendBuffers([front, right, rear, left, high],   [0.3, 0.25, 0.15, 0.25, 0.05]);
-
-      _audioCtx._hrtfSubtle = subtleIR;
-      _audioCtx._hrtfFull   = fullIR;
-
-      _splitter    = _audioCtx.createChannelSplitter(2);
-      _merger      = _audioCtx.createChannelMerger(2);
+      _hrtfSplitter = _audioCtx.createChannelSplitter(2);
+      _hrtfMerger   = _audioCtx.createChannelMerger(2);
       _hrtfGainNode = _audioCtx.createGain();
+      _hrtfGainNode.gain.value = 1.0;  // PannerNode HRTF doesn't have the −40 dB loss
 
-      const ir    = spatialIntensity === 1 ? subtleIR : fullIR;
-      _convolverL = _makeConvolver(ir);
-      _convolverR = _makeConvolver(ir);
+      // Build per-speaker gain nodes and panners
+      // ch=0 (L source) → left-side speakers → merger ch0 (left ear output)
+      // ch=1 (R source) → right-side speakers → merger ch1 (right ear output)
+      // Each panner produces a mono signal with HRTF filtering for its azimuth.
+      // Routing source-L to left-side panners and source-R to right-side panners
+      // creates genuine L/R ear difference — the brain perceives this as 3D space.
+      _hrtfPanners = layout.map(spk => {
+        const g  = _audioCtx.createGain();
+        g.gain.value = spk.g;
+        const p  = _makePanner(spk.az, spk.el);
+        _hrtfSplitter.connect(g, spk.ch);
+        g.connect(p);
+        // Route to the ear that matches the source channel:
+        //   ch=0 (L source) → merger output channel 0 (left ear)
+        //   ch=1 (R source) → merger output channel 1 (right ear)
+        p.connect(_hrtfMerger, 0, spk.ch);
+        return { g, p };
+      });
 
-      // Apply measured compensation so spatial output matches non-spatial volume
-      _hrtfGainNode.gain.value = spatialIntensity === 1 ? HRTF_GAIN_SUBTLE : HRTF_GAIN_FULL;
-
-      // Chain: merger → hrtfGainNode → masterGainNode → destination
-      _merger.connect(_hrtfGainNode);
+      _hrtfMerger.connect(_hrtfGainNode);
       _hrtfGainNode.connect(_gainNode);
 
       _hrtfReady = true;
-      Log.info('HRTF chain ready', { intensity: spatialIntensity, compensation: _hrtfGainNode.gain.value });
+      Log.info('HRTF PannerNode chain ready', { intensity: spatialIntensity, speakers: layout.length });
     } catch (e) {
-      _hrtfPromise = null;  // allow retry on next call
+      _hrtfPromise = null;
       Log.warn('HRTF build failed — using direct path', { err: e.message });
     }
   })();
   return _hrtfPromise;
 }
 
-// Switch convolver IR when intensity changes mid-session.
+// Rebuild the PannerNode chain when intensity changes mid-session.
 function _applyHrtfIntensity() {
-  if (!_hrtfReady || !_audioCtx) return;
-  const ir   = spatialIntensity === 1 ? _audioCtx._hrtfSubtle : _audioCtx._hrtfFull;
-  const gain = spatialIntensity === 1 ? HRTF_GAIN_SUBTLE      : HRTF_GAIN_FULL;
-  if (!ir) return;
-  if (_convolverL)   _convolverL.buffer      = ir;
-  if (_convolverR)   _convolverR.buffer      = ir;
-  if (_hrtfGainNode) _hrtfGainNode.gain.value = gain;
-  Log.info('HRTF intensity applied', { intensity: spatialIntensity, compensation: gain });
+  if (!_audioCtx) return;
+  // Tear down existing chain
+  _hrtfPanners.forEach(({ g, p }) => { try { g.disconnect(); p.disconnect(); } catch {} });
+  _hrtfPanners = [];
+  if (_hrtfSplitter) { try { _hrtfSplitter.disconnect(); } catch {} _hrtfSplitter = null; }
+  if (_hrtfMerger)   { try { _hrtfMerger.disconnect();   } catch {} _hrtfMerger   = null; }
+  // Keep _hrtfGainNode connected to _gainNode — just clear ready flag and rebuild
+  _hrtfReady   = false;
+  _hrtfPromise = null;
+  _buildHrtfChain().then(() => {
+    // Re-wire current source through the new chain
+    if (_spatialSrc && _spatialStarted && _spatialBuf) {
+      const pos = _spatialCurrentTime();
+      _startSpatialSrc(Math.min(pos, _spatialBuf.duration - 0.1));
+    }
+  });
 }
 
 // Kick off HRTF load as soon as AudioContext is created.
-// Returns a promise that resolves when the chain is ready (or failed).
 async function _ensureHrtfChain() {
   if (_hrtfReady) return true;
   if (!_audioCtx) return false;
@@ -1396,18 +1400,12 @@ function _spatialCurrentTime() {
   return Math.max(0, Math.min(t, _spatialBuf.duration));
 }
 
-// Connect src into the HRTF chain (if ready) or directly to gainNode.
-// Chain: src → splitter → [convolverL(ch0), convolverR(ch1)] → merger → gainNode
+// Connect src into the HRTF PannerNode chain (if ready) or directly to gainNode.
+// Chain: src → _hrtfSplitter → [gainNode → pannerNode] × N → _hrtfMerger → _hrtfGainNode → _gainNode
 function _connectSpatialChain(src) {
-  if (_hrtfReady && _convolverL && _convolverR && _splitter && _merger) {
-    src.connect(_splitter);
-    _splitter.connect(_convolverL, 0);
-    _splitter.connect(_convolverR, 1);
-    _convolverL.connect(_merger, 0, 0);
-    _convolverR.connect(_merger, 0, 1);
-    // _merger is already connected to _gainNode (done in _buildHrtfChain)
+  if (_hrtfReady && _hrtfSplitter) {
+    src.connect(_hrtfSplitter);
   } else {
-    // HRTF not yet loaded or failed — direct path, still plays audio cleanly
     src.connect(_gainNode);
   }
 }
