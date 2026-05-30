@@ -1,5 +1,5 @@
 'use strict';
-const CACHE = 'mbx-shell-v3.9.0';
+const CACHE = 'mbx-shell-v3.9.1';
 const SHELL = [
   '/',
   '/musicplayer/',
