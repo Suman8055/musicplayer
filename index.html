@@ -908,7 +908,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '3.9.4';
+const APP_VERSION = '3.9.5';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -1284,20 +1284,29 @@ function _buildResonanceScene(ctx) {
   pinnaPeak.Q.value         = 2.0;
   pinnaPeak.gain.value      = 2.5;
 
+  // Transient sharpener: +1.5 dB high-shelf at 12 kHz
+  // Restores attack edge (kick/snare transients) lost through HRTF processing.
+  // DTS-style clarity — each beat hits with its original crispness.
+  const transientShelf = ctx.createBiquadFilter();
+  transientShelf.type            = 'highshelf';
+  transientShelf.frequency.value = 12000;
+  transientShelf.gain.value      = 1.5;
+
   // Wet/dry mix — blend spatial + clean for clarity without room feel
   const wetGain = ctx.createGain(); wetGain.gain.value = wetRatio;
   const dryGain = ctx.createGain(); dryGain.gain.value = dryRatio;
 
   // Crossfeed on the final mix (fixes headphone boxing)
-  _xfeedNodes = _buildCrossfeed(ctx, isSubtle ? 0.28 : 0.22, 700);
+  _xfeedNodes = _buildCrossfeed(ctx, isSubtle ? 0.18 : 0.14, 200);
   _hrtfGainNode = ctx.createGain();
   _hrtfGainNode.gain.value = 1.0;
 
   // Dry path: bypass Resonance — preserve original stereo signal
-  // Wet path: Resonance → pinna EQ → wetGain
+  // Wet path: Resonance → pinna EQ → transient shelf → wetGain
   // Both paths → crossfeed → output
   scene.output.connect(pinnaPeak);
-  pinnaPeak.connect(wetGain);
+  pinnaPeak.connect(transientShelf);
+  transientShelf.connect(wetGain);
   wetGain.connect(_xfeedNodes.splitter);
   dryGain.connect(_xfeedNodes.splitter);   // dry also enters crossfeed for blending
   _xfeedNodes.merger.connect(_hrtfGainNode);
