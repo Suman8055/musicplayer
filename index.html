@@ -908,7 +908,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '3.9.3';
+const APP_VERSION = '3.9.4';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -1202,37 +1202,40 @@ let _resSrcR      = null;   // Resonance source — right channel
 let _resSplitter  = null;   // ChannelSplitter to separate L/R before Resonance
 let _xfeedNodes   = null;   // crossfeed network { splitter, merger, lpL, lpR, gL, gR }
 
-// Subtle: small studio — intimate, precise imaging
-const RES_ROOM_SUBTLE = {
-  dimensions: { width: 5, height: 2.8, depth: 6 },
+// Both modes use a near-anechoic room — highly absorptive surfaces kill the
+// reverb tail so Resonance contributes HRTF externalization only, not room color.
+// We want sound that feels "outside your head in open air", not "in a room".
+const RES_ROOM_ANECHOIC = {
+  dimensions: { width: 8, height: 3, depth: 10 },
   materials: {
-    left: 'wood-panel', right: 'wood-panel',
-    front: 'plaster-smooth', back: 'curtain-heavy',
-    down: 'parquet-on-concrete', up: 'acoustic-ceiling-tiles',
+    left:  'fiber-glass-insulation',
+    right: 'fiber-glass-insulation',
+    front: 'fiber-glass-insulation',
+    back:  'fiber-glass-insulation',
+    down:  'fiber-glass-insulation',
+    up:    'fiber-glass-insulation',
   },
-};
-// Subtle speaker positions: stereo pair at ±30°, 2m in front, slight elevation
-const RES_POS_SUBTLE = {
-  L: { x: -1.15, y: 0.1, z: -2.0 },
-  R: { x:  1.15, y: 0.1, z: -2.0 },
 };
 
-// Full: concert hall — large, immersive, enveloping
-const RES_ROOM_FULL = {
-  dimensions: { width: 18, height: 9, depth: 30 },
-  materials: {
-    left: 'brick-bare', right: 'brick-bare',
-    front: 'marble',    back: 'curtain-heavy',
-    down: 'parquet-on-concrete', up: 'wood-ceiling',
-  },
+// Subtle: tight stereo pair close in front — precise, intimate headstage
+const RES_POS_SUBTLE = {
+  L: { x: -0.9, y: 0.05, z: -1.8 },
+  R: { x:  0.9, y: 0.05, z: -1.8 },
 };
-// Full: 5.1 layout — FL/FR/C + wide surrounds
+
+// Full: wider spread + gentle surrounds for depth — immersive but still clean
 const RES_POS_FULL = {
-  L:  { x: -2.0, y: 0.0, z: -3.0 },   // front left
-  R:  { x:  2.0, y: 0.0, z: -3.0 },   // front right
-  SL: { x: -3.5, y: 0.0, z:  0.5 },   // surround left
-  SR: { x:  3.5, y: 0.0, z:  0.5 },   // surround right
+  L:  { x: -1.5, y: 0.0, z: -2.5 },
+  R:  { x:  1.5, y: 0.0, z: -2.5 },
+  SL: { x: -3.0, y: 0.0, z:  0.0 },
+  SR: { x:  3.0, y: 0.0, z:  0.0 },
 };
+
+// Wet/dry ratios: how much Resonance (spatial) vs dry (clean) signal to blend.
+// Higher wet = more immersion but also more room feel.
+// Lower wet = cleaner sound but less 3D effect.
+const RES_WET_SUBTLE = 0.55;   // 55% spatial, 45% dry
+const RES_WET_FULL   = 0.65;   // 65% spatial, 35% dry
 
 // Create the BS2B-style crossfeed network.
 // Blends a low-pass of each channel into the opposite ear at low level —
@@ -1260,66 +1263,81 @@ function _buildCrossfeed(ctx, feedGain, cutHz) {
 }
 
 // Build the Resonance Audio scene for the given intensity.
+// Uses a wet/dry mix: spatial (wet) blended with clean original (dry).
+// This gives the 3D positioning and externalization from Resonance without
+// the room coloring — the dry signal keeps the sound clean and clear.
 function _buildResonanceScene(ctx) {
   const isSubtle = spatialIntensity === 1;
-  const room     = isSubtle ? RES_ROOM_SUBTLE : RES_ROOM_FULL;
-  const pos      = isSubtle ? RES_POS_SUBTLE  : RES_POS_FULL;
+  const pos      = isSubtle ? RES_POS_SUBTLE : RES_POS_FULL;
+  const wetRatio = isSubtle ? RES_WET_SUBTLE : RES_WET_FULL;
+  const dryRatio = 1.0 - wetRatio;
 
   const scene = new ResonanceAudio(ctx, { ambisonicOrder: 3 });
-  scene.setRoomProperties(room.dimensions, room.materials);
+  scene.setRoomProperties(RES_ROOM_ANECHOIC.dimensions, RES_ROOM_ANECHOIC.materials);
 
-  // Pinna-notch elevation cue: +2.5 dB peak at 8.5 kHz
-  // This is the most impactful single EQ adjustment for externalization —
-  // it compensates for the generic HRTF's pinna notch mismatch that makes
-  // sounds feel "inside the head" rather than in front or above.
+  // Pinna-notch boost: +2.5 dB peak at 8.5 kHz
+  // Compensates for generic HRTF pinna mismatch — makes sound feel
+  // external/elevated rather than inside-head. Applied to wet path only.
   const pinnaPeak = ctx.createBiquadFilter();
   pinnaPeak.type            = 'peaking';
   pinnaPeak.frequency.value = 8500;
   pinnaPeak.Q.value         = 2.0;
   pinnaPeak.gain.value      = 2.5;
 
-  // Connect Resonance output → pinna EQ → crossfeed → hrtfGainNode
-  _xfeedNodes = _buildCrossfeed(ctx, isSubtle ? 0.3 : 0.25, isSubtle ? 700 : 650);
+  // Wet/dry mix — blend spatial + clean for clarity without room feel
+  const wetGain = ctx.createGain(); wetGain.gain.value = wetRatio;
+  const dryGain = ctx.createGain(); dryGain.gain.value = dryRatio;
+
+  // Crossfeed on the final mix (fixes headphone boxing)
+  _xfeedNodes = _buildCrossfeed(ctx, isSubtle ? 0.28 : 0.22, 700);
   _hrtfGainNode = ctx.createGain();
   _hrtfGainNode.gain.value = 1.0;
 
+  // Dry path: bypass Resonance — preserve original stereo signal
+  // Wet path: Resonance → pinna EQ → wetGain
+  // Both paths → crossfeed → output
   scene.output.connect(pinnaPeak);
-  pinnaPeak.connect(_xfeedNodes.splitter);
+  pinnaPeak.connect(wetGain);
+  wetGain.connect(_xfeedNodes.splitter);
+  dryGain.connect(_xfeedNodes.splitter);   // dry also enters crossfeed for blending
   _xfeedNodes.merger.connect(_hrtfGainNode);
   _hrtfGainNode.connect(_gainNode);
 
   // Splitter to separate L/R source channels
   _resSplitter = ctx.createChannelSplitter(2);
 
-  // Left channel source
+  // Dry tap — re-merge L/R to stereo before dry gain
+  const dryMerger = ctx.createChannelMerger(2);
+  _resSplitter.connect(dryMerger, 0, 0);
+  _resSplitter.connect(dryMerger, 1, 1);
+  dryMerger.connect(dryGain);
+
+  // Left channel → Resonance source L
   _resSrcL = scene.createSource({ rolloffFactor: 0 });
   _resSrcL.setPosition(pos.L.x, pos.L.y, pos.L.z);
-
-  // Route L channel: splitter ch0 → mono merger → Resonance source L
-  const monoL  = ctx.createChannelMerger(1);
+  const monoL = ctx.createChannelMerger(1);
   _resSplitter.connect(monoL, 0, 0);
   monoL.connect(_resSrcL.input);
 
-  // Right channel source
+  // Right channel → Resonance source R
   _resSrcR = scene.createSource({ rolloffFactor: 0 });
   _resSrcR.setPosition(pos.R.x, pos.R.y, pos.R.z);
-
-  const monoR  = ctx.createChannelMerger(1);
+  const monoR = ctx.createChannelMerger(1);
   _resSplitter.connect(monoR, 1, 0);
   monoR.connect(_resSrcR.input);
 
-  // Full mode: add surround sends — L feeds SL, R feeds SR (at lower gain)
+  // Full mode: surround sends at reduced gain for depth cues
   if (!isSubtle) {
     const srcSL = scene.createSource({ rolloffFactor: 0 });
     srcSL.setPosition(pos.SL.x, pos.SL.y, pos.SL.z);
-    const gSL = ctx.createGain(); gSL.gain.value = 0.4;
+    const gSL = ctx.createGain(); gSL.gain.value = 0.3;
     const monoSL = ctx.createChannelMerger(1);
     _resSplitter.connect(monoSL, 0, 0);
     monoSL.connect(gSL); gSL.connect(srcSL.input);
 
     const srcSR = scene.createSource({ rolloffFactor: 0 });
     srcSR.setPosition(pos.SR.x, pos.SR.y, pos.SR.z);
-    const gSR = ctx.createGain(); gSR.gain.value = 0.4;
+    const gSR = ctx.createGain(); gSR.gain.value = 0.3;
     const monoSR = ctx.createChannelMerger(1);
     _resSplitter.connect(monoSR, 1, 0);
     monoSR.connect(gSR); gSR.connect(srcSR.input);

@@ -1,5 +1,5 @@
 'use strict';
-const CACHE = 'mbx-shell-v3.9.3';
+const CACHE = 'mbx-shell-v3.9.4';
 // Derive base path from SW location so this works on any subdirectory (prod or staging)
 const BASE = self.location.pathname.replace(/\/sw\.js.*$/, '') || '';
 const SHELL = [
