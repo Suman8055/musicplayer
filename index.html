@@ -919,7 +919,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.4';
+const APP_VERSION = '4.1.5';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -1190,6 +1190,17 @@ function _ensureAudioCtx() {
       Log.warn('Web Audio routing unavailable (CORS)', { err: corsErr.message });
     }
     _rewireEq();
+    // Expose audio engine state on window for diagnostic/testing access
+    window._mbxAudio = () => ({
+      corsAvailable: _corsAvailable,
+      mediaSource:   _mediaSource,
+      gainNode:      _gainNode,
+      audioCtx:      _audioCtx,
+      eqNodes:       _eqNodes,
+      eqOn:          _eqOn,
+      eqGains:       _eqGains,
+      rewiring:      _rewiring,
+    });
     Log.info('AudioContext created');
     return true;
   } catch (e) {
