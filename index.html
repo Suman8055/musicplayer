@@ -907,7 +907,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '3.9.0-stage1';
+const APP_VERSION = '3.9.0-stage2';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -1164,11 +1164,137 @@ let _spatialStartAt  = 0;      // AudioContext time when source was started
 let _spatialOffset   = 0;      // seek offset at last start (seconds)
 let _spatialCtxFailed = false; // permanent failure — don't retry
 
-// Stage 2 convolver nodes (built in Stage 2):
-let _convolverL = null;
-let _convolverR = null;
-let _splitter   = null;
-let _merger     = null;
+// ── STAGE 2: HRTF ConvolverNode chain ────────────────────────────────────────
+//
+// HRTF dataset: VoidXH/HRTF — stereo 48kHz IEEE-Float WAVs, MIT-aligned.
+// Filename format: <azimuth>_<elevation>.wav  (counter-clockwise azimuth)
+//   0_0   = front centre
+//   90_0  = right side   (counter-clockwise from front)
+//   180_0 = rear centre
+//   270_0 = left side
+//   0_45  = front elevated (45°)
+//
+// Subtle preset: front-centre IR — slight head externalisation, still natural
+// Full preset  : blended IR (front + L/R + rear mixed) — full concert-hall surround
+
+const HRTF_BASE = 'https://raw.githubusercontent.com/VoidXH/HRTF/master/Aligned%20-%2064%20samples/';
+const HRTF_URLS = {
+  front: HRTF_BASE + '0_0.wav',
+  right: HRTF_BASE + '90_0.wav',
+  rear:  HRTF_BASE + '180_0.wav',
+  left:  HRTF_BASE + '270_0.wav',
+  high:  HRTF_BASE + '0_45.wav',
+};
+
+let _hrtfCache    = {};   // url → AudioBuffer, cached for session
+let _convolverL   = null;
+let _convolverR   = null;
+let _splitter     = null;
+let _merger       = null;
+let _hrtfReady    = false;   // true once convolver chain is built and loaded
+let _hrtfPromise  = null;    // in-flight build promise — all callers share it
+
+// Fetch and decode a single HRTF WAV file, with caching.
+async function _loadHrtfBuffer(url) {
+  if (_hrtfCache[url]) return _hrtfCache[url];
+  const resp = await fetch(url, { signal: AbortSignal.timeout(15000) });
+  if (!resp.ok) throw new Error('HRTF HTTP ' + resp.status);
+  const ab  = await resp.arrayBuffer();
+  const buf = await _audioCtx.decodeAudioData(ab);
+  _hrtfCache[url] = buf;
+  return buf;
+}
+
+// Blend two stereo AudioBuffers by summing with weights into a new AudioBuffer.
+function _blendBuffers(bufs, weights) {
+  if (!bufs.length) return null;
+  const len      = bufs[0].length;
+  const sr       = bufs[0].sampleRate;
+  const out      = _audioCtx.createBuffer(2, len, sr);
+  const outL     = out.getChannelData(0);
+  const outR     = out.getChannelData(1);
+  bufs.forEach((b, i) => {
+    const w  = weights[i] || 0;
+    const bL = b.getChannelData(0);
+    const bR = b.getChannelData(1);
+    for (let s = 0; s < len; s++) {
+      outL[s] += bL[s] * w;
+      outR[s] += bR[s] * w;
+    }
+  });
+  return out;
+}
+
+// Build a single ConvolverNode from an AudioBuffer.
+function _makeConvolver(buf) {
+  const cv  = _audioCtx.createConvolver();
+  cv.normalize = true;
+  cv.buffer    = buf;
+  return cv;
+}
+
+// Load HRTF IRs and build the convolver chain.
+// Returns a shared Promise — concurrent callers all await the same in-flight load.
+// Chain: source → splitter → [convolverL, convolverR] → merger → gainNode
+function _buildHrtfChain() {
+  if (_hrtfReady)   return Promise.resolve();
+  if (_hrtfPromise) return _hrtfPromise;
+  if (!_audioCtx)   return Promise.resolve();
+
+  _hrtfPromise = (async () => {
+    try {
+      const [front, right, rear, left, high] = await Promise.all([
+        _loadHrtfBuffer(HRTF_URLS.front),
+        _loadHrtfBuffer(HRTF_URLS.right),
+        _loadHrtfBuffer(HRTF_URLS.rear),
+        _loadHrtfBuffer(HRTF_URLS.left),
+        _loadHrtfBuffer(HRTF_URLS.high),
+      ]);
+
+      const subtleIR = _blendBuffers([front, right, left, high],         [0.6, 0.15, 0.15, 0.1]);
+      const fullIR   = _blendBuffers([front, right, rear, left, high],   [0.3, 0.25, 0.15, 0.25, 0.05]);
+
+      _audioCtx._hrtfSubtle = subtleIR;
+      _audioCtx._hrtfFull   = fullIR;
+
+      _splitter = _audioCtx.createChannelSplitter(2);
+      _merger   = _audioCtx.createChannelMerger(2);
+
+      const ir    = spatialIntensity === 1 ? subtleIR : fullIR;
+      _convolverL = _makeConvolver(ir);
+      _convolverR = _makeConvolver(ir);
+
+      _merger.connect(_gainNode);
+      _hrtfReady = true;
+      Log.info('HRTF chain ready', { intensity: spatialIntensity });
+    } catch (e) {
+      _hrtfPromise = null;  // allow retry on next call
+      Log.warn('HRTF build failed — using direct path', { err: e.message });
+    }
+  })();
+  return _hrtfPromise;
+}
+
+// Switch convolver IR when intensity changes mid-session.
+function _applyHrtfIntensity() {
+  if (!_hrtfReady || !_audioCtx) return;
+  const ir = spatialIntensity === 1
+    ? _audioCtx._hrtfSubtle
+    : _audioCtx._hrtfFull;
+  if (!ir) return;
+  if (_convolverL) _convolverL.buffer = ir;
+  if (_convolverR) _convolverR.buffer = ir;
+  Log.info('HRTF intensity applied', { intensity: spatialIntensity });
+}
+
+// Kick off HRTF load as soon as AudioContext is created.
+// Returns a promise that resolves when the chain is ready (or failed).
+async function _ensureHrtfChain() {
+  if (_hrtfReady) return true;
+  if (!_audioCtx) return false;
+  await _buildHrtfChain();
+  return _hrtfReady;
+}
 
 function _ensureAudioCtx() {
   if (_audioCtx) return true;
@@ -1179,6 +1305,8 @@ function _ensureAudioCtx() {
     _gainNode.gain.value = NORM_VOLUME;
     _gainNode.connect(_audioCtx.destination);
     Log.info('AudioContext created');
+    // Pre-load HRTF IRs in background so chain is ready when first song plays
+    _buildHrtfChain().catch(() => {});
     return true;
   } catch (e) {
     _spatialCtxFailed = true;
@@ -1252,17 +1380,18 @@ function _spatialCurrentTime() {
   return _spatialOffset + (_audioCtx.currentTime - _spatialStartAt);
 }
 
-// Default connection: source → gainNode. Stage 2 will override this.
+// Connect src into the HRTF chain (if ready) or directly to gainNode.
+// Chain: src → splitter → [convolverL(ch0), convolverR(ch1)] → merger → gainNode
 function _connectSpatialChain(src) {
-  if (_convolverL && _convolverR && _splitter && _merger) {
-    // Stage 2 chain: src → splitter → [convolverL, convolverR] → merger → gain
+  if (_hrtfReady && _convolverL && _convolverR && _splitter && _merger) {
     src.connect(_splitter);
     _splitter.connect(_convolverL, 0);
     _splitter.connect(_convolverR, 1);
     _convolverL.connect(_merger, 0, 0);
     _convolverR.connect(_merger, 0, 1);
-    _merger.connect(_gainNode);
+    // _merger is already connected to _gainNode (done in _buildHrtfChain)
   } else {
+    // HRTF not yet loaded or failed — direct path, still plays audio cleanly
     src.connect(_gainNode);
   }
 }
@@ -1710,6 +1839,7 @@ async function play(song, newQueue, idx) {
       if (spatialOn && _ensureAudioCtx()) {
         await _resumeAudioCtx();
         _gainNode.gain.value = NORM_VOLUME;
+        await _ensureHrtfChain();
         const buf = await _fetchAndDecode(offlineBlobUrl);
         if (nowSong?.id !== song.id) return;
         if (buf) {
@@ -1746,8 +1876,9 @@ async function play(song, newQueue, idx) {
       if (spatialOn && _ensureAudioCtx()) {
         await _resumeAudioCtx();
         _gainNode.gain.value = NORM_VOLUME;
-        // Fetch the stream bytes for the graph; also set audio.src for MediaSession
-        const [buf] = await Promise.all([
+        // Load HRTF chain + stream bytes in parallel (HRTF may already be cached)
+        const [, buf] = await Promise.all([
+          _ensureHrtfChain(),
           _fetchAndDecode(stream.url),
           (async () => { audio.src = stream.url; await audio.play().catch(() => {}); })(),
         ]);
@@ -2324,17 +2455,26 @@ function setSpatial(on, intensity) {
     if (_ensureAudioCtx()) {
       _resumeAudioCtx().then(async () => {
         _gainNode.gain.value = NORM_VOLUME;
+        // Ensure HRTF chain is loaded (may already be ready from background load)
+        await _ensureHrtfChain();
         const streamData = streamCache.get(nowSong.id);
         const url = streamData?.url || audio.src;
         if (!url) return;
         const buf = await _fetchAndDecode(url);
-        // Only apply if user is still on the same song
         if (!buf || nowSong === null) return;
         _spatialBuf = buf;
         audio.pause();
         audio.volume = 0;
         _startSpatialSrc(Math.min(currentPos, buf.duration - 0.1));
       });
+    }
+  } else if (spatialOn && wasOn && intensity !== undefined) {
+    // Intensity changed while spatial is already ON — swap IR
+    _applyHrtfIntensity();
+    // Restart src with new chain if playing
+    if (_spatialBuf && _spatialStarted) {
+      const pos = _spatialCurrentTime();
+      _startSpatialSrc(Math.min(pos, _spatialBuf.duration - 0.1));
     }
   } else if (!spatialOn && wasOn) {
     // Turning OFF: stop graph, resume <audio> from same position
