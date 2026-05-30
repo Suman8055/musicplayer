@@ -433,6 +433,7 @@ body::after{
 .sp-info-row-value.accent{color:var(--accent);font-weight:600;transition:var(--color-transition)}
 .sp-info-close{display:block;width:calc(100% - 40px);margin:14px 20px 0;padding:14px;text-align:center;background:hsla(var(--accent-h),var(--accent-s),var(--accent-l),.12);border:1px solid hsla(var(--accent-h),var(--accent-s),var(--accent-l),.25);border-radius:14px;color:var(--accent);font-size:16px;font-weight:600;font-family:inherit;cursor:pointer;transition:var(--color-transition)}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/resonance-audio/build/resonance-audio.min.js"></script>
 </head>
 <body>
 
@@ -907,7 +908,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '3.9.2';
+const APP_VERSION = '3.9.3';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -1164,81 +1165,187 @@ let _spatialStartAt  = 0;      // AudioContext time when source was started
 let _spatialOffset   = 0;      // seek offset at last start (seconds)
 let _spatialCtxFailed = false; // permanent failure — don't retry
 
-// ── STAGE 2: PannerNode HRTF surround virtualisation ─────────────────────────
+// ── STAGE 2: Resonance Audio spatial engine ──────────────────────────────────
 //
-// Uses the browser's built-in HRTF dataset (panningModel:'HRTF') which correctly
-// computes different left-ear and right-ear signals for each virtual speaker
-// position, producing real ITD and ILD binaural cues the brain perceives as 3D.
+// Uses Google's Resonance Audio library (Ambisonics-based binaural renderer).
+// Unlike the browser's built-in PannerNode which uses a single dry KEMAR HRTF,
+// Resonance Audio applies:
+//   • Higher-order Ambisonics HRTF decode (far better externalization)
+//   • Room acoustics simulation (early reflections + late reverb)
+//   • Distance modeling per virtual speaker
+// This is what eliminates the "in a box" / "in head" problem.
 //
-// Subtle (intensity 1): Wide stereo headstage — two front speakers at ±30°.
-//   Sounds like a large speaker pair in front, "outside your head".
+// On top of Resonance Audio we add:
+//   • Crossfeed (BS2B-style): fixes unnaturally wide headphone stereo
+//   • Pinna-notch boost at 8.5 kHz: adds elevation cue the brain uses to
+//     perceive sound as coming from outside and above, not inside the head
 //
-// Full (intensity 2): 5.1 surround virtualisation — FL/FR + wide side + rear centre.
-//   Instruments appear at distinct positions around the listener.
+// Subtle (intensity 1): virtual stereo speakers at ±30° in a small studio room.
+//   Clear, natural out-of-head headstage — like a near-field monitor setup.
+//
+// Full (intensity 2): 5.1 virtual speakers (FL/FR/C/SL/SR) in a concert hall.
+//   Full immersive wrap-around effect — instruments appear at distinct positions.
 //
 // Chain:
-//   src → splitter → [gainL, gainR] → panners → merger → _hrtfGainNode → _gainNode
-//
-// Each stereo channel (L/R) feeds a set of PannerNodes at speaker positions.
-// The per-intensity speaker layout controls how immersive the effect sounds.
+//   src → splitter → [pinnaCue EQ] → [Resonance sources (L+R)]
+//                                          ↓  (Resonance binaural render)
+//                                    [crossfeed network]
+//                                          ↓
+//                                    [_hrtfGainNode] → _gainNode → destination
 
 let _hrtfReady    = false;
 let _hrtfPromise  = null;
-let _hrtfGainNode = null;
-let _hrtfSplitter = null;
-let _hrtfMerger   = null;
-let _hrtfPanners  = [];     // all active PannerNodes for the current intensity
+let _hrtfGainNode = null;   // master output gain for this chain
+let _resonance    = null;   // ResonanceAudio scene
+let _resSrcL      = null;   // Resonance source — left channel
+let _resSrcR      = null;   // Resonance source — right channel
+let _resSplitter  = null;   // ChannelSplitter to separate L/R before Resonance
+let _xfeedNodes   = null;   // crossfeed network { splitter, merger, lpL, lpR, gL, gR }
 
-// Virtual speaker layouts (azimuth degrees, 0=front, +right, −left; elevation=0)
-// Each entry: { az, el, chL, chR, gainL, gainR }
-//   chL/chR = which source channel feeds this speaker (0=left, 1=right)
-//   gainL/gainR = mix weight
-const HRTF_LAYOUT_SUBTLE = [
-  // Wide front stereo pair — externalises sound to ~30° off-centre each side
-  { az: -30, el: 0, ch: 0, g: 0.85 },   // front-left  (feeds L channel)
-  { az:  30, el: 0, ch: 1, g: 0.85 },   // front-right (feeds R channel)
-  // Cross-feed at low gain for naturalness (prevents mono collapse in centre)
-  { az: -30, el: 0, ch: 1, g: 0.15 },
-  { az:  30, el: 0, ch: 0, g: 0.15 },
-];
+// Subtle: small studio — intimate, precise imaging
+const RES_ROOM_SUBTLE = {
+  dimensions: { width: 5, height: 2.8, depth: 6 },
+  materials: {
+    left: 'wood-panel', right: 'wood-panel',
+    front: 'plaster-smooth', back: 'curtain-heavy',
+    down: 'parquet-on-concrete', up: 'acoustic-ceiling-tiles',
+  },
+};
+// Subtle speaker positions: stereo pair at ±30°, 2m in front, slight elevation
+const RES_POS_SUBTLE = {
+  L: { x: -1.15, y: 0.1, z: -2.0 },
+  R: { x:  1.15, y: 0.1, z: -2.0 },
+};
 
-const HRTF_LAYOUT_FULL = [
-  // Front left/right — main stereo image
-  { az: -30, el: 5, ch: 0, g: 0.6 },
-  { az:  30, el: 5, ch: 1, g: 0.6 },
-  // Wide sides — creates sense of space and envelopment
-  { az: -90, el: 0, ch: 0, g: 0.35 },
-  { az:  90, el: 0, ch: 1, g: 0.35 },
-  // Rear — depth and ambience from behind
-  { az:-130, el: 0, ch: 0, g: 0.18 },
-  { az: 130, el: 0, ch: 1, g: 0.18 },
-  // Cross-feed for cohesion
-  { az: -30, el: 5, ch: 1, g: 0.12 },
-  { az:  30, el: 5, ch: 0, g: 0.12 },
-];
+// Full: concert hall — large, immersive, enveloping
+const RES_ROOM_FULL = {
+  dimensions: { width: 18, height: 9, depth: 30 },
+  materials: {
+    left: 'brick-bare', right: 'brick-bare',
+    front: 'marble',    back: 'curtain-heavy',
+    down: 'parquet-on-concrete', up: 'wood-ceiling',
+  },
+};
+// Full: 5.1 layout — FL/FR/C + wide surrounds
+const RES_POS_FULL = {
+  L:  { x: -2.0, y: 0.0, z: -3.0 },   // front left
+  R:  { x:  2.0, y: 0.0, z: -3.0 },   // front right
+  SL: { x: -3.5, y: 0.0, z:  0.5 },   // surround left
+  SR: { x:  3.5, y: 0.0, z:  0.5 },   // surround right
+};
 
-// Build a PannerNode at the given azimuth/elevation (degrees).
-function _makePanner(azDeg, elDeg) {
-  const p = _audioCtx.createPanner();
-  p.panningModel      = 'HRTF';
-  p.distanceModel     = 'inverse';
-  p.refDistance       = 1;
-  p.maxDistance       = 10000;
-  p.rolloffFactor     = 0;   // no distance attenuation — pure directional HRTF
-  p.coneInnerAngle    = 360;
-  p.coneOuterAngle    = 360;
-  p.coneOuterGain     = 0;
-  // Convert spherical (azimuth, elevation) → Cartesian for setPosition
-  const azRad = azDeg * Math.PI / 180;
-  const elRad = elDeg * Math.PI / 180;
-  const x = Math.sin(azRad) * Math.cos(elRad);
-  const y = Math.sin(elRad);
-  const z = -Math.cos(azRad) * Math.cos(elRad);  // negative Z = in front
-  p.setPosition(x, y, z);
-  return p;
+// Create the BS2B-style crossfeed network.
+// Blends a low-pass of each channel into the opposite ear at low level —
+// simulates natural loudspeaker crosstalk that makes headphone stereo feel real.
+function _buildCrossfeed(ctx, feedGain, cutHz) {
+  const splitter = ctx.createChannelSplitter(2);
+  const merger   = ctx.createChannelMerger(2);
+
+  // Direct path (main signal)
+  splitter.connect(merger, 0, 0);
+  splitter.connect(merger, 1, 1);
+
+  // Cross-channel low-pass bleed: R→L and L→R
+  const lpL = ctx.createBiquadFilter();
+  lpL.type = 'lowpass'; lpL.frequency.value = cutHz; lpL.Q.value = 0.707;
+  const lpR = ctx.createBiquadFilter();
+  lpR.type = 'lowpass'; lpR.frequency.value = cutHz; lpR.Q.value = 0.707;
+  const gL = ctx.createGain(); gL.gain.value = feedGain;
+  const gR = ctx.createGain(); gR.gain.value = feedGain;
+
+  splitter.connect(lpR, 1); lpR.connect(gR); gR.connect(merger, 0, 0);  // R bleed → L
+  splitter.connect(lpL, 0); lpL.connect(gL); gL.connect(merger, 0, 1);  // L bleed → R
+
+  return { splitter, merger, lpL, lpR, gL, gR };
 }
 
-// Build the PannerNode surround chain for the given intensity (1=Subtle, 2=Full).
+// Build the Resonance Audio scene for the given intensity.
+function _buildResonanceScene(ctx) {
+  const isSubtle = spatialIntensity === 1;
+  const room     = isSubtle ? RES_ROOM_SUBTLE : RES_ROOM_FULL;
+  const pos      = isSubtle ? RES_POS_SUBTLE  : RES_POS_FULL;
+
+  const scene = new ResonanceAudio(ctx, { ambisonicOrder: 3 });
+  scene.setRoomProperties(room.dimensions, room.materials);
+
+  // Pinna-notch elevation cue: +2.5 dB peak at 8.5 kHz
+  // This is the most impactful single EQ adjustment for externalization —
+  // it compensates for the generic HRTF's pinna notch mismatch that makes
+  // sounds feel "inside the head" rather than in front or above.
+  const pinnaPeak = ctx.createBiquadFilter();
+  pinnaPeak.type            = 'peaking';
+  pinnaPeak.frequency.value = 8500;
+  pinnaPeak.Q.value         = 2.0;
+  pinnaPeak.gain.value      = 2.5;
+
+  // Connect Resonance output → pinna EQ → crossfeed → hrtfGainNode
+  _xfeedNodes = _buildCrossfeed(ctx, isSubtle ? 0.3 : 0.25, isSubtle ? 700 : 650);
+  _hrtfGainNode = ctx.createGain();
+  _hrtfGainNode.gain.value = 1.0;
+
+  scene.output.connect(pinnaPeak);
+  pinnaPeak.connect(_xfeedNodes.splitter);
+  _xfeedNodes.merger.connect(_hrtfGainNode);
+  _hrtfGainNode.connect(_gainNode);
+
+  // Splitter to separate L/R source channels
+  _resSplitter = ctx.createChannelSplitter(2);
+
+  // Left channel source
+  _resSrcL = scene.createSource({ rolloffFactor: 0 });
+  _resSrcL.setPosition(pos.L.x, pos.L.y, pos.L.z);
+
+  // Route L channel: splitter ch0 → mono merger → Resonance source L
+  const monoL  = ctx.createChannelMerger(1);
+  _resSplitter.connect(monoL, 0, 0);
+  monoL.connect(_resSrcL.input);
+
+  // Right channel source
+  _resSrcR = scene.createSource({ rolloffFactor: 0 });
+  _resSrcR.setPosition(pos.R.x, pos.R.y, pos.R.z);
+
+  const monoR  = ctx.createChannelMerger(1);
+  _resSplitter.connect(monoR, 1, 0);
+  monoR.connect(_resSrcR.input);
+
+  // Full mode: add surround sends — L feeds SL, R feeds SR (at lower gain)
+  if (!isSubtle) {
+    const srcSL = scene.createSource({ rolloffFactor: 0 });
+    srcSL.setPosition(pos.SL.x, pos.SL.y, pos.SL.z);
+    const gSL = ctx.createGain(); gSL.gain.value = 0.4;
+    const monoSL = ctx.createChannelMerger(1);
+    _resSplitter.connect(monoSL, 0, 0);
+    monoSL.connect(gSL); gSL.connect(srcSL.input);
+
+    const srcSR = scene.createSource({ rolloffFactor: 0 });
+    srcSR.setPosition(pos.SR.x, pos.SR.y, pos.SR.z);
+    const gSR = ctx.createGain(); gSR.gain.value = 0.4;
+    const monoSR = ctx.createChannelMerger(1);
+    _resSplitter.connect(monoSR, 1, 0);
+    monoSR.connect(gSR); gSR.connect(srcSR.input);
+  }
+
+  return scene;
+}
+
+// Tear down existing Resonance scene and supporting nodes.
+function _teardownResonance() {
+  if (_xfeedNodes) {
+    ['lpL','lpR','gL','gR','splitter','merger'].forEach(k => {
+      try { _xfeedNodes[k].disconnect(); } catch {}
+    });
+    _xfeedNodes = null;
+  }
+  if (_hrtfGainNode) { try { _hrtfGainNode.disconnect(); } catch {} _hrtfGainNode = null; }
+  if (_resSplitter)  { try { _resSplitter.disconnect();  } catch {} _resSplitter  = null; }
+  _resSrcL = null; _resSrcR = null;
+  if (_resonance) {
+    try { _resonance.output.disconnect(); } catch {}
+    _resonance = null;
+  }
+}
+
+// Load Resonance Audio and build the full spatial chain.
 // Returns a shared Promise — concurrent callers all await the same in-flight load.
 function _buildHrtfChain() {
   if (_hrtfReady)   return Promise.resolve();
@@ -1247,58 +1354,27 @@ function _buildHrtfChain() {
 
   _hrtfPromise = (async () => {
     try {
-      const layout = spatialIntensity === 1 ? HRTF_LAYOUT_SUBTLE : HRTF_LAYOUT_FULL;
-
-      _hrtfSplitter = _audioCtx.createChannelSplitter(2);
-      _hrtfMerger   = _audioCtx.createChannelMerger(2);
-      _hrtfGainNode = _audioCtx.createGain();
-      _hrtfGainNode.gain.value = 1.0;  // PannerNode HRTF doesn't have the −40 dB loss
-
-      // Build per-speaker gain nodes and panners
-      // ch=0 (L source) → left-side speakers → merger ch0 (left ear output)
-      // ch=1 (R source) → right-side speakers → merger ch1 (right ear output)
-      // Each panner produces a mono signal with HRTF filtering for its azimuth.
-      // Routing source-L to left-side panners and source-R to right-side panners
-      // creates genuine L/R ear difference — the brain perceives this as 3D space.
-      _hrtfPanners = layout.map(spk => {
-        const g  = _audioCtx.createGain();
-        g.gain.value = spk.g;
-        const p  = _makePanner(spk.az, spk.el);
-        _hrtfSplitter.connect(g, spk.ch);
-        g.connect(p);
-        // Route to the ear that matches the source channel:
-        //   ch=0 (L source) → merger output channel 0 (left ear)
-        //   ch=1 (R source) → merger output channel 1 (right ear)
-        p.connect(_hrtfMerger, 0, spk.ch);
-        return { g, p };
-      });
-
-      _hrtfMerger.connect(_hrtfGainNode);
-      _hrtfGainNode.connect(_gainNode);
-
+      if (typeof ResonanceAudio === 'undefined') {
+        throw new Error('ResonanceAudio library not loaded');
+      }
+      _resonance = _buildResonanceScene(_audioCtx);
       _hrtfReady = true;
-      Log.info('HRTF PannerNode chain ready', { intensity: spatialIntensity, speakers: layout.length });
+      Log.info('Resonance Audio chain ready', { intensity: spatialIntensity });
     } catch (e) {
       _hrtfPromise = null;
-      Log.warn('HRTF build failed — using direct path', { err: e.message });
+      Log.warn('Resonance Audio init failed — using direct path', { err: e.message });
     }
   })();
   return _hrtfPromise;
 }
 
-// Rebuild the PannerNode chain when intensity changes mid-session.
+// Rebuild the Resonance scene when intensity changes mid-session.
 function _applyHrtfIntensity() {
   if (!_audioCtx) return;
-  // Tear down existing chain
-  _hrtfPanners.forEach(({ g, p }) => { try { g.disconnect(); p.disconnect(); } catch {} });
-  _hrtfPanners = [];
-  if (_hrtfSplitter) { try { _hrtfSplitter.disconnect(); } catch {} _hrtfSplitter = null; }
-  if (_hrtfMerger)   { try { _hrtfMerger.disconnect();   } catch {} _hrtfMerger   = null; }
-  // Keep _hrtfGainNode connected to _gainNode — just clear ready flag and rebuild
+  _teardownResonance();
   _hrtfReady   = false;
   _hrtfPromise = null;
   _buildHrtfChain().then(() => {
-    // Re-wire current source through the new chain
     if (_spatialSrc && _spatialStarted && _spatialBuf) {
       const pos = _spatialCurrentTime();
       _startSpatialSrc(Math.min(pos, _spatialBuf.duration - 0.1));
@@ -1306,7 +1382,7 @@ function _applyHrtfIntensity() {
   });
 }
 
-// Kick off HRTF load as soon as AudioContext is created.
+// Kick off chain load as soon as AudioContext is created.
 async function _ensureHrtfChain() {
   if (_hrtfReady) return true;
   if (!_audioCtx) return false;
@@ -1400,11 +1476,11 @@ function _spatialCurrentTime() {
   return Math.max(0, Math.min(t, _spatialBuf.duration));
 }
 
-// Connect src into the HRTF PannerNode chain (if ready) or directly to gainNode.
-// Chain: src → _hrtfSplitter → [gainNode → pannerNode] × N → _hrtfMerger → _hrtfGainNode → _gainNode
+// Connect src into the Resonance Audio chain (if ready) or directly to gainNode.
+// Chain: src → _resSplitter → [Resonance sources] → room render → crossfeed → _gainNode
 function _connectSpatialChain(src) {
-  if (_hrtfReady && _hrtfSplitter) {
-    src.connect(_hrtfSplitter);
+  if (_hrtfReady && _resSplitter) {
+    src.connect(_resSplitter);
   } else {
     src.connect(_gainNode);
   }
