@@ -907,7 +907,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '3.8.2';
+const APP_VERSION = '3.9.0-stage1';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -1140,39 +1140,49 @@ const audioPreload = document.getElementById('audio-preload');
 // (GainNode.gain.value works on iOS, unlike audio.volume which iOS hardware ignores).
 const NORM_VOLUME = 0.794; // 10^(−2/20) = −2 dB
 
-// ── WEB AUDIO GRAPH (Stage 1 — foundation for Spatial Audio) ──────────────────
-// AudioContext created lazily on first user-triggered play (iOS requires user gesture).
-// sampleRate: 48000 matches device hardware rate — prevents 44.1→48 kHz resampling
-// that caused distortion in the earlier Web Audio experiment (v2.9.1).
-// Graph: <audio> → MediaElementSourceNode → [spatial chain] → GainNode → destination
-let _audioCtx       = null;  // AudioContext singleton — created once per session
-let _audioSrc       = null;  // MediaElementSourceNode — one per <audio> element lifetime
-let _gainNode       = null;  // Master GainNode — replaces audio.volume for normalisation
-let _audioGraphFailed = false; // prevents repeated init attempts after a permanent failure
+// ── SPATIAL AUDIO ENGINE — Stage 1: Graph Foundation ─────────────────────────
+//
+// Architecture (avoids createMediaElementSource CORS tainting):
+//   stream URL → fetch() → ArrayBuffer → decodeAudioData() → AudioBufferSourceNode
+//               → [spatial chain — Stage 2] → GainNode → AudioContext.destination
+//
+// The <audio> element is kept as the CarPlay/AirPlay path and fallback:
+//   • spatial OFF  : <audio> plays normally, graph not used
+//   • spatial ON   : <audio> is muted + paused; graph drives output
+//   • CarPlay/AirPlay detected : spatial forced OFF, <audio> restored
+//
+// AudioContext is created lazily on first user gesture (iOS requirement).
 
-// Spatial Audio nodes (wired in Stage 2):
-let _splitter  = null;
-let _pannerL   = null;
-let _pannerR   = null;
-let _mergeNode = null;
+const AC = window.AudioContext || window.webkitAudioContext || null;
 
-function _ensureAudioGraph() {
-  if (_audioSrc) return true;
-  if (_audioGraphFailed) return false;
-  if (!window.AudioContext && !window.webkitAudioContext) return false;
+let _audioCtx        = null;   // AudioContext singleton
+let _gainNode        = null;   // master GainNode (normalisation)
+let _spatialSrc      = null;   // current AudioBufferSourceNode (replaced on each play)
+let _spatialBuf      = null;   // decoded AudioBuffer for current song
+let _spatialStarted  = false;  // true while _spatialSrc is playing
+let _spatialStartAt  = 0;      // AudioContext time when source was started
+let _spatialOffset   = 0;      // seek offset at last start (seconds)
+let _spatialCtxFailed = false; // permanent failure — don't retry
+
+// Stage 2 convolver nodes (built in Stage 2):
+let _convolverL = null;
+let _convolverR = null;
+let _splitter   = null;
+let _merger     = null;
+
+function _ensureAudioCtx() {
+  if (_audioCtx) return true;
+  if (_spatialCtxFailed || !AC) return false;
   try {
-    const AC = window.AudioContext || window.webkitAudioContext;
     _audioCtx = new AC({ sampleRate: 48000 });
-    _audioSrc = _audioCtx.createMediaElementSource(audio);
     _gainNode = _audioCtx.createGain();
     _gainNode.gain.value = NORM_VOLUME;
     _gainNode.connect(_audioCtx.destination);
-    _audioSrc.connect(_gainNode); // initial direct path — caller will call _applySpatialRouting() to rewire
-    Log.info('Web Audio graph initialised');
+    Log.info('AudioContext created');
     return true;
   } catch (e) {
-    _audioGraphFailed = true;
-    Log.warn('Web Audio graph failed permanently', { err: e.message });
+    _spatialCtxFailed = true;
+    Log.warn('AudioContext failed', { err: e.message });
     return false;
   }
 }
@@ -1183,10 +1193,109 @@ async function _resumeAudioCtx() {
   }
 }
 
-// Resume playback after screen lock / app foreground
+// Fetch stream URL as ArrayBuffer and decode into AudioBuffer.
+// Returns null on any failure (caller falls back to <audio> path).
+async function _fetchAndDecode(url) {
+  if (!_ensureAudioCtx()) return null;
+  try {
+    const resp = await fetch(url, { signal: AbortSignal.timeout(20000) });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const ab = await resp.arrayBuffer();
+    const buf = await _audioCtx.decodeAudioData(ab);
+    Log.info('Spatial buffer decoded', { duration: buf.duration.toFixed(1) + 's' });
+    return buf;
+  } catch (e) {
+    Log.warn('Spatial decode failed, falling back to <audio>', { err: e.message });
+    return null;
+  }
+}
+
+// Stop and discard the current AudioBufferSourceNode.
+function _stopSpatialSrc() {
+  if (_spatialSrc) {
+    try { _spatialSrc.stop(); } catch {}
+    try { _spatialSrc.disconnect(); } catch {}
+    _spatialSrc = null;
+  }
+  _spatialStarted = false;
+}
+
+// Build and start an AudioBufferSourceNode from _spatialBuf at offsetSec.
+// Connects: source → [spatial chain if wired] → _gainNode → destination.
+function _startSpatialSrc(offsetSec) {
+  if (!_audioCtx || !_spatialBuf) return;
+  _stopSpatialSrc();
+  const src = _audioCtx.createBufferSource();
+  src.buffer = _spatialBuf;
+  // Connect through spatial chain (Stage 2) if available, else direct to gain
+  _connectSpatialChain(src);
+  _spatialSrc = src;
+  _spatialOffset = offsetSec;
+  _spatialStartAt = _audioCtx.currentTime;
+  src.start(0, offsetSec);
+  _spatialStarted = true;
+  // Kick off the seek bar rAF loop (defined later in the file, safe to call by name)
+  if (typeof _startSeekLoop === 'function') _startSeekLoop();
+  src.onended = () => {
+    if (src === _spatialSrc) {
+      _spatialStarted = false;
+      // Drive intel + next() just like audio.ended does in non-spatial mode
+      _intelNaturalEnd = true;
+      next();
+    }
+  };
+}
+
+// Returns the current playback position within the spatial buffer (seconds).
+function _spatialCurrentTime() {
+  if (!_audioCtx || !_spatialStarted) return 0;
+  return _spatialOffset + (_audioCtx.currentTime - _spatialStartAt);
+}
+
+// Default connection: source → gainNode. Stage 2 will override this.
+function _connectSpatialChain(src) {
+  if (_convolverL && _convolverR && _splitter && _merger) {
+    // Stage 2 chain: src → splitter → [convolverL, convolverR] → merger → gain
+    src.connect(_splitter);
+    _splitter.connect(_convolverL, 0);
+    _splitter.connect(_convolverR, 1);
+    _convolverL.connect(_merger, 0, 0);
+    _convolverR.connect(_merger, 0, 1);
+    _merger.connect(_gainNode);
+  } else {
+    src.connect(_gainNode);
+  }
+}
+
+// Mute/unmute <audio> element based on spatial state.
+// On iOS audio.volume is ignored by hardware, so we also pause it.
+function _syncAudioElement() {
+  if (spatialOn && _spatialStarted) {
+    audio.volume = 0;
+  } else {
+    audio.volume = NORM_VOLUME;
+  }
+}
+
+// CarPlay / AirPlay detection — force spatial OFF when wireless output is active.
+audio.addEventListener('webkitcurrentplaybacktargetiswirelesschanged', () => {
+  if (audio.webkitCurrentPlaybackTargetIsWireless && spatialOn) {
+    setSpatial(false);
+    toast('Spatial off — CarPlay / AirPlay active');
+  }
+});
+
+// Resume after screen lock
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden && !userPaused && audio.paused && nowSong) {
-    _resumeAudioCtx().then(() => audio.play().catch(() => {}));
+  if (!document.hidden && !userPaused && nowSong) {
+    if (spatialOn && _spatialBuf && !_spatialStarted) {
+      _resumeAudioCtx().then(() => {
+        _startSpatialSrc(audio.currentTime);
+        _syncAudioElement();
+      });
+    } else if (!spatialOn && audio.paused) {
+      audio.play().catch(() => {});
+    }
   }
 });
 
@@ -1565,6 +1674,9 @@ function cacheSongs(arr) { arr.forEach(cacheSong); }
 // ── PLAYER ─────────────────────────────────────────────────────────────────────
 async function play(song, newQueue, idx) {
   audioPreload.src = '';  // cancel any in-progress preload
+  _stopSpatialSrc();      // tear down any running spatial source
+  _spatialBuf = null;
+
   if (newQueue !== undefined) {
     queue = newQueue;
     qIdx  = idx;
@@ -1574,21 +1686,18 @@ async function play(song, newQueue, idx) {
   nowSong = song;
   cacheSong(song);
 
-  // Clear smart queue badge and why chip when a new song is explicitly started
   if (!smartQueueActive) {
     refreshSmartQueueBadge();
     setWhyChip(null);
   }
 
-  // Show immediately in UI
   refreshMini();
   refreshNP();
 
-  // Fetch stream URL (offline first, then network)
   loadingUrl = true;
   setNPLoading(true);
   try {
-    // Check IndexedDB for offline blob
+    // ── Offline blob path ────────────────────────────────────────────────────
     const offline = await idbGet(song.id);
     if (offline?.blob) {
       if (nowSong?.id !== song.id) return;
@@ -1597,31 +1706,74 @@ async function play(song, newQueue, idx) {
       refreshMini(); refreshNP();
       if (offlineBlobUrl) { URL.revokeObjectURL(offlineBlobUrl); offlineBlobUrl = null; }
       offlineBlobUrl = URL.createObjectURL(offline.blob);
-      if (_ensureAudioGraph()) _applySpatialRouting();
-      await _resumeAudioCtx();
-      if (_gainNode) _gainNode.gain.value = NORM_VOLUME; else audio.volume = NORM_VOLUME;
-      audio.src      = offlineBlobUrl;
-      await audio.play().catch(() => toast('Tap play to start'));
+
+      if (spatialOn && _ensureAudioCtx()) {
+        await _resumeAudioCtx();
+        _gainNode.gain.value = NORM_VOLUME;
+        const buf = await _fetchAndDecode(offlineBlobUrl);
+        if (nowSong?.id !== song.id) return;
+        if (buf) {
+          _spatialBuf = buf;
+          // Set audio.src so MediaSession / duration still works, but mute it
+          audio.src = offlineBlobUrl;
+          await audio.play().catch(() => {});
+          audio.volume = 0;
+          _startSpatialSrc(0);
+          Log.info('Spatial playback (offline)', { name: song.name });
+        } else {
+          // Spatial decode failed — fall through to normal path
+          audio.volume = NORM_VOLUME;
+          audio.src = offlineBlobUrl;
+          await audio.play().catch(() => toast('Tap play to start'));
+        }
+      } else {
+        audio.volume = NORM_VOLUME;
+        audio.src = offlineBlobUrl;
+        await audio.play().catch(() => toast('Tap play to start'));
+      }
       if (nowSong?.id !== song.id) return;
       playing = true;
       Log.info('Playback (offline)', { name: song.name });
+
     } else {
-    const stream = await apiStream(song.id);
-    if (nowSong?.id !== song.id) return; // song changed while fetching
-    if (stream.image) nowSong.image = stream.image;
-    if (stream.quality) nowSong.quality = stream.quality;
-    refreshMini(); refreshNP();
-    if (_ensureAudioGraph()) _applySpatialRouting();
-    await _resumeAudioCtx();
-    if (_gainNode) _gainNode.gain.value = NORM_VOLUME; else audio.volume = NORM_VOLUME;
-    audio.src = stream.url;
-    await audio.play().catch(() => toast('Tap play to start'));
-    if (nowSong?.id !== song.id) return;
-    playing = true;
-    _intelPlayStartTs = Date.now();
-    Log.info('Playback started', { name: song.name, artist: song.artist });
+      // ── Network stream path ────────────────────────────────────────────────
+      const stream = await apiStream(song.id);
+      if (nowSong?.id !== song.id) return;
+      if (stream.image)   nowSong.image   = stream.image;
+      if (stream.quality) nowSong.quality = stream.quality;
+      refreshMini(); refreshNP();
+
+      if (spatialOn && _ensureAudioCtx()) {
+        await _resumeAudioCtx();
+        _gainNode.gain.value = NORM_VOLUME;
+        // Fetch the stream bytes for the graph; also set audio.src for MediaSession
+        const [buf] = await Promise.all([
+          _fetchAndDecode(stream.url),
+          (async () => { audio.src = stream.url; await audio.play().catch(() => {}); })(),
+        ]);
+        if (nowSong?.id !== song.id) return;
+        if (buf) {
+          _spatialBuf = buf;
+          audio.volume = 0;          // mute <audio>, graph handles output
+          audio.pause();             // stop <audio> decode thread
+          _startSpatialSrc(0);
+          Log.info('Spatial playback started', { name: song.name, artist: song.artist });
+        } else {
+          // Spatial decode failed — <audio> already playing from parallel load above
+          audio.volume = NORM_VOLUME;
+          Log.info('Playback started (spatial decode failed)', { name: song.name });
+        }
+      } else {
+        audio.volume = NORM_VOLUME;
+        audio.src = stream.url;
+        await audio.play().catch(() => toast('Tap play to start'));
+        Log.info('Playback started', { name: song.name, artist: song.artist });
+      }
+      if (nowSong?.id !== song.id) return;
+      playing = true;
+      _intelPlayStartTs = Date.now();
     }
-    setTimeout(preloadNext, 1500); // delay so current fetch wins bandwidth
+    setTimeout(preloadNext, 1500);
   } catch (e) {
     toast('Stream unavailable — try another song');
     playing = false;
@@ -1643,12 +1795,27 @@ async function togglePlay() {
   if (!nowSong || loadingUrl) return;
   if (playing) {
     userPaused = true;
+    if (spatialOn && _spatialStarted) {
+      _stopSpatialSrc();
+    }
     audio.pause();
   } else {
     userPaused = false;
-    if (audio.ended) audio.currentTime = 0;
     await _resumeAudioCtx();
-    audio.play().catch(() => {});
+    if (spatialOn && _spatialBuf) {
+      const offset = _spatialCurrentTime();
+      // If buffer exhausted, replay from start
+      const resumeAt = offset >= _spatialBuf.duration ? 0 : offset;
+      _startSpatialSrc(resumeAt);
+      // <audio> resumes just for MediaSession position sync
+      audio.currentTime = resumeAt;
+      audio.play().catch(() => {});
+      audio.volume = 0;
+    } else {
+      if (audio.ended) audio.currentTime = 0;
+      audio.volume = NORM_VOLUME;
+      audio.play().catch(() => {});
+    }
   }
 }
 
@@ -1669,7 +1836,10 @@ function prev() {
 function next() {
   // Track play completion before advancing
   if (nowSong) {
-    const ratio = _intelNaturalEnd ? 1.0 : (audio.duration > 0 ? audio.currentTime / audio.duration : 0);
+    // Use spatial position when graph is active, else <audio> position
+    const currentPos  = (spatialOn && _spatialBuf) ? _spatialCurrentTime() : audio.currentTime;
+    const totalDur    = (spatialOn && _spatialBuf) ? _spatialBuf.duration   : audio.duration;
+    const ratio = _intelNaturalEnd ? 1.0 : (totalDur > 0 ? currentPos / totalDur : 0);
     const isFast = !_intelNaturalEnd && _intelPlayStartTs > 0 && (Date.now() - _intelPlayStartTs) < 5000;
     intelTrackPlay(nowSong, ratio, isFast);
 
@@ -1695,7 +1865,11 @@ function next() {
   _intelNaturalEnd = false;
 
   if (loadingUrl) { _pendingNext = true; return; }
-  if (repeatMode === 2) { audio.currentTime = 0; audio.play(); return; }
+  if (repeatMode === 2) {
+    if (spatialOn && _spatialBuf) { _startSpatialSrc(0); audio.currentTime = 0; }
+    else { audio.currentTime = 0; audio.play(); }
+    return;
+  }
   let ni;
   if (shuffleOn) {
     const nextPos = shufflePos + 1;
@@ -1789,7 +1963,11 @@ audio.addEventListener('stalled', () => {
     }, stallWait);
   }
 });
-audio.addEventListener('ended', () => { _intelNaturalEnd = true; next(); });
+audio.addEventListener('ended', () => {
+  // Only let <audio>.ended drive next() when spatial is NOT active.
+  // When spatial is on, _startSpatialSrc().onended fires instead.
+  if (!spatialOn || !_spatialBuf) { _intelNaturalEnd = true; next(); }
+});
 audio.addEventListener('error', () => {
   if (!loadingUrl) {
     const MEDIA_ERR = { 1:'ABORTED', 2:'NETWORK', 3:'DECODE', 4:'SRC_NOT_SUPPORTED' };
@@ -1814,38 +1992,60 @@ if (navigator.connection) {
 }
 
 let _posStateTs = 0;
-audio.addEventListener('timeupdate', () => {
-  if (seeking || !audio.duration) return;
-  const pct = audio.currentTime / audio.duration;
-  const el = document.getElementById('np-seek');
-  el.value = Math.round(pct * 1000);
+// Seek bar + time display — spatial-aware.
+// When spatial is active the graph drives playback; we poll _spatialCurrentTime()
+// via a rAF loop (audio.timeupdate doesn't fire when <audio> is paused/muted).
+let _seekRafId = null;
+function _updateSeekBar() {
+  if (seeking) return;
+  const useSpatial = spatialOn && _spatialBuf && _spatialStarted;
+  const cur = useSpatial ? _spatialCurrentTime() : audio.currentTime;
+  const dur = useSpatial ? _spatialBuf.duration  : audio.duration;
+  if (!dur) return;
+  const pct = Math.min(cur / dur, 1);
+  const el  = document.getElementById('np-seek');
+  el.value  = Math.round(pct * 1000);
   el.style.setProperty('--pct', (pct * 100).toFixed(2) + '%');
-  document.getElementById('mini-bar').style.width = (pct * 100) + '%';
-  document.getElementById('np-elapsed').textContent = fmt(audio.currentTime);
-  document.getElementById('np-remain').textContent  = '−' + fmt(audio.duration - audio.currentTime);
-  // Keep CarPlay / Bluetooth seek bar in sync — throttled to 1Hz to avoid audio glitches
+  document.getElementById('mini-bar').style.width   = (pct * 100) + '%';
+  document.getElementById('np-elapsed').textContent = fmt(cur);
+  document.getElementById('np-remain').textContent  = '−' + fmt(dur - cur);
+  // CarPlay / Bluetooth position state — throttled to 1Hz
   const now = Date.now();
-  if ('setPositionState' in navigator.mediaSession && isFinite(audio.duration) && now - _posStateTs > 1000) {
+  if ('setPositionState' in navigator.mediaSession && isFinite(dur) && now - _posStateTs > 1000) {
     _posStateTs = now;
-    try {
-      navigator.mediaSession.setPositionState({
-        duration: audio.duration,
-        playbackRate: audio.playbackRate || 1,
-        position: audio.currentTime,
-      });
-    } catch {}
+    try { navigator.mediaSession.setPositionState({ duration: dur, playbackRate: 1, position: cur }); } catch {}
   }
+}
+
+// When spatial active, run a rAF loop; otherwise rely on timeupdate from <audio>
+function _startSeekLoop() {
+  if (_seekRafId) return;
+  const tick = () => {
+    _updateSeekBar();
+    if (spatialOn && _spatialStarted) _seekRafId = requestAnimationFrame(tick);
+    else _seekRafId = null;
+  };
+  _seekRafId = requestAnimationFrame(tick);
+}
+
+audio.addEventListener('timeupdate', () => {
+  if (!spatialOn || !_spatialStarted) _updateSeekBar();
+  else if (!_seekRafId) _startSeekLoop();
 });
 
 const seekEl = document.getElementById('np-seek');
 seekEl.addEventListener('mousedown',  () => seeking = true);
 seekEl.addEventListener('touchstart', () => seeking = true, { passive: true });
-seekEl.addEventListener('mouseup',    () => seeking = false);
-seekEl.addEventListener('touchend',   () => seeking = false);
+seekEl.addEventListener('mouseup',    () => { seeking = false; });
+seekEl.addEventListener('touchend',   () => { seeking = false; });
 seekEl.addEventListener('input', () => {
-  if (audio.duration) {
+  seekEl.style.setProperty('--pct', (seekEl.value / 10).toFixed(2) + '%');
+  if (spatialOn && _spatialBuf) {
+    const targetTime = (seekEl.value / 1000) * _spatialBuf.duration;
+    _startSpatialSrc(targetTime);
+    audio.currentTime = targetTime;
+  } else if (audio.duration) {
     audio.currentTime = (seekEl.value / 1000) * audio.duration;
-    seekEl.style.setProperty('--pct', (seekEl.value / 10).toFixed(2) + '%');
   }
 });
 // Volume slider — routes through GainNode when Web Audio is active (works on iOS too).
@@ -2100,69 +2300,54 @@ document.getElementById('np-menu-btn').addEventListener('click', () => { if (now
 document.getElementById('np-add-pl-btn').addEventListener('click', () => { if (nowSong) showAddToPlaylist(nowSong); });
 document.getElementById('np-queue-btn').addEventListener('click', showQueueSheet);
 
-// ── SPATIAL AUDIO ENGINE (Stage 2) ────────────────────────────────────────────
+// ── SPATIAL STATE ─────────────────────────────────────────────────────────────
 const SPATIAL_KEY     = 'mbx_spatial';
 const SPATIAL_INT_KEY = 'mbx_spatial_intensity';
-let spatialOn        = localStorage.getItem(SPATIAL_KEY) === 'true';       // default OFF
+let spatialOn        = localStorage.getItem(SPATIAL_KEY) === 'true';
 let spatialIntensity = parseInt(localStorage.getItem(SPATIAL_INT_KEY) || '2', 10); // 1=Subtle 2=Full
 
-function _buildSpatialChain() {
-  if (!_audioCtx || _splitter) return;
-  _splitter  = _audioCtx.createChannelSplitter(2);
-  _pannerL   = _audioCtx.createPanner();
-  _pannerR   = _audioCtx.createPanner();
-  _mergeNode = _audioCtx.createChannelMerger(2);
-  [_pannerL, _pannerR].forEach(p => {
-    p.panningModel  = 'HRTF';
-    p.distanceModel = 'inverse';
-    p.refDistance   = 1;
-    p.maxDistance   = 10000;
-    p.rolloffFactor = 0; // no volume change with distance — pure positional effect
-  });
-  _setSpatialPositions();
-}
-
-function _setSpatialPositions() {
-  if (!_pannerL || !_pannerR) return;
-  const pos = spatialIntensity === 1
-    ? { lx: -0.6, rx: 0.6, z: -0.3 }
-    : { lx: -1.0, rx: 1.0, z: -0.8 };
-  _pannerL.positionX.value = pos.lx;
-  _pannerL.positionY.value = 0;
-  _pannerL.positionZ.value = pos.z;
-  _pannerR.positionX.value = pos.rx;
-  _pannerR.positionY.value = 0;
-  _pannerR.positionZ.value = pos.z;
-}
-
-function _applySpatialRouting() {
-  if (!_audioSrc || !_gainNode) return;
-  try { _audioSrc.disconnect(); } catch {}
-  if (_splitter)  { try { _splitter.disconnect();  } catch {} }
-  if (_pannerL)   { try { _pannerL.disconnect();   } catch {} }
-  if (_pannerR)   { try { _pannerR.disconnect();   } catch {} }
-  if (_mergeNode) { try { _mergeNode.disconnect(); } catch {} }
-
-  if (spatialOn) {
-    _buildSpatialChain();
-    _setSpatialPositions();
-    _audioSrc.connect(_splitter);
-    _splitter.connect(_pannerL, 0);
-    _splitter.connect(_pannerR, 1);
-    _pannerL.connect(_mergeNode, 0, 0);
-    _pannerR.connect(_mergeNode, 0, 1);
-    _mergeNode.connect(_gainNode);
-  } else {
-    _audioSrc.connect(_gainNode);
-  }
-}
-
+// Toggle spatial on/off while a song is playing.
+// If turning ON: re-play current song through the graph from current position.
+// If turning OFF: hand back to <audio> element.
 function setSpatial(on, intensity) {
+  const wasOn = spatialOn;
   spatialOn = on;
   if (intensity !== undefined) spatialIntensity = intensity;
-  localStorage.setItem(SPATIAL_KEY, spatialOn);
+  localStorage.setItem(SPATIAL_KEY, String(spatialOn));
   localStorage.setItem(SPATIAL_INT_KEY, spatialIntensity);
-  if (_audioSrc) _applySpatialRouting();
+
+  if (!nowSong) { refreshSpatialBtn(); refreshSpatialSettings(); return; }
+
+  if (spatialOn && !wasOn) {
+    // Turning ON: fetch+decode current song and start graph from current time
+    const currentPos = audio.currentTime;
+    if (_ensureAudioCtx()) {
+      _resumeAudioCtx().then(async () => {
+        _gainNode.gain.value = NORM_VOLUME;
+        const streamData = streamCache.get(nowSong.id);
+        const url = streamData?.url || audio.src;
+        if (!url) return;
+        const buf = await _fetchAndDecode(url);
+        // Only apply if user is still on the same song
+        if (!buf || nowSong === null) return;
+        _spatialBuf = buf;
+        audio.pause();
+        audio.volume = 0;
+        _startSpatialSrc(Math.min(currentPos, buf.duration - 0.1));
+      });
+    }
+  } else if (!spatialOn && wasOn) {
+    // Turning OFF: stop graph, resume <audio> from same position
+    const pos = _spatialCurrentTime();
+    _stopSpatialSrc();
+    _spatialBuf = null;
+    audio.volume = NORM_VOLUME;
+    if (nowSong && !userPaused) {
+      if (isFinite(pos) && pos > 0) audio.currentTime = pos;
+      audio.play().catch(() => {});
+    }
+  }
+
   refreshSpatialBtn();
   refreshSpatialSettings();
 }
