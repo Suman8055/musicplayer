@@ -568,7 +568,7 @@ body::after{
         <div class="settings-row">
           <div class="settings-label">
             Spatial Audio
-            <small>HRTF headphone widening — concert-hall feel</small>
+            <small>DTS-style HRTF surround — headphones recommended</small>
           </div>
           <input type="checkbox" id="spatial-toggle"
                  style="width:22px;height:22px;accent-color:var(--accent);cursor:pointer;flex-shrink:0">
@@ -584,7 +584,7 @@ body::after{
         </div>
         <div class="settings-row">
           <div class="settings-label" style="font-size:12px;color:var(--fg2);line-height:1.5">
-            Places music around your head using HRTF spatial processing. Best with headphones or earbuds. Turn off if you notice any audio quality change.
+            DTS-style headphone surround — HRTF convolution places instruments around your head. Use headphones or earbuds. Auto-disables on CarPlay / AirPlay and slow networks.
           </div>
         </div>
       </div>
@@ -907,7 +907,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '3.9.0-stage3';
+const APP_VERSION = '3.9.0';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
