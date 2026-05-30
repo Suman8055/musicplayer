@@ -1,14 +1,15 @@
 'use strict';
 const CACHE = 'mbx-shell-v3.9.1';
+// Derive base path from SW location so this works on any subdirectory (prod or staging)
+const BASE = self.location.pathname.replace(/\/sw\.js.*$/, '') || '';
 const SHELL = [
-  '/',
-  '/musicplayer/',
-  '/musicplayer/index.html',
-  '/musicplayer/manifest.json',
-  '/musicplayer/sw.js',
-  '/musicplayer/icon-192.png',
-  '/musicplayer/icon-512.png',
-  '/musicplayer/apple-touch-icon.png',
+  BASE + '/',
+  BASE + '/index.html',
+  BASE + '/manifest.json',
+  BASE + '/sw.js',
+  BASE + '/icon-192.png',
+  BASE + '/icon-512.png',
+  BASE + '/apple-touch-icon.png',
 ];
 
 self.addEventListener('install', e => {
