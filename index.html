@@ -15,7 +15,6 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/meyda@5.2.3/dist/web/meyda.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -307,39 +306,6 @@ body::after{
 .settings-btn{flex:1;background:var(--accent-grad);border:none;color:#fff;font-size:15px;font-weight:600;font-family:inherit;border-radius:12px;padding:12px;cursor:pointer;transition:background .7s ease}
 .settings-btn.sec{background:var(--bg2);color:var(--fg)}
 
-/* EQ panel */
-#eq-panel{padding:12px 16px 16px;border-top:1px solid var(--sep)}
-#eq-panel.eq-hidden{display:none}
-.eq-presets{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
-.eq-preset-btn{flex:1;min-width:60px;background:var(--bg3);border:none;color:var(--fg2);font-size:12px;font-weight:600;font-family:inherit;border-radius:8px;padding:6px 4px;cursor:pointer;transition:.2s}
-.eq-preset-btn.active{background:var(--accent-grad);color:#fff}
-.eq-bands{display:flex;align-items:flex-end;gap:4px;height:110px;justify-content:space-between}
-.eq-band{display:flex;flex-direction:column;align-items:center;gap:4px;flex:1}
-.eq-slider{-webkit-appearance:slider-vertical;appearance:slider-vertical;writing-mode:vertical-lr;direction:rtl;width:22px;height:80px;cursor:pointer;accent-color:var(--accent)}
-.eq-band-label{font-size:9px;color:var(--fg2);text-align:center;white-space:nowrap}
-.eq-band-val{font-size:9px;color:var(--accent);font-weight:700;min-width:24px;text-align:center}
-.eq-reset-row{display:flex;justify-content:flex-end;margin-top:10px}
-.eq-reset-btn{background:none;border:1px solid var(--sep);color:var(--fg2);font-size:12px;font-family:inherit;border-radius:8px;padding:5px 12px;cursor:pointer}
-
-/* EQ Output Monitor */
-#eq-monitor{background:var(--bg2);border-radius:14px;padding:14px 16px;margin:0 0 4px}
-#eq-monitor.mon-hidden{display:none}
-.mon-title{font-size:12px;font-weight:700;color:var(--fg2);letter-spacing:.5px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between}
-.mon-live-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);animation:mon-pulse 1.4s ease-in-out infinite}
-@keyframes mon-pulse{0%,100%{opacity:1}50%{opacity:.3}}
-.mon-grid{display:grid;grid-template-columns:repeat(10,1fr);gap:3px;margin-bottom:8px}
-.mon-bar-wrap{display:flex;flex-direction:column;align-items:center;gap:2px}
-.mon-bar-bg{width:100%;height:48px;background:var(--bg3);border-radius:4px;position:relative;overflow:hidden}
-.mon-bar-fill{position:absolute;bottom:50%;left:0;right:0;background:var(--accent-grad);border-radius:4px;transition:height .4s ease,bottom .4s ease}
-.mon-bar-fill.neg{background:linear-gradient(0deg,#e74c3c,#c0392b)}
-.mon-bar-zero{position:absolute;left:0;right:0;top:50%;height:1px;background:var(--sep);opacity:.7}
-.mon-bar-val{font-size:8px;color:var(--accent);font-weight:700;text-align:center;min-width:20px}
-.mon-bar-lbl{font-size:7.5px;color:var(--fg2);text-align:center}
-.mon-row{display:flex;gap:10px;font-size:11px;color:var(--fg2);align-items:center;flex-wrap:wrap}
-.mon-chip{background:var(--bg3);border-radius:6px;padding:3px 7px;font-size:10.5px;font-weight:600;color:var(--fg)}
-.mon-chip.good{color:#2ecc71}.mon-chip.warn{color:#f39c12}.mon-chip.bad{color:#e74c3c}
-.mon-layer-row{display:flex;gap:4px;margin-bottom:6px;flex-wrap:wrap}
-.mon-layer-band{font-size:8.5px;border-radius:4px;padding:2px 4px;font-weight:600;background:var(--bg3);color:var(--fg2);min-width:26px;text-align:center}
 
 /* Log viewer */
 .log-bar{display:flex;align-items:center;justify-content:space-between;padding:6px 16px 10px}
@@ -600,57 +566,11 @@ body::after{
 
       <div class="settings-section">Equalizer</div>
       <div class="settings-card">
-        <div class="settings-row">
-          <div class="settings-label">10-Band EQ<small>Sonos-style parametric equalizer</small></div>
-          <input type="checkbox" id="eq-toggle" style="width:22px;height:22px;accent-color:var(--accent);cursor:pointer;flex-shrink:0">
-        </div>
-        <div class="settings-row">
-          <div class="settings-label">Auto-EQ<small id="autoeq-status">AI tunes each song to Harman target curve</small></div>
-          <input type="checkbox" id="autoeq-toggle" style="width:22px;height:22px;accent-color:var(--accent);cursor:pointer;flex-shrink:0">
-        </div>
-        <div id="eq-panel" class="eq-hidden">
-          <div class="eq-presets">
-            <button class="eq-preset-btn" data-preset="flat">Flat</button>
-            <button class="eq-preset-btn" data-preset="bass">Bass Boost</button>
-            <button class="eq-preset-btn" data-preset="vocal">Vocal</button>
-            <button class="eq-preset-btn" data-preset="treble">Treble</button>
-            <button class="eq-preset-btn" data-preset="vshape">V-Shape</button>
-            <button class="eq-preset-btn" data-preset="bollywood">Bollywood</button>
-            <button class="eq-preset-btn" data-preset="punjabi">Punjabi</button>
-            <button class="eq-preset-btn" data-preset="classical">Classical</button>
-            <button class="eq-preset-btn" data-preset="podcast">Podcast</button>
+        <div class="settings-row" style="flex-direction:column;align-items:flex-start;gap:8px">
+          <div class="settings-label" style="font-weight:600">Use your iPhone's built-in EQ</div>
+          <div style="font-size:13px;color:var(--fg2);line-height:1.5">
+            Open <strong style="color:var(--fg)">Settings → Music → EQ</strong> on your iPhone to choose from Apple's presets — Bass Booster, Hip-Hop, Classical, Jazz, and more. It applies system-wide to this app instantly.
           </div>
-          <div class="eq-bands" id="eq-bands-container">
-            <!-- bands injected by JS -->
-          </div>
-          <div class="eq-reset-row">
-            <button class="eq-reset-btn" id="eq-reset-btn">Reset all</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- EQ Output Monitor -->
-      <div class="settings-section" style="display:flex;align-items:center;justify-content:space-between">
-        <span>EQ Output Monitor</span>
-        <input type="checkbox" id="eq-monitor-toggle" style="width:22px;height:22px;accent-color:var(--accent);cursor:pointer">
-      </div>
-      <div id="eq-monitor" class="mon-hidden">
-        <div class="mon-title">
-          <span>LIVE BAND GAINS</span>
-          <div style="display:flex;gap:8px;align-items:center">
-            <span id="mon-lufs-chip" class="mon-chip">LUFS —</span>
-            <span id="mon-limiter-chip" class="mon-chip">LIM —</span>
-            <div class="mon-live-dot"></div>
-          </div>
-        </div>
-        <div class="mon-grid" id="mon-grid"><!-- bars injected by JS --></div>
-        <div style="font-size:9px;color:var(--fg2);margin-bottom:6px">Meyda deltas per band</div>
-        <div class="mon-layer-row" id="mon-meyda-row"><!-- injected --></div>
-        <div class="mon-row" id="mon-status-row">
-          <span id="mon-eq-status" class="mon-chip">EQ off</span>
-          <span id="mon-autoeq-status" class="mon-chip">Auto-EQ —</span>
-          <span id="mon-meyda-status" class="mon-chip">Meyda —</span>
-          <span id="mon-cors-status" class="mon-chip">CORS —</span>
         </div>
       </div>
 
@@ -969,7 +889,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.13';
+const APP_VERSION = '4.1.14';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -1306,22 +1226,13 @@ function _ensureAudioCtx() {
       audio.volume = NORM_VOLUME;
       Log.warn('Web Audio routing unavailable (CORS)', { err: corsErr.message });
     }
-    _rewireEq();
-    // Expose audio engine state on window for diagnostic/testing access
+    _rewireAudio();
     window._mbxAudio = () => ({
       corsAvailable:    _corsAvailable,
       mediaSource:      _mediaSource,
       gainNode:         _gainNode,
       audioCtx:         _audioCtx,
-      eqNodes:          _eqNodes,
-      eqOn:             _eqOn,
-      eqGains:          _eqGains,
       rewiring:         _rewiring,
-      meydaOn:          _meydaOn,
-      meydaAnalyser:    _meydaAnalyser,
-      meydaSmoothed:    Array.from(_meydaSmoothed),
-      meydaApplied:     Array.from(_meydaAppliedGains),
-      meydaLastUpdate:  _meydaLastUpdate,
       lufsAnalyser:     _lufsAnalyser,
       lufsCacheSize:    _lufsCache.size,
       limiterComp:      _limiterCompressor,
@@ -1795,8 +1706,6 @@ async function play(song, newQueue, idx) {
   }
   nowSong = song;
   cacheSong(song);
-  _clearAutoEqForSong();
-
   if (!smartQueueActive) {
     refreshSmartQueueBadge();
     setWhyChip(null);
@@ -1827,7 +1736,7 @@ async function play(song, newQueue, idx) {
       if (nowSong?.id !== song.id) return;
       playing = true;
       Log.info('Playback (offline)', { name: song.name });
-      setTimeout(() => { if (nowSong?.id === song.id) { _analyseAndAutoEq(song); _measureAndApplyLufs(song); if (_meydaOn && _corsAvailable) _startMeyda(); } }, 3000);
+      setTimeout(() => { if (nowSong?.id === song.id) { _measureAndApplyLufs(song); } }, 3000);
 
     } else {
       // ── Network stream path ────────────────────────────────────────────────
@@ -1853,7 +1762,7 @@ async function play(song, newQueue, idx) {
       playing = true;
       _intelPlayStartTs = Date.now();
       // Kick off spectral analysis + Meyda after play is confirmed stable
-      setTimeout(() => { if (nowSong?.id === song.id) { _analyseAndAutoEq(song); _measureAndApplyLufs(song); if (_meydaOn && _corsAvailable) _startMeyda(); } }, 3000);
+      setTimeout(() => { if (nowSong?.id === song.id) { _measureAndApplyLufs(song); } }, 3000);
     }
     setTimeout(preloadNext, 1500);
   } catch (e) {
@@ -2004,7 +1913,6 @@ audio.addEventListener('play', () => {
 });
 audio.addEventListener('pause', () => {
   playing = false;
-  _stopMeyda();
   refreshPlayBtns();
   if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
 });
@@ -2029,7 +1937,7 @@ audio.addEventListener('stalled', () => {
     }, stallWait);
   }
 });
-audio.addEventListener('ended', () => { _intelNaturalEnd = true; _stopMeyda(); next(); });
+audio.addEventListener('ended', () => { _intelNaturalEnd = true; next(); });
 audio.addEventListener('error', () => {
   if (!loadingUrl) {
     const MEDIA_ERR = { 1:'ABORTED', 2:'NETWORK', 3:'DECODE', 4:'SRC_NOT_SUPPORTED' };
@@ -2338,58 +2246,6 @@ document.getElementById('np-menu-btn').addEventListener('click', () => { if (now
 document.getElementById('np-add-pl-btn').addEventListener('click', () => { if (nowSong) showAddToPlaylist(nowSong); });
 document.getElementById('np-queue-btn').addEventListener('click', showQueueSheet);
 
-// ── 10-Band EQ ────────────────────────────────────────────────────────────────
-const EQ_KEY = 'mbx_eq_v1';
-const EQ_BANDS = [
-  { freq:   32, type: 'lowshelf',  label: '32' },
-  { freq:   64, type: 'peaking',   label: '64' },
-  { freq:  125, type: 'peaking',   label: '125' },
-  { freq:  250, type: 'peaking',   label: '250' },
-  { freq:  500, type: 'peaking',   label: '500' },
-  { freq: 1000, type: 'peaking',   label: '1k' },
-  { freq: 2000, type: 'peaking',   label: '2k' },
-  { freq: 4000, type: 'peaking',   label: '4k' },
-  { freq: 8000, type: 'peaking',   label: '8k' },
-  { freq:16000, type: 'highshelf', label: '16k' },
-];
-const EQ_PRESETS = {
-  flat:   [ 0,  0,  0,  0,  0,  0,  0,  0,  0,  0],
-  bass:   [ 5,  4,  3,  1,  0,  0,  0,  0,  0,  0],
-  vocal:  [-1, -1,  0,  1,  3,  3,  2,  1,  0, -1],
-  treble: [ 0,  0,  0,  0,  0,  0,  1,  2,  4,  5],
-  vshape:    [  4,  3,  1,  0, -2, -2,  0,  1,  3,  4],
-  bollywood: [  3,  4,  2,  1,  0, -1,  1,  2,  1,  1],
-  punjabi:   [  4,  5,  3,  2,  0, -1,  0,  1,  2,  2],
-  classical: [  0,  0,  1,  1,  2,  2,  2,  1,  1,  2],
-  podcast:   [ -3, -2,  0,  1,  3,  4,  3,  2,  0, -1],
-};
-
-let _eqOn     = localStorage.getItem(EQ_KEY + '_on') === 'true';
-let _eqGains  = (() => {
-  try { const s = localStorage.getItem(EQ_KEY); return s ? JSON.parse(s) : EQ_PRESETS.flat.slice(); }
-  catch { return EQ_PRESETS.flat.slice(); }
-})();
-let _eqNodes  = [];   // BiquadFilterNode array, parallel to EQ_BANDS
-
-const _EQ_Q_VALUES = [1.0, 1.0, 1.2, 1.4, 1.4, 1.6, 1.6, 1.8, 1.6, 1.0];
-
-function _buildEqChain(ctx) {
-  _eqNodes = EQ_BANDS.map((b, i) => {
-    const node = ctx.createBiquadFilter();
-    node.type            = b.type;
-    node.frequency.value = b.freq;
-    node.Q.value         = _EQ_Q_VALUES[i];
-    node.gain.value      = _eqOn ? _eqGains[i] : 0;
-    return node;
-  });
-  // Chain: node[0] → node[1] → … → node[9]
-  for (let i = 0; i < _eqNodes.length - 1; i++) _eqNodes[i].connect(_eqNodes[i + 1]);
-}
-
-function _teardownEqChain() {
-  _eqNodes.forEach(n => { try { n.disconnect(); } catch {} });
-  _eqNodes = [];
-}
 
 // ── True-Peak Limiter ─────────────────────────────────────────────────────────
 function _buildLimiterChain(ctx) {
@@ -2499,611 +2355,37 @@ function _teardownStereoWidener() {
   _splitter = _merger = _midGain = _sideGain = _haasDelay = _airShelf = null;
 }
 
-// Insert EQ chain between _gainNode and destination.
-// Called once AudioContext is created, and again when EQ is toggled.
-function _getAudioState() {
-  return {
-    hasCtx:      !!_audioCtx,
-    ctxState:    _audioCtx?.state ?? 'none',
-    hasMediaSrc: !!_mediaSource,
-    hasGain:     !!_gainNode,
-    eqNodeCount: _eqNodes.length,
-    eqOn:        _eqOn,
-    hasAnalyser: !!_autoEqAnalyser,
-    rewiring:    _rewiring,
-  };
-}
-
 let _rewiring = false;
 
-function _rewireEq() {
+function _rewireAudio() {
   if (!_audioCtx) return;
   if (_rewiring) return;
   _rewiring = true;
   try {
-    Log.info('_rewireEq start', _getAudioState());
-    _stopMeyda();
-    _teardownEqChain();
     _teardownLimiterChain();
     _teardownBassExciter();
     _teardownStereoWidener();
-    _autoEqAnalyser = null;
-    _meydaAppliedGains.fill(0);
     _gainNode.disconnect();
-    // Reconnect LUFS analyser tap (passive, no audio routing)
     if (_lufsAnalyser) { try { _gainNode.connect(_lufsAnalyser); } catch {} }
     if (_mediaSource) _mediaSource.connect(_gainNode);
 
-    // Build all chain nodes
-    _buildEqChain(_audioCtx);
     _buildBassExciter(_audioCtx);
     _buildStereoWidener(_audioCtx);
     _buildLimiterChain(_audioCtx);
 
-    // Pre-mix summing node: dry signal + bass exciter blend → EQ
+    // Pre-mix: dry + bass exciter → stereo widener → limiter → destination
     _preMixGain = _audioCtx.createGain();
     _preMixGain.gain.value = 1.0;
-    _gainNode.connect(_preMixGain);              // dry path
-    _bassExciterIn && _gainNode.connect(_bassExciterIn); // feed exciter
-    _bassExciterGain && _bassExciterGain.connect(_preMixGain); // exciter blend
-    _preMixGain.connect(_eqNodes[0]);            // → EQ chain
-
-    // EQ → stereo widener → air shelf → limiter → destination
-    _eqNodes[_eqNodes.length - 1].connect(_splitter);
+    _gainNode.connect(_preMixGain);
+    _bassExciterIn && _gainNode.connect(_bassExciterIn);
+    _bassExciterGain && _bassExciterGain.connect(_preMixGain);
+    _preMixGain.connect(_splitter);
     _airShelf.connect(_limiterCompressor);
     _limiterWaveshaper.connect(_audioCtx.destination);
-
-    // Pipeline: _mediaSource → _gainNode → [lufsAnalyser tap]
-    //           _gainNode → preMix(dry + bassExciter) → EQ[0..9]
-    //           → splitter → M/S widener → airShelf → limiterComp → limiterWaveshaper → destination
-    Log.info('_rewireEq done', _getAudioState());
-    if (_meydaOn && _corsAvailable) _startMeyda();
   } finally {
     _rewiring = false;
   }
 }
-
-function _setEqBandGain(index, gain) {
-  _eqGains[index] = gain;
-  if (_eqNodes[index]) _eqNodes[index].gain.value = _eqOn ? gain : 0;
-  _saveEq();
-}
-
-function _applyEqOnOff() {
-  _eqNodes.forEach((n, i) => { n.gain.value = _eqOn ? _eqGains[i] : 0; });
-}
-
-function _saveEq() {
-  try {
-    localStorage.setItem(EQ_KEY, JSON.stringify(_eqGains));
-    localStorage.setItem(EQ_KEY + '_on', String(_eqOn));
-  } catch {}
-}
-
-function _applyPreset(name) {
-  const gains = EQ_PRESETS[name];
-  if (!gains) return;
-  _eqGains = gains.slice();
-  _eqNodes.forEach((n, i) => { n.gain.value = _eqOn ? _eqGains[i] : 0; });
-  _saveEq();
-  _refreshEqUI();
-}
-
-function _refreshEqUI() {
-  const toggle = document.getElementById('eq-toggle');
-  if (toggle) toggle.checked = _eqOn;
-  const panel = document.getElementById('eq-panel');
-  if (panel) panel.classList.toggle('eq-hidden', !_eqOn);
-
-  // Sliders + value labels
-  EQ_BANDS.forEach((_, i) => {
-    const slider = document.getElementById('eq-slider-' + i);
-    const val    = document.getElementById('eq-val-' + i);
-    if (slider) slider.value = _eqGains[i];
-    if (val)    val.textContent = (_eqGains[i] > 0 ? '+' : '') + _eqGains[i] + 'dB';
-  });
-
-  // Preset active state
-  document.querySelectorAll('.eq-preset-btn').forEach(btn => {
-    const name = btn.dataset.preset;
-    const isActive = EQ_PRESETS[name] &&
-      EQ_PRESETS[name].every((v, i) => v === _eqGains[i]);
-    btn.classList.toggle('active', isActive);
-  });
-}
-
-function _initEqUI() {
-  const container = document.getElementById('eq-bands-container');
-  if (!container || container.children.length) return;
-
-  EQ_BANDS.forEach((b, i) => {
-    const band = document.createElement('div');
-    band.className = 'eq-band';
-    band.innerHTML =
-      `<div class="eq-band-val" id="eq-val-${i}">${_eqGains[i] > 0 ? '+' : ''}${_eqGains[i]}dB</div>` +
-      `<input type="range" class="eq-slider" id="eq-slider-${i}"
-              min="-12" max="12" step="1" value="${_eqGains[i]}">` +
-      `<div class="eq-band-label">${b.label}</div>`;
-    container.appendChild(band);
-
-    band.querySelector('input').addEventListener('input', e => {
-      const g = parseInt(e.target.value, 10);
-      _manualEqAdjusted = true; // flag so Auto-EQ won't override this on analysis complete
-      _setEqBandGain(i, g);
-      const valEl = document.getElementById('eq-val-' + i);
-      if (valEl) valEl.textContent = (g > 0 ? '+' : '') + g + 'dB';
-      // clear preset active state
-      document.querySelectorAll('.eq-preset-btn').forEach(b => b.classList.remove('active'));
-    });
-  });
-
-  document.getElementById('eq-toggle').addEventListener('change', e => {
-    _eqOn = e.target.checked;
-    const panel = document.getElementById('eq-panel');
-    if (panel) panel.classList.toggle('eq-hidden', !_eqOn);
-    if (_eqOn) _rewireEq();
-    _applyEqOnOff();
-    _saveEq();
-  });
-
-  document.querySelectorAll('.eq-preset-btn').forEach(btn => {
-    btn.addEventListener('click', () => _applyPreset(btn.dataset.preset));
-  });
-
-  document.getElementById('eq-reset-btn').addEventListener('click', () => {
-    _applyPreset('flat');
-  });
-
-  const autoEqToggle = document.getElementById('autoeq-toggle');
-  if (autoEqToggle && !autoEqToggle._bound) {
-    autoEqToggle._bound = true;
-    autoEqToggle.addEventListener('change', e => {
-      _autoEqOn = e.target.checked;
-      localStorage.setItem(AUTO_EQ_KEY + '_on', String(_autoEqOn));
-      if (_autoEqOn && nowSong) {
-        // Re-apply cached gains if available, otherwise re-analyse
-        if (_autoEqCache.has(nowSong.id)) {
-          _applyAutoEqGains(_autoEqCache.get(nowSong.id));
-        } else if (audio.src) {
-          _analyseAndAutoEq(nowSong);
-        }
-      } else {
-        _clearAutoEqForSong();
-      }
-      _refreshAutoEqUI();
-      toast(_autoEqOn ? 'Auto-EQ on' : 'Auto-EQ off');
-    });
-  }
-}
-
-// ── EQ Output Monitor ─────────────────────────────────────────────────────────
-let _monInterval = null;
-const _MON_BANDS = ['32','64','125','250','500','1k','2k','4k','8k','16k'];
-
-function _initMonitor() {
-  const toggle = document.getElementById('eq-monitor-toggle');
-  const panel  = document.getElementById('eq-monitor');
-  if (!toggle || !panel) return;
-
-  // Restore saved state
-  const saved = localStorage.getItem('mbx_monitor_on') === 'true';
-  toggle.checked = saved;
-  if (saved) { panel.classList.remove('mon-hidden'); _startMonitor(); }
-
-  toggle.addEventListener('change', () => {
-    const on = toggle.checked;
-    localStorage.setItem('mbx_monitor_on', on);
-    panel.classList.toggle('mon-hidden', !on);
-    if (on) _startMonitor(); else _stopMonitor();
-  });
-
-  // Build bar grid once
-  const grid = document.getElementById('mon-grid');
-  if (grid && !grid.children.length) {
-    _MON_BANDS.forEach((lbl, i) => {
-      grid.innerHTML +=
-        `<div class="mon-bar-wrap">` +
-        `<div class="mon-bar-val" id="mon-v-${i}">0</div>` +
-        `<div class="mon-bar-bg"><div class="mon-bar-zero"></div><div class="mon-bar-fill" id="mon-b-${i}" style="height:0%;bottom:50%"></div></div>` +
-        `<div class="mon-bar-lbl">${lbl}</div>` +
-        `</div>`;
-    });
-  }
-  const mRow = document.getElementById('mon-meyda-row');
-  if (mRow && !mRow.children.length) {
-    _MON_BANDS.forEach((lbl, i) => {
-      mRow.innerHTML += `<div class="mon-layer-band" id="mon-m-${i}">0</div>`;
-    });
-  }
-}
-
-function _startMonitor() {
-  if (_monInterval) return;
-  _monInterval = setInterval(_updateMonitor, 1500);
-  _updateMonitor();
-}
-
-function _stopMonitor() {
-  clearInterval(_monInterval);
-  _monInterval = null;
-}
-
-function _updateMonitor() {
-  if (!window._mbxAudio) return;
-  const s = _mbxAudio();
-
-  // Status chips
-  const eqEl  = document.getElementById('mon-eq-status');
-  const aqEl  = document.getElementById('mon-autoeq-status');
-  const mEl   = document.getElementById('mon-meyda-status');
-  const cEl   = document.getElementById('mon-cors-status');
-  const luEl  = document.getElementById('mon-lufs-chip');
-  const limEl = document.getElementById('mon-limiter-chip');
-
-  if (eqEl)  { eqEl.textContent  = s.eqOn     ? 'EQ on'    : 'EQ off';   eqEl.className  = 'mon-chip ' + (s.eqOn  ? 'good' : ''); }
-  if (mEl)   { mEl.textContent   = s.meydaOn  ? 'Meyda on' : 'Meyda off'; mEl.className   = 'mon-chip ' + (s.meydaOn ? 'good' : ''); }
-  if (cEl)   { cEl.textContent   = s.corsAvailable ? 'CORS ok' : 'CORS fail'; cEl.className = 'mon-chip ' + (s.corsAvailable ? 'good' : 'bad'); }
-
-  // LUFS display from gainNode value (proxy: log20 of gain)
-  if (luEl && s.gainNode) {
-    const gainVal = s.gainNode.gain?.value ?? 1;
-    const dbApprox = gainVal > 0 ? (20 * Math.log10(gainVal)).toFixed(1) : '—';
-    luEl.textContent = 'Gain ' + (dbApprox > 0 ? '+' : '') + dbApprox + 'dB';
-  }
-  if (limEl && s.limiterGainReduction != null) {
-    const lgr = s.limiterGainReduction;
-    limEl.textContent = 'LIM ' + lgr.toFixed(1) + 'dB';
-    limEl.className   = 'mon-chip ' + (lgr < -1 ? 'warn' : lgr < -3 ? 'bad' : 'good');
-  }
-
-  // Auto-EQ status
-  if (aqEl) {
-    if (nowSong && _autoEqCache.has(nowSong.id)) {
-      const gains = _autoEqCache.get(nowSong.id);
-      const peak = Math.max(...gains.map(Math.abs));
-      aqEl.textContent = 'AEQ ±' + peak + 'dB';
-      aqEl.className   = 'mon-chip ' + (peak > 4 ? 'warn' : 'good');
-    } else {
-      aqEl.textContent = 'AEQ —';
-      aqEl.className   = 'mon-chip';
-    }
-  }
-
-  // Band bars: show combined EQ gain per band
-  if (s.eqGains) {
-    s.eqGains.forEach((g, i) => {
-      const bar = document.getElementById('mon-b-' + i);
-      const val = document.getElementById('mon-v-' + i);
-      if (!bar || !val) return;
-      const pct = Math.abs(g) / 12 * 50; // 50% of half-height per ±12dB
-      bar.style.height  = pct + '%';
-      bar.style.bottom  = g >= 0 ? '50%' : (50 - pct) + '%';
-      bar.className     = 'mon-bar-fill' + (g < 0 ? ' neg' : '');
-      val.textContent   = (g > 0 ? '+' : '') + g.toFixed(1);
-      val.style.color   = Math.abs(g) > 6 ? '#e74c3c' : Math.abs(g) > 3 ? '#f39c12' : 'var(--accent)';
-    });
-  }
-
-  // Meyda delta row
-  if (s.meydaSmoothed) {
-    s.meydaSmoothed.forEach((g, i) => {
-      const el = document.getElementById('mon-m-' + i);
-      if (!el) return;
-      el.textContent   = (g > 0 ? '+' : '') + g.toFixed(1);
-      el.style.color   = Math.abs(g) > 1.5 ? '#e74c3c' : Math.abs(g) > 0.5 ? '#f39c12' : 'var(--fg2)';
-      el.style.background = Math.abs(g) > 1.5 ? 'rgba(231,76,60,.15)' : 'var(--bg3)';
-    });
-  }
-}
-// ── End EQ Output Monitor ─────────────────────────────────────────────────────
-
-// ── Spectral Auto-EQ (AI per-song adaptation) ────────────────────────────────
-// Analyses the live audio stream via a tap AnalyserNode wired into the playing
-// audio graph. Samples FFT data every 250ms for up to 5 seconds, accumulates
-// average band energy, then applies Harman-target correction to the EQ nodes.
-//
-// Pipeline: _mediaSource → _gainNode → EQ chain → [tap AnalyserNode] → destination
-
-const AUTO_EQ_KEY = 'mbx_autoeq_v1';
-let _autoEqOn = localStorage.getItem(AUTO_EQ_KEY + '_on') !== 'false'; // default ON
-// Per-song auto-EQ cache: songId → int gains[10]
-const _autoEqCache = new Map();
-let _autoEqAnalyser = null; // live tap AnalyserNode, rewired with EQ chain
-let _manualEqAdjusted = false; // true if user moved a slider during active Auto-EQ analysis
-
-// ── Meyda real-time spectral EQ state ─────────────────────────────────────────
-const MEYDA_KEY = 'mbx_meyda_v1';
-let _meydaAnalyser   = null;
-let _meydaOn         = localStorage.getItem(MEYDA_KEY + '_on') !== 'false';
-let _meydaLastUpdate = 0;
-let _meydaGains         = new Float32Array(10);
-let _meydaSmoothed      = new Float32Array(10);
-let _meydaAppliedGains  = new Float32Array(10); // last absolute offsets applied — prevents drift
-
-// Per-language Harman targets: each int[10] is dB offset per band relative to midrange.
-// Based on Harman 2018 IEM target (Sean Olive et al.) — bass shelf ~5dB, flat mids,
-// gentle presence peak at 4kHz, ROLL-OFF above 8kHz.
-// IMPORTANT: Treble targets (bands 7–9) deliberately conservative (0 to +1dB).
-// Modern Indian pop is mastered bright; asking for +2dB treble causes auto-EQ
-// to boost an already-bright signal → sounds like "pitch up".
-const HARMAN_TARGETS = {
-  //             32   64  125  250  500   1k   2k   4k   8k  16k
-  hindi:    [  6,  5,  3,  1,  0, -1,  0,  1,  0, -1 ],
-  punjabi:  [  7,  6,  4,  2,  0, -1,  0,  1,  0,  0 ],
-  english:  [  4,  3,  2,  0, -1, -1,  0,  1,  1,  0 ],
-  tamil:    [  5,  4,  3,  1,  0, -1,  0,  1,  0, -1 ],
-  telugu:   [  5,  4,  3,  1,  0, -1,  0,  1,  0, -1 ],
-  classical:[  2,  2,  2,  1,  1,  1,  1,  0,  0,  0 ],
-  default:  [  5,  4,  3,  1,  0, -1,  0,  1,  0, -1 ],
-};
-
-function _getHarmanTarget(song) {
-  const lang = (song?.language ?? '').toLowerCase().trim();
-  return (HARMAN_TARGETS[lang] ?? HARMAN_TARGETS.default).slice();
-}
-
-const _AUTO_EQ_BAND_RANGES = [
-  [20,   50],   // 32 Hz  lowshelf
-  [50,   90],   // 64 Hz
-  [90,  180],   // 125 Hz
-  [180,  350],  // 250 Hz
-  [350,  700],  // 500 Hz
-  [700, 1400],  // 1k Hz
-  [1400, 2800], // 2k Hz
-  [2800, 5600], // 4k Hz
-  [5600,11200], // 8k Hz
-  [11200,20000],// 16k Hz highshelf
-];
-
-function _ensureAutoEqAnalyser() {
-  if (!_audioCtx || !_mediaSource || _autoEqAnalyser || _rewiring) return;
-  _autoEqAnalyser = _audioCtx.createAnalyser();
-  _autoEqAnalyser.fftSize = 16384;
-  _autoEqAnalyser.smoothingTimeConstant = 0.3;
-  // Tap PRE-EQ: passive listener on _gainNode output (measures dry source signal, not EQ'd output)
-  // This prevents the feedback loop where EQ corrects its own output in a cycle.
-  try {
-    _gainNode.connect(_autoEqAnalyser);
-    // _autoEqAnalyser is passive — no connection to destination needed
-  } catch {}
-}
-
-async function _analyseAndAutoEq(song) {
-  if (!_autoEqOn || !_audioCtx) return;
-  if (_autoEqCache.has(song.id)) {
-    _applyAutoEqGains(_autoEqCache.get(song.id));
-    return;
-  }
-  try {
-    const target = _getHarmanTarget(song);
-    _ensureAutoEqAnalyser();
-    if (!_autoEqAnalyser) return;
-
-    const freqData = new Float32Array(_autoEqAnalyser.frequencyBinCount);
-    const SR = _audioCtx.sampleRate;
-    const binHz = SR / _autoEqAnalyser.fftSize;
-    const NUM_SAMPLES = 28; // 28 × 250ms = 7 seconds of analysis
-    const accumulator = new Float64Array(_AUTO_EQ_BAND_RANGES.length);
-    const counts = new Uint32Array(_AUTO_EQ_BAND_RANGES.length);
-
-    for (let s = 0; s < NUM_SAMPLES; s++) {
-      await new Promise(r => setTimeout(r, 250));
-      if (!nowSong || nowSong.id !== song.id) return; // song changed, abort
-      if (!_autoEqAnalyser) return; // rewire happened mid-analysis
-      _autoEqAnalyser.getFloatFrequencyData(freqData);
-
-      _AUTO_EQ_BAND_RANGES.forEach(([lo, hi], bi) => {
-        const startBin = Math.max(1, Math.round(lo / binHz));
-        const endBin   = Math.min(freqData.length - 1, Math.round(hi / binHz));
-        for (let i = startBin; i <= endBin; i++) {
-          if (isFinite(freqData[i]) && freqData[i] > -100) {
-            accumulator[bi] += freqData[i];
-            counts[bi]++;
-          }
-        }
-      });
-    }
-
-    // Average dB per band across all samples
-    const bandEnergy = Array.from(accumulator).map((sum, i) =>
-      counts[i] > 0 ? sum / counts[i] : null
-    );
-
-    // Need at least the midrange bands to compute a reference
-    if (bandEnergy[4] === null && bandEnergy[5] === null && bandEnergy[6] === null) return;
-
-    const midBands = [bandEnergy[4], bandEnergy[5], bandEnergy[6]].filter(v => v !== null);
-    const midRef   = midBands.reduce((a, b) => a + b, 0) / midBands.length;
-
-    const autoGains = bandEnergy.map((e, i) => {
-      if (e === null) return 0; // no data for band → leave flat
-      const measured   = e - midRef;
-      const correction = target[i] - measured;
-      // ±4dB max — prevents overcorrection when source material has extreme tonal imbalance.
-      // The Harman target + manual EQ already handle the large-scale shape; auto-EQ fine-tunes.
-      return Math.max(-4, Math.min(4, Math.round(correction)));
-    });
-
-    _autoEqCache.set(song.id, autoGains);
-    _applyAutoEqGains(autoGains);
-    _refreshAutoEqUI();
-    Log.info('Auto-EQ analysed', { name: song.name, gains: autoGains.join(',') });
-  } catch (e) {
-    Log.warn('Auto-EQ analysis failed', { err: e.message });
-  }
-}
-
-function _applyAutoEqGains(autoGains) {
-  // Skip if user manually adjusted a slider during analysis — don't override intent
-  if (_manualEqAdjusted) return;
-  // Blend auto-EQ with manual EQ: auto sets the base, manual is additive on top
-  autoGains.forEach((autoG, i) => {
-    const manualG = _eqGains[i];
-    const blended = Math.max(-12, Math.min(12, autoG + manualG));
-    if (_eqNodes[i]) _eqNodes[i].gain.value = _eqOn ? blended : 0;
-  });
-}
-
-function _clearAutoEqForSong() {
-  // Reset EQ nodes back to pure manual gains (called when song changes)
-  _manualEqAdjusted = false;
-  if (_eqNodes.length) {
-    _eqNodes.forEach((n, i) => { n.gain.value = _eqOn ? _eqGains[i] : 0; });
-  }
-}
-
-function _refreshAutoEqUI() {
-  const toggle = document.getElementById('autoeq-toggle');
-  if (toggle) toggle.checked = _autoEqOn;
-  const status = document.getElementById('autoeq-status');
-  if (!status) return;
-  if (!_autoEqOn) {
-    status.textContent = 'Off — using manual EQ only';
-    return;
-  }
-  if (nowSong && _autoEqCache.has(nowSong.id)) {
-    const gains = _autoEqCache.get(nowSong.id);
-    const nonZero = gains.filter(g => g !== 0).length;
-    status.textContent = 'Active — ' + nonZero + ' band' + (nonZero !== 1 ? 's' : '') + ' adjusted for this song';
-  } else {
-    status.textContent = 'On — will analyse when next song plays';
-  }
-}
-
-// ── End Auto-EQ ───────────────────────────────────────────────────────────────
-
-// ── Meyda real-time continuous EQ adaptation ──────────────────────────────────
-function _computeMeydaGains(features) {
-  const gains = new Float32Array(10);
-  if (!features) return gains;
-  const { spectralCentroid = null, perceptualSharpness = null, spectralFlatness = null, rms = null } = features;
-
-  // spectralCentroid → high-frequency correction (bands 7,8,9 = 4k,8k,16k)
-  // Most music centroid: 1000–2000Hz. Reference 1500Hz = neutral.
-  // Boost highs only when truly dull (<1000Hz), cut when excessively bright (>2500Hz).
-  // Deadband ±300Hz around 1500Hz — no action for normal content.
-  if (spectralCentroid !== null && isFinite(spectralCentroid)) {
-    const centroidHz = spectralCentroid * (_audioCtx?.sampleRate ?? 48000) / 2048;
-    const delta = centroidHz - 1500;
-    let drive = 0;
-    if (delta < -300) drive = Math.max(-1, (delta + 300) / 1000);  // dull: cut, drive negative → boost highs
-    if (delta > 300)  drive = Math.min(+1, (delta - 300) / 1500);  // bright: drive positive → cut highs
-    // Invert: positive drive = bright content → cut; negative = dull → boost
-    gains[7] -= drive * 1.5;
-    gains[8] -= drive * 1.5;
-    gains[9] -= drive * 1.0;
-  }
-
-  // perceptualSharpness → harshness control (bands 6,7 = 2k,4k only)
-  // Trigger harshness cut only above 2.0 (was 1.5 — too aggressive).
-  // Never boost "dull" here: overlaps with centroid and causes double-boost.
-  if (perceptualSharpness !== null && isFinite(perceptualSharpness)) {
-    const harshDrive = Math.max(0, Math.min(1, (perceptualSharpness - 2.0) / 1.0));
-    gains[6] -= harshDrive * 2;
-    gains[7] -= harshDrive * 2;
-  }
-
-  // spectralFlatness → bass body (bands 0,1 = 32,64 Hz)
-  // Only boost bass when signal is strongly tonal (<0.05), cut on very noisy (>0.6).
-  if (spectralFlatness !== null && isFinite(spectralFlatness)) {
-    const tonalDrive = Math.max(0, Math.min(1, (0.05 - spectralFlatness) / 0.05));
-    const noiseDrive = Math.max(0, Math.min(1, (spectralFlatness - 0.6) / 0.4));
-    const bassDelta  = (tonalDrive * 1.5) - (noiseDrive * 1.5);
-    gains[0] += bassDelta;
-    gains[1] += bassDelta;
-  }
-
-  // rms → very gentle loudness compensation — only extreme cases
-  // Removed the per-band boost for quiet signals (caused overall level creep).
-  if (rms !== null && isFinite(rms)) {
-    const loudDrive = Math.max(0, Math.min(1, (rms - 0.80) / 0.20));
-    for (let i = 0; i < 10; i++) gains[i] -= loudDrive * 0.5;
-  }
-
-  // Max ±2.5dB per band from Meyda (down from ±4) — subtle correction, not EQ replacement
-  for (let i = 0; i < 10; i++) gains[i] = Math.max(-2.5, Math.min(2.5, gains[i]));
-  return gains;
-}
-
-function _startMeyda() {
-  if (!_corsAvailable || !window.Meyda || _meydaAnalyser || !_meydaOn || !_audioCtx || !_gainNode) return;
-  try {
-    _meydaAnalyser = Meyda.createMeydaAnalyzer({
-      audioContext:      _audioCtx,
-      source:            _gainNode,
-      bufferSize:        2048,
-      featureExtractors: ['spectralCentroid', 'spectralFlatness', 'perceptualSharpness', 'rms', 'energy'],
-      callback:          _onMeydaFrame,
-    });
-    _meydaAnalyser.start();
-    Log.info('Meyda started');
-  } catch (e) {
-    _meydaAnalyser = null;
-    Log.warn('Meyda start failed', { err: e.message });
-  }
-}
-
-function _stopMeyda() {
-  if (!_meydaAnalyser) return;
-  try { _meydaAnalyser.stop(); } catch {}
-  _meydaAnalyser = null;
-  Log.info('Meyda stopped');
-}
-
-// Beat detection state
-let _beatEnergySmooth = 0;
-let _beatPulseActive  = false;
-
-function _detectBeat(features) {
-  const energy = features.energy ?? (features.rms ? features.rms * features.rms : 0);
-  _beatEnergySmooth = 0.92 * _beatEnergySmooth + 0.08 * energy;
-  if (energy > _beatEnergySmooth * 1.8 && !_beatPulseActive) {
-    _beatPulseActive = true;
-    // Sync EQ bar animation to the beat
-    const bars = document.querySelectorAll('.eq-bar');
-    bars.forEach(b => { b.style.animationDuration = '0.18s'; b.style.transform = 'scaleY(1.6)'; });
-    setTimeout(() => {
-      bars.forEach(b => { b.style.animationDuration = ''; b.style.transform = ''; });
-      _beatPulseActive = false;
-    }, 80);
-  }
-}
-
-function _onMeydaFrame(features) {
-  if (!features) return;
-  // Beat detection runs every frame (no throttle)
-  _detectBeat(features);
-  const now = Date.now();
-  if (now - _meydaLastUpdate < 2000) return;
-  _meydaLastUpdate = now;
-  const raw = _computeMeydaGains(features);
-  // ALPHA=0.35: balanced for 2s update interval — tracks slow tonal shifts without
-  // snapping to transient outlier frames (0.9 was near-instant and caused drift lock-in)
-  const ALPHA = 0.35;
-  for (let i = 0; i < 10; i++) {
-    _meydaSmoothed[i] = ALPHA * raw[i] + (1 - ALPHA) * _meydaSmoothed[i];
-    _meydaGains[i]    = raw[i];
-  }
-  _applyMeydaGains();
-}
-
-function _applyMeydaGains() {
-  if (!_eqOn || !_corsAvailable || _eqNodes.length !== 10) return;
-  // Use _eqGains (manual base) as ground truth — avoids stale-read from setTargetAtTime lag.
-  // Auto-EQ gains are tracked separately in _autoEqCache; _eqGains is always the manual intent.
-  const autoGains = (nowSong && _autoEqCache.has(nowSong.id)) ? _autoEqCache.get(nowSong.id) : null;
-  for (let i = 0; i < 10; i++) {
-    const manualBase = _eqGains[i];
-    const autoBase   = autoGains ? autoGains[i] : 0;
-    const meydaDelta = _meydaSmoothed[i];
-    const clamped    = Math.max(-12, Math.min(12, manualBase + autoBase + meydaDelta));
-    _meydaAppliedGains[i] = meydaDelta;
-    _eqNodes[i].gain.setTargetAtTime(clamped, _audioCtx.currentTime, 0.5);
-  }
-}
-// ── End Meyda ─────────────────────────────────────────────────────────────────
-
-// ── End EQ ───────────────────────────────────────────────────────────────────
 
 // ── SMARTPLAY TOGGLE ──────────────────────────────────────────────────────────
 const SP_KEY = 'mbx_smartplay_on';
@@ -3221,7 +2503,6 @@ document.getElementById('tabbar').addEventListener('click', e => {
   btn.classList.add('on');
   if (tab === 'library')  renderPlaylists();
   if (tab === 'settings') renderSettings();
-  else _stopMonitor(); // pause monitor when not on settings tab
   if (tab === 'browse' && !browseChartsLoaded) { browseChartsLoaded = true; loadBrowseCharts(); }
   if (tab === 'browse') { _startTimeContextRefresh(); renderForYouSection(); renderWeeklyRecap(); }
   else { _stopTimeContextRefresh(); }
@@ -5027,10 +4308,6 @@ function renderMemoryCard() {
 }
 
 function renderSettings() {
-  _initEqUI();
-  _initMonitor();
-  _refreshEqUI();
-  _refreshAutoEqUI();
   document.getElementById('cfg-version').textContent  = 'v' + APP_VERSION;
   document.getElementById('cfg-logcount').textContent = Log.all().length + ' / ' + LOG_MAX;
   const cfg = getGhCfg();
