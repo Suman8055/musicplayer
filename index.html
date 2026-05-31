@@ -313,7 +313,7 @@ body::after{
 .log-actions{display:flex;gap:8px}
 .log-act-btn{background:var(--bg2);border:none;color:var(--fg2);font-size:13px;font-family:inherit;padding:6px 12px;border-radius:8px;cursor:pointer}
 .log-act-btn.danger{color:#ff453a}
-.log-view{margin:0 16px 16px;background:var(--bg2);border-radius:14px;overflow:hidden;max-height:280px;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.log-view{margin:0 16px 16px;background:var(--bg2);border-radius:14px;overflow:hidden;max-height:420px;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .log-row{padding:8px 12px;border-bottom:1px solid var(--sep);display:flex;gap:8px;align-items:flex-start}
 .log-row:last-child{border-bottom:none}
 .log-ts{color:var(--fg3);white-space:nowrap;flex-shrink:0;font-size:10px;font-family:'SF Mono',Menlo,monospace;margin-top:1px}
@@ -889,10 +889,10 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.27';
+const APP_VERSION = '4.1.28';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
-const LOG_MAX     = 200;
+const LOG_MAX     = 400;
 const DES_KEY     = '38346591';
 const GH_CFG_KEY  = 'mbx_ghcfg';
 const GH_REPO     = 'Suman8055/musicplayer';
@@ -1201,6 +1201,7 @@ function _ensureAudioCtx() {
   try {
     _audioCtx = new AC({ sampleRate: 48000 });
     _audioCtx.addEventListener('statechange', () => {
+      Log.info('AudioContext state', { state: _audioCtx.state });
       if (_audioCtx.state === 'suspended') {
         _audioCtx.resume().catch(() => {});
       }
@@ -1296,24 +1297,23 @@ function _stopBgKeepAlive() {
 
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
-    // Going to background — start keep-alive heartbeat
     _startBgKeepAlive();
-    // Tell iOS lock screen we are still playing — prevents OS from tearing down audio session
+    Log.info('App backgrounded', { playing, userPaused, ctx: _audioCtx?.state, audioSession: ('audioSession' in navigator) ? navigator.audioSession.type : 'n/a' });
     if ('mediaSession' in navigator && playing && !userPaused) {
       navigator.mediaSession.playbackState = 'playing';
     }
     return;
   }
-  // Foregrounding — stop heartbeat, resume AudioContext if needed
   _stopBgKeepAlive();
   if ('audioSession' in navigator) navigator.audioSession.type = 'playback';
   (async () => {
-    if (_audioCtx?.state === 'suspended') {
-      try { await _audioCtx.resume(); } catch {}
-    }
-    if (!userPaused && nowSong && (_iosPaused || audio.paused)) {
+    const ctxBefore = _audioCtx?.state;
+    if (_audioCtx?.state === 'suspended') { try { await _audioCtx.resume(); } catch {} }
+    const needsPlay = !userPaused && nowSong && (_iosPaused || audio.paused);
+    Log.info('App foregrounded', { ctxBefore, ctxAfter: _audioCtx?.state, audioPaused: audio.paused, needsPlay, iosPaused: _iosPaused });
+    if (needsPlay) {
       _iosPaused = false;
-      audio.play().catch(() => {});
+      audio.play().catch(e => Log.warn('Foreground play() failed', { err: e.message }));
     }
     if ('mediaSession' in navigator) {
       navigator.mediaSession.playbackState = (!userPaused && nowSong) ? 'playing' : 'paused';
@@ -1334,22 +1334,25 @@ window.addEventListener('pageshow', (e) => {
 });
 // pagehide: last chance to commit MediaSession state before iOS suspends the page
 window.addEventListener('pagehide', () => {
+  Log.info('pagehide', { playing, userPaused, ctx: _audioCtx?.state });
   if (playing && !userPaused && 'mediaSession' in navigator) {
     navigator.mediaSession.playbackState = 'playing';
   }
 });
-// freeze: iOS PWA freeze event — identical commit
+// freeze: iOS PWA freeze event
 document.addEventListener('freeze', () => {
+  Log.info('freeze event', { playing, userPaused, ctx: _audioCtx?.state });
   if (playing && !userPaused && 'mediaSession' in navigator) {
     navigator.mediaSession.playbackState = 'playing';
   }
 });
 document.addEventListener('resume', () => {
+  Log.info('resume event', { ctx: _audioCtx?.state, audioPaused: audio.paused });
   (async () => {
     if (_audioCtx?.state === 'suspended') { try { await _audioCtx.resume(); } catch {} }
     if (!userPaused && nowSong && (_iosPaused || audio.paused)) {
       _iosPaused = false;
-      audio.play().catch(() => {});
+      audio.play().catch(e => Log.warn('Resume play() failed', { err: e.message }));
     }
   })();
 });
@@ -1988,25 +1991,23 @@ audio.addEventListener('pause', () => {
   playing = false;
   refreshPlayBtns();
   if (!userPaused && nowSong && !loadingUrl) {
-    // iOS interrupted us (app switch, phone call, Siri, Control Center, etc.)
-    // Fight back immediately — call play() right inside the pause handler.
-    // This is the only reliable way to keep audio alive in the background on iOS Safari PWA.
-    // The tiny delay lets the pause event fully propagate before we countermand it.
     _iosPaused = true;
+    Log.warn('OS interrupted playback', { ctx: _audioCtx?.state, docHidden: document.hidden, song: nowSong?.name });
     setTimeout(async () => {
       if (_iosPaused && !userPaused && nowSong) {
-        // Must resume AudioContext BEFORE play() — iOS rejects play() on a suspended context
         if (_audioCtx?.state === 'suspended') {
           try { await _audioCtx.resume(); } catch {}
         }
         try {
           await audio.play();
-        } catch {
+          Log.info('Fight-back play() succeeded');
+        } catch (e) {
+          Log.warn('Fight-back play() failed (attempt 1)', { err: e.message, ctx: _audioCtx?.state });
           // Second attempt after a short delay if first fails
           setTimeout(async () => {
             if (_iosPaused && !userPaused && nowSong && audio.paused) {
               if (_audioCtx?.state === 'suspended') { try { await _audioCtx.resume(); } catch {} }
-              audio.play().catch(() => {});
+              audio.play().catch(e => Log.warn('Fight-back play() failed (attempt 2)', { err: e.message, ctx: _audioCtx?.state }));
             }
           }, 500);
         }
@@ -2601,7 +2602,8 @@ document.getElementById('tabbar').addEventListener('click', e => {
   document.getElementById('tab-' + tab).classList.add('active');
   btn.classList.add('on');
   if (tab === 'library')  renderPlaylists();
-  if (tab === 'settings') renderSettings();
+  if (tab === 'settings') { renderSettings(); _startLogRefresh(); }
+  else { _stopLogRefresh(); }
   if (tab === 'browse' && !browseChartsLoaded) { browseChartsLoaded = true; loadBrowseCharts(); }
   if (tab === 'browse') { _startTimeContextRefresh(); renderForYouSection(); renderWeeklyRecap(); }
   else { _stopTimeContextRefresh(); }
@@ -4647,17 +4649,23 @@ document.getElementById('clear-downloads-btn').addEventListener('click', async (
   if (document.querySelector('#tab-library.active')) renderPlaylists();
 });
 
+let _logRefreshTimer = null;
+
 function renderLogs(filter) {
+  filter = filter ?? document.getElementById('log-filter').value;
   const entries = Log.all().filter(e => !filter || e.level === filter).reverse();
   const el = document.getElementById('log-view');
   if (!entries.length) {
     el.innerHTML = '<div class="log-row"><span class="log-msg" style="color:var(--fg3)">No log entries</span></div>';
     return;
   }
+  // colour-code rows by level
+  const levelColour = { INFO: '', WARN: '#ffb400', ERROR: '#ff453a', CRITICAL: '#ff453a' };
   el.innerHTML = entries.map(e => {
-    const ts   = e.ts.slice(11, 19); // HH:MM:SS
-    const data = e.data ? ' ' + JSON.stringify(e.data) : '';
-    return `<div class="log-row">
+    const ts    = e.ts.slice(11, 19); // HH:MM:SS
+    const data  = e.data ? ' ' + JSON.stringify(e.data) : '';
+    const colour = levelColour[e.level] ? `color:${levelColour[e.level]}` : '';
+    return `<div class="log-row" style="${colour}">
       <span class="log-ts">${esc(ts)}</span>
       <span class="log-level ${esc(e.level)}">${esc(e.level)}</span>
       <span class="log-msg">${esc(e.msg + data)}</span>
@@ -4665,16 +4673,24 @@ function renderLogs(filter) {
   }).join('');
 }
 
-document.getElementById('log-filter').addEventListener('change', e => {
-  renderLogs(e.target.value);
-});
+function _startLogRefresh() {
+  _stopLogRefresh();
+  renderLogs();
+  _logRefreshTimer = setInterval(renderLogs, 3000);
+}
+function _stopLogRefresh() {
+  clearInterval(_logRefreshTimer);
+  _logRefreshTimer = null;
+}
+
+document.getElementById('log-filter').addEventListener('change', () => renderLogs());
 
 document.getElementById('log-export-btn').addEventListener('click', () => {
   const text = Log.all().map(e =>
     `[${e.ts}] [${e.level}] ${e.msg}${e.data ? ' ' + JSON.stringify(e.data) : ''}`
   ).join('\n');
   navigator.clipboard?.writeText(text)
-    .then(() => toast('Logs copied to clipboard'))
+    .then(() => toast('Logs copied — paste anywhere'))
     .catch(() => toast('Copy not supported'));
 });
 
