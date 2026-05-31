@@ -889,7 +889,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.14';
+const APP_VERSION = '4.1.15';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -3695,13 +3695,16 @@ function buildDiscover() {
 
 function normSigmaSong(s) {
   const pa = Array.isArray(s.primaryArtists) ? s.primaryArtists : [];
+  const artistStr = pa.length
+    ? pa.map(a => a.name).join(', ')
+    : (typeof s.primaryArtists === 'string' ? decodeHtml(s.primaryArtists) : '');
   return {
     id:       s.id,
     name:     decodeHtml(s.name || ''),
-    artist:   pa.map(a => a.name).join(', '),
+    artist:   artistStr,
     artistId: pa[0]?.id || '',
     language: s.language || '',
-    album:    '',
+    album:    s.album?.name || (typeof s.album === 'string' ? s.album : '') || '',
     image:    bestImg(s.image, '150x150'),
     duration: parseInt(s.duration || 0),
   };
@@ -3836,44 +3839,41 @@ async function openBrowseDetail(id, type, title, songIds) {
     let songs = [];
 
     if (type === 'album' && songIds) {
-      // Direct batch fetch by song IDs — bypasses the DRM/sample-trailer issue
-      // because we're fetching the actual songs, not the album container
+      // Direct batch fetch by song IDs via SIGMA (CORS-open)
       const ids = songIds.split(',').map(s => s.trim()).filter(Boolean).join(',');
-      const resp = await saavnFetch(`${SAAVN_API}/api/songs?ids=${encodeURIComponent(ids)}`);
+      const resp = await saavnFetch(`${SIGMA_API}/songs?id=${encodeURIComponent(ids)}`);
       const data = await resp.json();
-      songs = (Array.isArray(data?.data) ? data.data : []).map(normSaavnSong);
+      songs = (Array.isArray(data?.data) ? data.data : []).map(normSigmaSong);
     } else if (type === 'album') {
-      const resp = await saavnFetch(`${SAAVN_API}/api/albums?id=${encodeURIComponent(id)}`);
+      const resp = await saavnFetch(`${SIGMA_API}/albums?id=${encodeURIComponent(id)}`);
       const data = await resp.json();
       const item = data?.data;
       if (!item) throw new Error('Not found');
-      songs = (item.songs || []).map(normSaavnSong);
-      // Fallback: new/regional albums often return empty songs via album endpoint;
-      // search by title to get songIds and fetch directly
+      songs = (item.songs || []).map(normSigmaSong);
+      // Fallback: search by title if album returns no songs
       if (!songs.length && title) {
         try {
-          const sr = await saavnFetch(`${SAAVN_API}/api/search?query=${encodeURIComponent(title)}`);
+          const sr = await saavnFetch(`${SIGMA_API}/search/albums?query=${encodeURIComponent(title)}&limit=5`);
           const sd = await sr.json();
-          const results = sd?.albums?.results || [];
+          const results = sd?.data?.results || [];
           const match = results.find(a => a.id === id) || results[0];
-          if (match?.songIds) {
-            const ids = match.songIds.split(',').map(s => s.trim()).filter(Boolean).join(',');
-            const r2 = await saavnFetch(`${SAAVN_API}/api/songs?ids=${encodeURIComponent(ids)}`);
+          if (match?.id) {
+            const r2 = await saavnFetch(`${SIGMA_API}/albums?id=${encodeURIComponent(match.id)}`);
             const d2 = await r2.json();
-            songs = (Array.isArray(d2?.data) ? d2.data : []).map(normSaavnSong);
+            songs = (d2?.data?.songs || []).map(normSigmaSong);
           }
         } catch {}
       }
     } else if (type === 'playlist') {
-      const resp = await saavnFetch(`${SAAVN_API}/api/playlists?id=${encodeURIComponent(id)}&limit=50`);
+      const resp = await saavnFetch(`${SIGMA_API}/playlists?id=${encodeURIComponent(id)}`);
       const data = await resp.json();
       const item = data?.data;
       if (!item) throw new Error('Not found');
-      songs = (item.songs || []).map(normSaavnSong);
+      songs = (item.songs || []).map(normSigmaSong);
     } else if (type === 'artist') {
-      const resp = await saavnFetch(`${SAAVN_API}/api/artists/${encodeURIComponent(id)}/songs`);
+      const resp = await saavnFetch(`${SIGMA_API}/artists/${encodeURIComponent(id)}/songs`);
       const data = await resp.json();
-      songs = (data?.data?.songs || data?.data?.results || []).map(normSaavnSong);
+      songs = (data?.data?.results || data?.data?.songs || []).map(normSigmaSong);
     }
 
     // Filter JioSaavn DRM placeholder tracks regardless of fetch path
