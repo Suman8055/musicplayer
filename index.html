@@ -924,7 +924,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.7';
+const APP_VERSION = '4.1.8';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -1707,13 +1707,12 @@ async function play(song, newQueue, idx) {
       audio.crossOrigin = null;       // blob:// URLs are same-origin; crossOrigin must be null
       _ensureAudioCtx();
       await _resumeAudioCtx();
-      if (_meydaOn && _corsAvailable) _startMeyda();
       audio.src = offlineBlobUrl;
       await audio.play().catch(e => Log.warn('Offline play failed', { err: e.message }));
       if (nowSong?.id !== song.id) return;
       playing = true;
       Log.info('Playback (offline)', { name: song.name });
-      setTimeout(() => { if (nowSong?.id === song.id) _analyseAndAutoEq(song); }, 3000);
+      setTimeout(() => { if (nowSong?.id === song.id) { _analyseAndAutoEq(song); if (_meydaOn && _corsAvailable) _startMeyda(); } }, 3000);
 
     } else {
       // ── Network stream path ────────────────────────────────────────────────
@@ -1731,7 +1730,6 @@ async function play(song, newQueue, idx) {
       audio.crossOrigin = 'anonymous'; // required for Web Audio routing on network streams
       _ensureAudioCtx();
       await _resumeAudioCtx();
-      if (_meydaOn && _corsAvailable) _startMeyda();
       if (offlineBlobUrl) { URL.revokeObjectURL(offlineBlobUrl); offlineBlobUrl = null; }
       audio.src = stream.url;
       await audio.play().catch(e => Log.warn('Play failed', { err: e.message }));
@@ -1739,8 +1737,8 @@ async function play(song, newQueue, idx) {
       if (nowSong?.id !== song.id) return;
       playing = true;
       _intelPlayStartTs = Date.now();
-      // Kick off spectral analysis in background — adjusts EQ after ~2s
-      setTimeout(() => { if (nowSong?.id === song.id) _analyseAndAutoEq(song); }, 3000);
+      // Kick off spectral analysis + Meyda after play is confirmed stable
+      setTimeout(() => { if (nowSong?.id === song.id) { _analyseAndAutoEq(song); if (_meydaOn && _corsAvailable) _startMeyda(); } }, 3000);
     }
     setTimeout(preloadNext, 1500);
   } catch (e) {
