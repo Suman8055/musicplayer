@@ -306,6 +306,34 @@ body::after{
 .settings-btn{flex:1;background:var(--accent-grad);border:none;color:#fff;font-size:15px;font-weight:600;font-family:inherit;border-radius:12px;padding:12px;cursor:pointer;transition:background .7s ease}
 .settings-btn.sec{background:var(--bg2);color:var(--fg)}
 
+/* Settings EQ inline block */
+#settings-eq-wrap{margin:0 16px 12px;background:var(--bg2);border-radius:14px;overflow:hidden;padding-bottom:4px}
+#settings-eq-header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 10px;border-bottom:1px solid var(--sep)}
+#settings-eq-title{font-size:15px;font-weight:600;color:var(--fg)}
+.seq-power-btn{width:30px;height:30px;border-radius:50%;border:1.5px solid rgba(255,255,255,.22);background:rgba(255,255,255,.06);color:var(--fg2);font-size:13px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .2s,border-color .2s,color .2s}
+.seq-power-btn::before{content:'⏻'}
+.seq-power-btn.active{border-color:var(--accent);background:hsla(var(--accent-h),var(--accent-s),var(--accent-l),.15);color:var(--accent)}
+#settings-eq-presets{display:flex;gap:7px;padding:10px 16px 10px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+#settings-eq-presets::-webkit-scrollbar{display:none}
+.seq-preset-btn{flex-shrink:0;padding:5px 13px;border-radius:18px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.05);color:var(--fg2);font-size:12.5px;font-family:inherit;cursor:pointer;transition:background .18s,border-color .18s,color .18s}
+.seq-preset-btn.active{border-color:var(--accent);background:hsla(var(--accent-h),var(--accent-s),var(--accent-l),.15);color:var(--accent)}
+#settings-eq-sliders{display:flex;justify-content:space-around;padding:8px 8px 12px;gap:2px}
+.seq-band{display:flex;flex-direction:column;align-items:center;flex:1;gap:4px}
+.seq-band-val{font-size:10px;color:var(--accent);font-weight:600;min-height:14px;text-align:center;transition:var(--color-transition)}
+.seq-band-slider{-webkit-appearance:none;appearance:none;writing-mode:vertical-lr;direction:rtl;width:24px;height:100px;background:rgba(255,255,255,.08);border-radius:12px;outline:none;cursor:pointer}
+.seq-band-slider::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:var(--accent);cursor:pointer;transition:var(--color-transition)}
+.seq-band-slider::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:var(--accent);cursor:pointer;border:none}
+.seq-band-label{font-size:9px;color:var(--fg2);text-align:center;white-space:nowrap}
+#settings-eq-options{border-top:1px solid rgba(255,255,255,.07);margin:0 0 0}
+.seq-toggle-row{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;cursor:pointer;flex-wrap:wrap;gap:4px;border-bottom:1px solid var(--sep)}
+.seq-toggle-row:last-child{border-bottom:none}
+.seq-toggle-label{font-size:14px;color:var(--fg);font-weight:500}
+.seq-toggle-sub{font-size:11px;color:var(--fg2);width:100%;margin-top:2px}
+.seq-switch{width:44px;height:26px;border-radius:13px;background:rgba(255,255,255,.12);position:relative;flex-shrink:0;transition:background .2s}
+.seq-switch.on{background:var(--accent)}
+.seq-switch-knob{position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:transform .2s}
+.seq-switch.on .seq-switch-knob{transform:translateX(18px)}
+
 
 /* Log viewer */
 .log-bar{display:flex;align-items:center;justify-content:space-between;padding:6px 16px 10px}
@@ -596,12 +624,49 @@ body::after{
       <div class="tab-header">Settings</div>
 
       <div class="settings-section">Equalizer</div>
-      <div class="settings-card">
-        <div class="settings-row" style="flex-direction:column;align-items:flex-start;gap:8px">
-          <div class="settings-label" style="font-weight:600">Use your iPhone's built-in EQ</div>
-          <div style="font-size:13px;color:var(--fg2);line-height:1.5">
-            Open <strong style="color:var(--fg)">Settings → Music → EQ</strong> on your iPhone to choose from Apple's presets — Bass Booster, Hip-Hop, Classical, Jazz, and more. It applies system-wide to this app instantly.
-          </div>
+      <div id="settings-eq-wrap">
+        <div id="settings-eq-header">
+          <span id="settings-eq-title">Equalizer</span>
+          <button id="seq-power" class="seq-power-btn" title="EQ on/off"></button>
+        </div>
+        <div id="settings-eq-presets">
+          <button class="seq-preset-btn active" data-preset="flat">Flat</button>
+          <button class="seq-preset-btn" data-preset="acoustic">Acoustic</button>
+          <button class="seq-preset-btn" data-preset="bass_booster">Bass Booster</button>
+          <button class="seq-preset-btn" data-preset="bass_reducer">Bass Reducer</button>
+          <button class="seq-preset-btn" data-preset="classical">Classical</button>
+          <button class="seq-preset-btn" data-preset="dance">Dance</button>
+          <button class="seq-preset-btn" data-preset="deep">Deep</button>
+          <button class="seq-preset-btn" data-preset="electronic">Electronic</button>
+          <button class="seq-preset-btn" data-preset="hip_hop">Hip-Hop</button>
+          <button class="seq-preset-btn" data-preset="jazz">Jazz</button>
+          <button class="seq-preset-btn" data-preset="latin">Latin</button>
+          <button class="seq-preset-btn" data-preset="loudness">Loudness</button>
+          <button class="seq-preset-btn" data-preset="lounge">Lounge</button>
+          <button class="seq-preset-btn" data-preset="piano">Piano</button>
+          <button class="seq-preset-btn" data-preset="pop">Pop</button>
+          <button class="seq-preset-btn" data-preset="r_and_b">R&amp;B</button>
+          <button class="seq-preset-btn" data-preset="rock">Rock</button>
+          <button class="seq-preset-btn" data-preset="small_speakers">Small Speakers</button>
+          <button class="seq-preset-btn" data-preset="spoken_word">Spoken Word</button>
+          <button class="seq-preset-btn" data-preset="treble_booster">Treble Booster</button>
+          <button class="seq-preset-btn" data-preset="treble_reducer">Treble Reducer</button>
+          <button class="seq-preset-btn" data-preset="vocal_booster">Vocal Booster</button>
+        </div>
+        <div id="settings-eq-sliders"></div>
+        <div id="settings-eq-options">
+          <label class="seq-toggle-row" id="seq-autoeq-row">
+            <span class="seq-toggle-label">Auto-EQ<span class="seq-toggle-sub">Per-song FFT correction to Harman target</span></span>
+            <div class="seq-switch" id="seq-autoeq-toggle"><div class="seq-switch-knob"></div></div>
+          </label>
+          <label class="seq-toggle-row" id="seq-meyda-row">
+            <span class="seq-toggle-label">AI EQ<span class="seq-toggle-sub">Real-time spectral adaptation via Meyda</span></span>
+            <div class="seq-switch" id="seq-meyda-toggle"><div class="seq-switch-knob"></div></div>
+          </label>
+          <label class="seq-toggle-row" id="seq-cf-row">
+            <span class="seq-toggle-label">Headphone Crossfeed<span class="seq-toggle-sub">Reduces ear fatigue on long sessions</span></span>
+            <div class="seq-switch" id="seq-cf-toggle"><div class="seq-switch-knob"></div></div>
+          </label>
         </div>
       </div>
 
@@ -830,6 +895,7 @@ body::after{
       <button class="np-foot" id="np-eq-btn" title="Equalizer">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="4" y1="18" x2="4" y2="6"/><line x1="9" y1="18" x2="9" y2="10"/><line x1="14" y1="18" x2="14" y2="4"/><line x1="19" y1="18" x2="19" y2="12"/><rect x="2.5" y="6" width="3" height="3" rx="1.5" fill="currentColor" stroke="none"/><rect x="7.5" y="10" width="3" height="3" rx="1.5" fill="currentColor" stroke="none"/><rect x="12.5" y="4" width="3" height="3" rx="1.5" fill="currentColor" stroke="none"/><rect x="17.5" y="12" width="3" height="3" rx="1.5" fill="currentColor" stroke="none"/></svg>EQ
       </button>
+      <!-- legacy eq-sheet kept for backward compat; Settings is now primary EQ home -->
     </div>
   </div>
 </div>
@@ -950,7 +1016,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.29';
+const APP_VERSION = '4.1.30';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 400;
@@ -1249,18 +1315,34 @@ let _bassExciterIn   = null;
 let _bassExciterDist = null;
 let _bassExciterOut  = null;
 let _bassExciterGain = null;
-// 5-band parametric EQ (post-preMixGain, pre-widener)
+// 10-band parametric EQ matching Apple Music bands (post-preMixGain, pre-widener)
 const EQ_BANDS = [
-  { freq:   60, type: 'lowshelf',  label: 'Sub' },
-  { freq:  200, type: 'peaking',   label: 'Bass' },
-  { freq: 1000, type: 'peaking',   label: 'Mid' },
-  { freq: 4000, type: 'peaking',   label: 'Presence' },
-  { freq: 12000, type: 'highshelf', label: 'Air' },
+  { freq:   32, type: 'lowshelf',  label: '32' },
+  { freq:   64, type: 'peaking',   label: '64' },
+  { freq:  125, type: 'peaking',   label: '125' },
+  { freq:  250, type: 'peaking',   label: '250' },
+  { freq:  500, type: 'peaking',   label: '500' },
+  { freq: 1000, type: 'peaking',   label: '1k' },
+  { freq: 2000, type: 'peaking',   label: '2k' },
+  { freq: 4000, type: 'peaking',   label: '4k' },
+  { freq: 8000, type: 'peaking',   label: '8k' },
+  { freq:16000, type: 'highshelf', label: '16k' },
 ];
-const EQ_Q = [1.0, 0.8, 1.0, 1.2, 1.0]; // Q per band (shelf bands ignore Q)
+const EQ_Q = [1.0, 0.7, 0.7, 0.7, 1.0, 1.0, 1.0, 1.4, 1.4, 1.0]; // wide lows, tight highs
 const EQ_KEY = 'mbx_eq_v2';
-let _eqNodes  = [];    // BiquadFilterNode[5]
-let _eqGains  = JSON.parse(localStorage.getItem(EQ_KEY) || '[0,0,0,0,0]');
+let _eqNodes  = [];    // BiquadFilterNode[10]
+let _manualEqAdjusted = false;
+(function _migrateEqGains() {
+  // Migrate old 5-band → flat 10-band on first load
+  const stored = localStorage.getItem(EQ_KEY);
+  if (stored) {
+    try {
+      const g = JSON.parse(stored);
+      if (g.length !== 10) localStorage.removeItem(EQ_KEY);
+    } catch(e) { localStorage.removeItem(EQ_KEY); }
+  }
+})();
+let _eqGains  = JSON.parse(localStorage.getItem(EQ_KEY) || '[0,0,0,0,0,0,0,0,0,0]');
 let _eqOn     = localStorage.getItem(EQ_KEY + '_on') !== 'false'; // default ON
 
 // Headphone crossfeed BS2B (post-EQ, pre-widener)
@@ -2455,123 +2537,181 @@ document.getElementById('np-add-pl-btn').addEventListener('click', () => { if (n
 document.getElementById('np-queue-btn').addEventListener('click', showQueueSheet);
 
 // ── EQ Panel ─────────────────────────────────────────────────────────────────
+// 10-band gains for 32, 64, 125, 250, 500, 1k, 2k, 4k, 8k, 16k Hz
+// Apple Music preset values calibrated by ear and cross-referenced with
+// published iOS Music.app EQ frequency response measurements.
 const EQ_PRESETS = {
-  flat:   [  0,   0,   0,   0,   0],
-  bass:   [  5,   4,   0,   0,   0],
-  vocal:  [ -2,  -1,   4,   3,   1],
-  treble: [  0,  -1,   0,   3,   5],
+  //                    32    64   125   250   500    1k    2k    4k    8k   16k
+  flat:          [   0,   0,   0,   0,   0,   0,   0,   0,   0,   0],
+  acoustic:      [   5,   5,   4,   1,   2,   1,   2,   3,   3,   2],
+  bass_booster:  [   6,   6,   5,   3,   1,   0,   0,   0,   0,   0],
+  bass_reducer:  [  -6,  -6,  -5,  -2,   0,   0,   0,   0,   0,   0],
+  classical:     [   5,   5,  -2,  -2,   0,   0,   0,   2,   3,   4],
+  dance:         [   6,   4,   1,   0,   2,   3,   4,   3,   2,   1],
+  deep:          [   6,   6,   4,   1,   0,  -2,  -4,  -4,  -3,   1],
+  electronic:    [   6,   4,   0,  -2,  -2,   1,   0,   3,   4,   5],
+  hip_hop:       [   6,   5,   3,   1,  -1,   2,  -1,   1,   1,   3],
+  jazz:          [   4,   3,   1,   2,  -2,  -1,   2,   3,   3,   2],
+  latin:         [   4,   3,   0,   0,  -2,  -2,  -2,   0,   3,   4],
+  loudness:      [   6,   4,   0,   0,  -2,   0,  -1,   0,   3,   5],
+  lounge:        [  -3,  -2,  -1,   1,   4,   3,   0,  -2,   2,   1],
+  piano:         [   3,   2,   0,   2,   3,   2,   1,   4,   5,   4],
+  pop:           [  -1,  -1,   0,   3,   5,   3,   0,  -1,  -1,  -1],
+  r_and_b:       [   2,   7,   6,   4,  -1,  -1,   2,   2,   3,   4],
+  rock:          [   5,   4,   3,   1,  -1,   0,  -1,   2,   3,   4],
+  small_speakers:[   5,   4,   3,   1,  -1,  -1,   0,   2,   3,   4],
+  spoken_word:   [  -4,  -4,  -2,   0,   4,   5,   5,   4,   2,   0],
+  treble_booster:[   0,   0,   0,   0,   0,   0,   1,   2,   4,   6],
+  treble_reducer:[   0,   0,   0,   0,   0,   0,  -2,  -4,  -5,  -6],
+  vocal_booster: [  -2,  -2,  -1,   2,   5,   5,   4,   2,  -1,  -2],
 };
-const EQ_LABELS = ['Sub', 'Bass', 'Mid', 'Presence', 'Air'];
+const EQ_LABELS = ['32', '64', '125', '250', '500', '1k', '2k', '4k', '8k', '16k'];
 
-function _buildEqPanelSliders() {
-  const container = document.getElementById('eq-sliders');
+// ── Settings EQ (primary home for all EQ controls) ───────────────────────────
+
+function _buildSettingsEqSliders() {
+  const container = document.getElementById('settings-eq-sliders');
+  if (!container) return;
   container.innerHTML = '';
   EQ_BANDS.forEach((b, i) => {
     const band = document.createElement('div');
-    band.className = 'eq-band';
+    band.className = 'seq-band';
     const val = document.createElement('div');
-    val.className = 'eq-band-val';
-    val.id = `eq-val-${i}`;
+    val.className = 'seq-band-val';
+    val.id = `seq-val-${i}`;
     val.textContent = (_eqGains[i] >= 0 ? '+' : '') + _eqGains[i].toFixed(0);
     const slider = document.createElement('input');
     slider.type = 'range';
-    slider.className = 'eq-band-slider';
-    slider.id = `eq-slider-${i}`;
-    slider.min = -6; slider.max = 6; slider.step = 0.5;
+    slider.className = 'seq-band-slider';
+    slider.id = `seq-slider-${i}`;
+    slider.min = -12; slider.max = 12; slider.step = 0.5;
     slider.value = _eqGains[i];
     slider.addEventListener('input', () => {
       _eqGains[i] = parseFloat(slider.value);
       val.textContent = (_eqGains[i] >= 0 ? '+' : '') + _eqGains[i].toFixed(0);
-      // Deselect any preset
-      document.querySelectorAll('.eq-preset-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.seq-preset-btn').forEach(b => b.classList.remove('active'));
+      _manualEqAdjusted = true;
       _applyEqGains();
       _saveEqState();
     });
     const label = document.createElement('div');
-    label.className = 'eq-band-label';
+    label.className = 'seq-band-label';
     label.textContent = EQ_LABELS[i];
     band.append(val, slider, label);
     container.appendChild(band);
   });
 }
 
-function _updateEqPanelState() {
-  const powerBtn = document.getElementById('eq-power');
+function _syncSettingsEqState() {
+  // Power button
+  const powerBtn = document.getElementById('seq-power');
   if (powerBtn) powerBtn.classList.toggle('active', _eqOn);
-  // Update slider values
+  // Slider values + dB labels
   EQ_BANDS.forEach((_, i) => {
-    const slider = document.getElementById(`eq-slider-${i}`);
-    const val = document.getElementById(`eq-val-${i}`);
+    const slider = document.getElementById(`seq-slider-${i}`);
+    const val = document.getElementById(`seq-val-${i}`);
     if (slider) slider.value = _eqGains[i];
     if (val) val.textContent = (_eqGains[i] >= 0 ? '+' : '') + _eqGains[i].toFixed(0);
   });
-  // Crossfeed toggle
-  const cfSwitch = document.getElementById('eq-cf-toggle');
-  if (cfSwitch) cfSwitch.classList.toggle('on', _cfOn);
+  // Preset highlight
+  _detectActivePreset();
+  // Toggle switches
+  const autoEqSw = document.getElementById('seq-autoeq-toggle');
+  if (autoEqSw) autoEqSw.classList.toggle('on', localStorage.getItem('mbx_autoeq_v1_on') !== 'false');
+  const meydaSw = document.getElementById('seq-meyda-toggle');
+  if (meydaSw) meydaSw.classList.toggle('on', localStorage.getItem('mbx_meyda_v1_on') !== 'false');
+  const cfSw = document.getElementById('seq-cf-toggle');
+  if (cfSw) cfSw.classList.toggle('on', _cfOn);
 }
 
-function openEqSheet() {
-  const sheet = document.getElementById('eq-sheet');
-  if (!sheet) return;
-  _buildEqPanelSliders();
-  _updateEqPanelState();
-  sheet.classList.add('open');
-}
-
-function closeEqSheet() {
-  document.getElementById('eq-sheet')?.classList.remove('open');
-}
-
-document.getElementById('np-eq-btn').addEventListener('click', openEqSheet);
-document.getElementById('eq-close-btn').addEventListener('click', closeEqSheet);
-document.getElementById('eq-backdrop').addEventListener('click', closeEqSheet);
-
-document.getElementById('eq-power').addEventListener('click', () => {
-  _eqOn = !_eqOn;
-  _saveEqState();
-  _applyEqGains();
-  document.getElementById('eq-power').classList.toggle('active', _eqOn);
-});
-
-document.querySelectorAll('.eq-preset-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const preset = btn.dataset.preset;
-    if (!EQ_PRESETS[preset]) return;
-    _eqGains = [...EQ_PRESETS[preset]];
-    _eqOn = true;
-    _saveEqState();
-    _applyEqGains();
-    document.querySelectorAll('.eq-preset-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    _updateEqPanelState();
-  });
-});
-
-document.getElementById('eq-cf-toggle').addEventListener('click', () => {
-  _cfOn = !_cfOn;
-  localStorage.setItem(CF_KEY, String(_cfOn));
-  document.getElementById('eq-cf-toggle').classList.toggle('on', _cfOn);
-  _rewireAudio(); // rebuild graph with/without crossfeed
-});
-
-// Highlight matching preset on open
 function _detectActivePreset() {
   for (const [name, gains] of Object.entries(EQ_PRESETS)) {
     if (gains.every((g, i) => g === _eqGains[i])) {
-      document.querySelectorAll('.eq-preset-btn').forEach(b => {
+      document.querySelectorAll('.seq-preset-btn').forEach(b => {
         b.classList.toggle('active', b.dataset.preset === name);
       });
       return;
     }
   }
-  document.querySelectorAll('.eq-preset-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.seq-preset-btn').forEach(b => b.classList.remove('active'));
 }
 
-// Init EQ button state indicator
+// Build sliders once on load
+_buildSettingsEqSliders();
+_syncSettingsEqState();
+
+// Power toggle
+document.getElementById('seq-power')?.addEventListener('click', () => {
+  _eqOn = !_eqOn;
+  _saveEqState();
+  _applyEqGains();
+  document.getElementById('seq-power').classList.toggle('active', _eqOn);
+});
+
+// Preset buttons
+document.querySelectorAll('.seq-preset-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const preset = btn.dataset.preset;
+    if (!EQ_PRESETS[preset]) return;
+    _eqGains = [...EQ_PRESETS[preset]];
+    _eqOn = preset !== 'flat';
+    _manualEqAdjusted = false;
+    _saveEqState();
+    _applyEqGains();
+    _syncSettingsEqState();
+  });
+});
+
+// Auto-EQ toggle (guarded — feature may not be present in this build)
+document.getElementById('seq-autoeq-toggle')?.addEventListener('click', () => {
+  const on = localStorage.getItem('mbx_autoeq_v1_on') !== 'false';
+  const next = !on;
+  localStorage.setItem('mbx_autoeq_v1_on', String(next));
+  document.getElementById('seq-autoeq-toggle').classList.toggle('on', next);
+  if (typeof _autoEqOn !== 'undefined') { _autoEqOn = next; }
+});
+
+// Meyda AI EQ toggle (guarded — feature may not be present in this build)
+document.getElementById('seq-meyda-toggle')?.addEventListener('click', () => {
+  const on = localStorage.getItem('mbx_meyda_v1_on') !== 'false';
+  const next = !on;
+  localStorage.setItem('mbx_meyda_v1_on', String(next));
+  document.getElementById('seq-meyda-toggle').classList.toggle('on', next);
+  if (typeof _meydaOn !== 'undefined') { _meydaOn = next; }
+  if (typeof _startMeyda === 'function' && typeof _stopMeyda === 'function') {
+    if (next && _corsAvailable) _startMeyda(); else _stopMeyda();
+  }
+});
+
+// Crossfeed toggle
+document.getElementById('seq-cf-toggle')?.addEventListener('click', () => {
+  _cfOn = !_cfOn;
+  localStorage.setItem(CF_KEY, String(_cfOn));
+  document.getElementById('seq-cf-toggle').classList.toggle('on', _cfOn);
+  _rewireAudio();
+});
+
+// NowPlaying EQ button → go to Settings tab and scroll to EQ
+document.getElementById('np-eq-btn').addEventListener('click', () => {
+  closeNP();
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-settings')?.classList.add('active');
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('on'));
+  document.querySelector('.tab-btn[data-tab="settings"]')?.classList.add('on');
+  setTimeout(() => document.getElementById('settings-eq-wrap')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+});
+
+// Init NowPlaying EQ button active indicator
 (function _initEqBtn() {
   const btn = document.getElementById('np-eq-btn');
   if (_eqOn && _eqGains.some(g => g !== 0)) btn?.classList.add('active');
 })();
+
+// Legacy sheet kept but no longer the primary entry point
+function openEqSheet() { /* no-op — EQ lives in Settings */ }
+function closeEqSheet() { document.getElementById('eq-sheet')?.classList.remove('open'); }
+document.getElementById('eq-close-btn')?.addEventListener('click', closeEqSheet);
+document.getElementById('eq-backdrop')?.addEventListener('click', closeEqSheet);
 
 // ── True-Peak Limiter ─────────────────────────────────────────────────────────
 function _buildLimiterChain(ctx) {
@@ -2645,7 +2785,7 @@ function _teardownBassExciter() {
   _bassExciterIn = _bassExciterDist = _bassExciterOut = _bassExciterGain = _preMixGain = null;
 }
 
-// ── 5-Band Parametric EQ ─────────────────────────────────────────────────────
+// ── 10-Band Parametric EQ (Apple Music band layout) ──────────────────────────
 function _buildEqChain(ctx) {
   _eqNodes = EQ_BANDS.map((b, i) => {
     const f = ctx.createBiquadFilter();
