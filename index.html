@@ -321,6 +321,26 @@ body::after{
 .eq-reset-row{display:flex;justify-content:flex-end;margin-top:10px}
 .eq-reset-btn{background:none;border:1px solid var(--sep);color:var(--fg2);font-size:12px;font-family:inherit;border-radius:8px;padding:5px 12px;cursor:pointer}
 
+/* EQ Output Monitor */
+#eq-monitor{background:var(--bg2);border-radius:14px;padding:14px 16px;margin:0 0 4px}
+#eq-monitor.mon-hidden{display:none}
+.mon-title{font-size:12px;font-weight:700;color:var(--fg2);letter-spacing:.5px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between}
+.mon-live-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);animation:mon-pulse 1.4s ease-in-out infinite}
+@keyframes mon-pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.mon-grid{display:grid;grid-template-columns:repeat(10,1fr);gap:3px;margin-bottom:8px}
+.mon-bar-wrap{display:flex;flex-direction:column;align-items:center;gap:2px}
+.mon-bar-bg{width:100%;height:48px;background:var(--bg3);border-radius:4px;position:relative;overflow:hidden}
+.mon-bar-fill{position:absolute;bottom:50%;left:0;right:0;background:var(--accent-grad);border-radius:4px;transition:height .4s ease,bottom .4s ease}
+.mon-bar-fill.neg{background:linear-gradient(0deg,#e74c3c,#c0392b)}
+.mon-bar-zero{position:absolute;left:0;right:0;top:50%;height:1px;background:var(--sep);opacity:.7}
+.mon-bar-val{font-size:8px;color:var(--accent);font-weight:700;text-align:center;min-width:20px}
+.mon-bar-lbl{font-size:7.5px;color:var(--fg2);text-align:center}
+.mon-row{display:flex;gap:10px;font-size:11px;color:var(--fg2);align-items:center;flex-wrap:wrap}
+.mon-chip{background:var(--bg3);border-radius:6px;padding:3px 7px;font-size:10.5px;font-weight:600;color:var(--fg)}
+.mon-chip.good{color:#2ecc71}.mon-chip.warn{color:#f39c12}.mon-chip.bad{color:#e74c3c}
+.mon-layer-row{display:flex;gap:4px;margin-bottom:6px;flex-wrap:wrap}
+.mon-layer-band{font-size:8.5px;border-radius:4px;padding:2px 4px;font-weight:600;background:var(--bg3);color:var(--fg2);min-width:26px;text-align:center}
+
 /* Log viewer */
 .log-bar{display:flex;align-items:center;justify-content:space-between;padding:6px 16px 10px}
 .log-bar select{background:var(--bg2);border:none;color:var(--fg);font-size:14px;font-family:inherit;padding:6px 10px;border-radius:8px;outline:none}
@@ -606,6 +626,31 @@ body::after{
           <div class="eq-reset-row">
             <button class="eq-reset-btn" id="eq-reset-btn">Reset all</button>
           </div>
+        </div>
+      </div>
+
+      <!-- EQ Output Monitor -->
+      <div class="settings-section" style="display:flex;align-items:center;justify-content:space-between">
+        <span>EQ Output Monitor</span>
+        <input type="checkbox" id="eq-monitor-toggle" style="width:22px;height:22px;accent-color:var(--accent);cursor:pointer">
+      </div>
+      <div id="eq-monitor" class="mon-hidden">
+        <div class="mon-title">
+          <span>LIVE BAND GAINS</span>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span id="mon-lufs-chip" class="mon-chip">LUFS —</span>
+            <span id="mon-limiter-chip" class="mon-chip">LIM —</span>
+            <div class="mon-live-dot"></div>
+          </div>
+        </div>
+        <div class="mon-grid" id="mon-grid"><!-- bars injected by JS --></div>
+        <div style="font-size:9px;color:var(--fg2);margin-bottom:6px">Meyda deltas per band</div>
+        <div class="mon-layer-row" id="mon-meyda-row"><!-- injected --></div>
+        <div class="mon-row" id="mon-status-row">
+          <span id="mon-eq-status" class="mon-chip">EQ off</span>
+          <span id="mon-autoeq-status" class="mon-chip">Auto-EQ —</span>
+          <span id="mon-meyda-status" class="mon-chip">Meyda —</span>
+          <span id="mon-cors-status" class="mon-chip">CORS —</span>
         </div>
       </div>
 
@@ -924,7 +969,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.10';
+const APP_VERSION = '4.1.11';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -2626,6 +2671,127 @@ function _initEqUI() {
   }
 }
 
+// ── EQ Output Monitor ─────────────────────────────────────────────────────────
+let _monInterval = null;
+const _MON_BANDS = ['32','64','125','250','500','1k','2k','4k','8k','16k'];
+
+function _initMonitor() {
+  const toggle = document.getElementById('eq-monitor-toggle');
+  const panel  = document.getElementById('eq-monitor');
+  if (!toggle || !panel) return;
+
+  // Restore saved state
+  const saved = localStorage.getItem('mbx_monitor_on') === 'true';
+  toggle.checked = saved;
+  if (saved) { panel.classList.remove('mon-hidden'); _startMonitor(); }
+
+  toggle.addEventListener('change', () => {
+    const on = toggle.checked;
+    localStorage.setItem('mbx_monitor_on', on);
+    panel.classList.toggle('mon-hidden', !on);
+    if (on) _startMonitor(); else _stopMonitor();
+  });
+
+  // Build bar grid once
+  const grid = document.getElementById('mon-grid');
+  if (grid && !grid.children.length) {
+    _MON_BANDS.forEach((lbl, i) => {
+      grid.innerHTML +=
+        `<div class="mon-bar-wrap">` +
+        `<div class="mon-bar-val" id="mon-v-${i}">0</div>` +
+        `<div class="mon-bar-bg"><div class="mon-bar-zero"></div><div class="mon-bar-fill" id="mon-b-${i}" style="height:0%;bottom:50%"></div></div>` +
+        `<div class="mon-bar-lbl">${lbl}</div>` +
+        `</div>`;
+    });
+  }
+  const mRow = document.getElementById('mon-meyda-row');
+  if (mRow && !mRow.children.length) {
+    _MON_BANDS.forEach((lbl, i) => {
+      mRow.innerHTML += `<div class="mon-layer-band" id="mon-m-${i}">0</div>`;
+    });
+  }
+}
+
+function _startMonitor() {
+  if (_monInterval) return;
+  _monInterval = setInterval(_updateMonitor, 1500);
+  _updateMonitor();
+}
+
+function _stopMonitor() {
+  clearInterval(_monInterval);
+  _monInterval = null;
+}
+
+function _updateMonitor() {
+  if (!window._mbxAudio) return;
+  const s = _mbxAudio();
+
+  // Status chips
+  const eqEl  = document.getElementById('mon-eq-status');
+  const aqEl  = document.getElementById('mon-autoeq-status');
+  const mEl   = document.getElementById('mon-meyda-status');
+  const cEl   = document.getElementById('mon-cors-status');
+  const luEl  = document.getElementById('mon-lufs-chip');
+  const limEl = document.getElementById('mon-limiter-chip');
+
+  if (eqEl)  { eqEl.textContent  = s.eqOn     ? 'EQ on'    : 'EQ off';   eqEl.className  = 'mon-chip ' + (s.eqOn  ? 'good' : ''); }
+  if (mEl)   { mEl.textContent   = s.meydaOn  ? 'Meyda on' : 'Meyda off'; mEl.className   = 'mon-chip ' + (s.meydaOn ? 'good' : ''); }
+  if (cEl)   { cEl.textContent   = s.corsAvailable ? 'CORS ok' : 'CORS fail'; cEl.className = 'mon-chip ' + (s.corsAvailable ? 'good' : 'bad'); }
+
+  // LUFS display from gainNode value (proxy: log20 of gain)
+  if (luEl && s.gainNode) {
+    const gainVal = s.gainNode.gain?.value ?? 1;
+    const dbApprox = gainVal > 0 ? (20 * Math.log10(gainVal)).toFixed(1) : '—';
+    luEl.textContent = 'Gain ' + (dbApprox > 0 ? '+' : '') + dbApprox + 'dB';
+  }
+  if (limEl && s.limiterGainReduction != null) {
+    const lgr = s.limiterGainReduction;
+    limEl.textContent = 'LIM ' + lgr.toFixed(1) + 'dB';
+    limEl.className   = 'mon-chip ' + (lgr < -1 ? 'warn' : lgr < -3 ? 'bad' : 'good');
+  }
+
+  // Auto-EQ status
+  if (aqEl) {
+    if (nowSong && _autoEqCache.has(nowSong.id)) {
+      const gains = _autoEqCache.get(nowSong.id);
+      const peak = Math.max(...gains.map(Math.abs));
+      aqEl.textContent = 'AEQ ±' + peak + 'dB';
+      aqEl.className   = 'mon-chip ' + (peak > 4 ? 'warn' : 'good');
+    } else {
+      aqEl.textContent = 'AEQ —';
+      aqEl.className   = 'mon-chip';
+    }
+  }
+
+  // Band bars: show combined EQ gain per band
+  if (s.eqGains) {
+    s.eqGains.forEach((g, i) => {
+      const bar = document.getElementById('mon-b-' + i);
+      const val = document.getElementById('mon-v-' + i);
+      if (!bar || !val) return;
+      const pct = Math.abs(g) / 12 * 50; // 50% of half-height per ±12dB
+      bar.style.height  = pct + '%';
+      bar.style.bottom  = g >= 0 ? '50%' : (50 - pct) + '%';
+      bar.className     = 'mon-bar-fill' + (g < 0 ? ' neg' : '');
+      val.textContent   = (g > 0 ? '+' : '') + g.toFixed(1);
+      val.style.color   = Math.abs(g) > 6 ? '#e74c3c' : Math.abs(g) > 3 ? '#f39c12' : 'var(--accent)';
+    });
+  }
+
+  // Meyda delta row
+  if (s.meydaSmoothed) {
+    s.meydaSmoothed.forEach((g, i) => {
+      const el = document.getElementById('mon-m-' + i);
+      if (!el) return;
+      el.textContent   = (g > 0 ? '+' : '') + g.toFixed(1);
+      el.style.color   = Math.abs(g) > 1.5 ? '#e74c3c' : Math.abs(g) > 0.5 ? '#f39c12' : 'var(--fg2)';
+      el.style.background = Math.abs(g) > 1.5 ? 'rgba(231,76,60,.15)' : 'var(--bg3)';
+    });
+  }
+}
+// ── End EQ Output Monitor ─────────────────────────────────────────────────────
+
 // ── Spectral Auto-EQ (AI per-song adaptation) ────────────────────────────────
 // Analyses the live audio stream via a tap AnalyserNode wired into the playing
 // audio graph. Samples FFT data every 250ms for up to 5 seconds, accumulates
@@ -2650,17 +2816,20 @@ let _meydaSmoothed      = new Float32Array(10);
 let _meydaAppliedGains  = new Float32Array(10); // last absolute offsets applied — prevents drift
 
 // Per-language Harman targets: each int[10] is dB offset per band relative to midrange.
-// Harman 2018 IEM target (Sean Olive et al.) — ~5dB bass shelf, flat mids,
-// +2dB presence peak at 4kHz, gentle roll-off above 8kHz. Tuned per language.
+// Based on Harman 2018 IEM target (Sean Olive et al.) — bass shelf ~5dB, flat mids,
+// gentle presence peak at 4kHz, ROLL-OFF above 8kHz.
+// IMPORTANT: Treble targets (bands 7–9) deliberately conservative (0 to +1dB).
+// Modern Indian pop is mastered bright; asking for +2dB treble causes auto-EQ
+// to boost an already-bright signal → sounds like "pitch up".
 const HARMAN_TARGETS = {
   //             32   64  125  250  500   1k   2k   4k   8k  16k
-  hindi:    [  6,  5,  3,  1,  0, -1,  0,  2,  2,  2 ],
-  punjabi:  [  7,  6,  4,  2,  0, -1,  0,  1,  2,  2 ],
-  english:  [  4,  3,  2,  0, -1, -1,  0,  2,  2,  3 ],
-  tamil:    [  5,  4,  3,  1,  0, -1,  0,  2,  2,  2 ],
-  telugu:   [  5,  4,  3,  1,  0, -1,  0,  2,  2,  2 ],
-  classical:[  2,  2,  2,  1,  1,  1,  1,  1,  1,  1 ],
-  default:  [  5,  4,  3,  1,  0, -1,  0,  2,  2,  2 ],
+  hindi:    [  6,  5,  3,  1,  0, -1,  0,  1,  0, -1 ],
+  punjabi:  [  7,  6,  4,  2,  0, -1,  0,  1,  0,  0 ],
+  english:  [  4,  3,  2,  0, -1, -1,  0,  1,  1,  0 ],
+  tamil:    [  5,  4,  3,  1,  0, -1,  0,  1,  0, -1 ],
+  telugu:   [  5,  4,  3,  1,  0, -1,  0,  1,  0, -1 ],
+  classical:[  2,  2,  2,  1,  1,  1,  1,  0,  0,  0 ],
+  default:  [  5,  4,  3,  1,  0, -1,  0,  1,  0, -1 ],
 };
 
 function _getHarmanTarget(song) {
@@ -2745,7 +2914,9 @@ async function _analyseAndAutoEq(song) {
       if (e === null) return 0; // no data for band → leave flat
       const measured   = e - midRef;
       const correction = target[i] - measured;
-      return Math.max(-6, Math.min(6, Math.round(correction)));
+      // ±4dB max — prevents overcorrection when source material has extreme tonal imbalance.
+      // The Harman target + manual EQ already handle the large-scale shape; auto-EQ fine-tunes.
+      return Math.max(-4, Math.min(4, Math.round(correction)));
     });
 
     _autoEqCache.set(song.id, autoGains);
@@ -2802,43 +2973,50 @@ function _computeMeydaGains(features) {
   if (!features) return gains;
   const { spectralCentroid = null, perceptualSharpness = null, spectralFlatness = null, rms = null } = features;
 
-  // spectralCentroid → high-frequency air (bands 7,8,9 = 4k,8k,16k)
+  // spectralCentroid → high-frequency correction (bands 7,8,9 = 4k,8k,16k)
+  // Most music centroid: 1000–2000Hz. Reference 1500Hz = neutral.
+  // Boost highs only when truly dull (<1000Hz), cut when excessively bright (>2500Hz).
+  // Deadband ±300Hz around 1500Hz — no action for normal content.
   if (spectralCentroid !== null && isFinite(spectralCentroid)) {
     const centroidHz = spectralCentroid * (_audioCtx?.sampleRate ?? 48000) / 2048;
-    const drive = Math.max(-1, Math.min(1, (2500 - centroidHz) / 1000));
-    gains[7] += drive * 3;
-    gains[8] += drive * 3;
-    gains[9] += drive * 3;
+    const delta = centroidHz - 1500;
+    let drive = 0;
+    if (delta < -300) drive = Math.max(-1, (delta + 300) / 1000);  // dull: cut, drive negative → boost highs
+    if (delta > 300)  drive = Math.min(+1, (delta - 300) / 1500);  // bright: drive positive → cut highs
+    // Invert: positive drive = bright content → cut; negative = dull → boost
+    gains[7] -= drive * 1.5;
+    gains[8] -= drive * 1.5;
+    gains[9] -= drive * 1.0;
   }
 
-  // perceptualSharpness → presence/harshness (bands 5,6,7 = 1k,2k,4k)
+  // perceptualSharpness → harshness control (bands 6,7 = 2k,4k only)
+  // Trigger harshness cut only above 2.0 (was 1.5 — too aggressive).
+  // Never boost "dull" here: overlaps with centroid and causes double-boost.
   if (perceptualSharpness !== null && isFinite(perceptualSharpness)) {
-    const harshDrive = Math.max(0, Math.min(1, (perceptualSharpness - 1.5) / 1.0));
-    gains[6] -= harshDrive * 3;
-    gains[7] -= harshDrive * 3;
-    const dullDrive = Math.max(0, Math.min(1, (0.8 - perceptualSharpness) / 0.8));
-    gains[5] += dullDrive * 2;
-    gains[6] += dullDrive * 2;
+    const harshDrive = Math.max(0, Math.min(1, (perceptualSharpness - 2.0) / 1.0));
+    gains[6] -= harshDrive * 2;
+    gains[7] -= harshDrive * 2;
   }
 
-  // spectralFlatness → bass/body (bands 0,1 = 32,64 Hz)
+  // spectralFlatness → bass body (bands 0,1 = 32,64 Hz)
+  // Only boost bass when signal is strongly tonal (<0.05), cut on very noisy (>0.6).
   if (spectralFlatness !== null && isFinite(spectralFlatness)) {
-    const tonalDrive = Math.max(0, Math.min(1, (0.1 - spectralFlatness) / 0.1));
-    const noiseDrive = Math.max(0, Math.min(1, (spectralFlatness - 0.5) / 0.5));
-    const bassDelta  = (tonalDrive * 2) - (noiseDrive * 2);
+    const tonalDrive = Math.max(0, Math.min(1, (0.05 - spectralFlatness) / 0.05));
+    const noiseDrive = Math.max(0, Math.min(1, (spectralFlatness - 0.6) / 0.4));
+    const bassDelta  = (tonalDrive * 1.5) - (noiseDrive * 1.5);
     gains[0] += bassDelta;
     gains[1] += bassDelta;
   }
 
-  // rms → loudness compensation (all bands)
+  // rms → very gentle loudness compensation — only extreme cases
+  // Removed the per-band boost for quiet signals (caused overall level creep).
   if (rms !== null && isFinite(rms)) {
-    const quietDrive = Math.max(0, Math.min(1, (0.05 - rms) / 0.05));
-    const loudDrive  = Math.max(0, Math.min(1, (rms - 0.70) / 0.30));
-    const rmsDelta   = quietDrive - loudDrive;
-    for (let i = 0; i < 10; i++) gains[i] += rmsDelta;
+    const loudDrive = Math.max(0, Math.min(1, (rms - 0.80) / 0.20));
+    for (let i = 0; i < 10; i++) gains[i] -= loudDrive * 0.5;
   }
 
-  for (let i = 0; i < 10; i++) gains[i] = Math.max(-4, Math.min(4, gains[i]));
+  // Max ±2.5dB per band from Meyda (down from ±4) — subtle correction, not EQ replacement
+  for (let i = 0; i < 10; i++) gains[i] = Math.max(-2.5, Math.min(2.5, gains[i]));
   return gains;
 }
 
@@ -2894,7 +3072,9 @@ function _onMeydaFrame(features) {
   if (now - _meydaLastUpdate < 2000) return;
   _meydaLastUpdate = now;
   const raw = _computeMeydaGains(features);
-  const ALPHA = 0.9; // tuned for 2s update interval (was 0.15 which is per-frame only)
+  // ALPHA=0.35: balanced for 2s update interval — tracks slow tonal shifts without
+  // snapping to transient outlier frames (0.9 was near-instant and caused drift lock-in)
+  const ALPHA = 0.35;
   for (let i = 0; i < 10; i++) {
     _meydaSmoothed[i] = ALPHA * raw[i] + (1 - ALPHA) * _meydaSmoothed[i];
     _meydaGains[i]    = raw[i];
@@ -2904,12 +3084,16 @@ function _onMeydaFrame(features) {
 
 function _applyMeydaGains() {
   if (!_eqOn || !_corsAvailable || _eqNodes.length !== 10) return;
+  // Use _eqGains (manual base) as ground truth — avoids stale-read from setTargetAtTime lag.
+  // Auto-EQ gains are tracked separately in _autoEqCache; _eqGains is always the manual intent.
+  const autoGains = (nowSong && _autoEqCache.has(nowSong.id)) ? _autoEqCache.get(nowSong.id) : null;
   for (let i = 0; i < 10; i++) {
-    // Remove previous Meyda offset, add new one — prevents accumulation/drift
-    const baseGain = _eqNodes[i].gain.value - _meydaAppliedGains[i];
-    const clamped  = Math.max(-12, Math.min(12, baseGain + _meydaSmoothed[i]));
-    _meydaAppliedGains[i] = _meydaSmoothed[i];
-    _eqNodes[i].gain.setTargetAtTime(clamped, _audioCtx.currentTime, 0.3);
+    const manualBase = _eqGains[i];
+    const autoBase   = autoGains ? autoGains[i] : 0;
+    const meydaDelta = _meydaSmoothed[i];
+    const clamped    = Math.max(-12, Math.min(12, manualBase + autoBase + meydaDelta));
+    _meydaAppliedGains[i] = meydaDelta;
+    _eqNodes[i].gain.setTargetAtTime(clamped, _audioCtx.currentTime, 0.5);
   }
 }
 // ── End Meyda ─────────────────────────────────────────────────────────────────
@@ -3032,6 +3216,7 @@ document.getElementById('tabbar').addEventListener('click', e => {
   btn.classList.add('on');
   if (tab === 'library')  renderPlaylists();
   if (tab === 'settings') renderSettings();
+  else _stopMonitor(); // pause monitor when not on settings tab
   if (tab === 'browse' && !browseChartsLoaded) { browseChartsLoaded = true; loadBrowseCharts(); }
   if (tab === 'browse') { _startTimeContextRefresh(); renderForYouSection(); renderWeeklyRecap(); }
   else { _stopTimeContextRefresh(); }
@@ -4838,6 +5023,7 @@ function renderMemoryCard() {
 
 function renderSettings() {
   _initEqUI();
+  _initMonitor();
   _refreshEqUI();
   _refreshAutoEqUI();
   document.getElementById('cfg-version').textContent  = 'v' + APP_VERSION;
