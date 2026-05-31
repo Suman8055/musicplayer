@@ -895,6 +895,9 @@ body::after{
       <button class="np-foot" id="np-eq-btn" title="Equalizer">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="4" y1="18" x2="4" y2="6"/><line x1="9" y1="18" x2="9" y2="10"/><line x1="14" y1="18" x2="14" y2="4"/><line x1="19" y1="18" x2="19" y2="12"/><rect x="2.5" y="6" width="3" height="3" rx="1.5" fill="currentColor" stroke="none"/><rect x="7.5" y="10" width="3" height="3" rx="1.5" fill="currentColor" stroke="none"/><rect x="12.5" y="4" width="3" height="3" rx="1.5" fill="currentColor" stroke="none"/><rect x="17.5" y="12" width="3" height="3" rx="1.5" fill="currentColor" stroke="none"/></svg>EQ
       </button>
+      <button class="np-foot" id="np-airplay-btn" title="AirPlay" style="display:none">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 17H3a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h18a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-2"/><polygon points="12 15 17 21 7 21"/></svg>AirPlay
+      </button>
       <!-- legacy eq-sheet kept for backward compat; Settings is now primary EQ home -->
     </div>
   </div>
@@ -1016,7 +1019,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.30';
+const APP_VERSION = '4.1.31';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 400;
@@ -1237,6 +1240,7 @@ let _sessionSkipStreak = 0;        // consecutive fast-skip count this session
 let _sessionSuppressed = new Set();// artist keys suppressed for this session (mood shift / Not Now)
 const _suppressedAt = new Map();   // artistKey → timestamp when suppressed (for 30-min expiry)
 let _prevFullPlayArtistKey = null; // artist key of the last fully-played song (for flow recording)
+let _airPlayActive = false;        // true while AirPlay/wireless playback target is active
 
 const audio        = document.getElementById('audio');
 const audioPreload = document.getElementById('audio-preload');
@@ -1448,6 +1452,42 @@ async function _resumeAudioCtx() {
     try { await _audioCtx.resume(); } catch {}
   }
 }
+
+// ── AIRPLAY ROUTING ──────────────────────────────────────────────────────────
+// When AirPlay is active, Safari needs the audio element free of Web Audio
+// capture to route audio to the wireless device. We disconnect the
+// MediaElementAudioSourceNode from the gain chain so Safari's native AirPlay
+// path can take over. EQ/DSP are bypassed while on AirPlay — acceptable trade-off.
+function _setAirPlayMode(active) {
+  _airPlayActive = active;
+  if (!_mediaSource) return;
+  if (active) {
+    try { _mediaSource.disconnect(); } catch {}
+    // With gainNode disconnected, restore direct volume control
+    audio.volume = Math.min(1, _gainNode?.gain.value ?? 1);
+    Log.info('AirPlay: Web Audio graph disconnected');
+  } else {
+    if (_audioCtx && _audioCtx.state !== 'closed') {
+      try { _mediaSource.connect(_gainNode); } catch {}
+      audio.volume = 1;
+    }
+    Log.info('AirPlay: Web Audio graph reconnected');
+  }
+}
+
+// Fires when AirPlay target starts/stops — disconnect/reconnect DSP graph
+audio.addEventListener('webkitcurrentplaybacktargetiswirelesschanged', () => {
+  const isWireless = audio.webkitCurrentPlaybackTargetIsWireless === true;
+  Log.info('AirPlay target changed', { wireless: isWireless });
+  _setAirPlayMode(isWireless);
+});
+
+// Fires when AirPlay devices appear/disappear on the network — show/hide button
+audio.addEventListener('webkitplaybacktargetavailabilitychanged', (e) => {
+  const btn = document.getElementById('np-airplay-btn');
+  if (!btn) return;
+  btn.style.display = e.availability === 'available' ? '' : 'none';
+});
 
 // ── BACKGROUND AUDIO KEEP-ALIVE ──────────────────────────────────────────────
 // iOS Safari PWA kills the audio session when the page is hidden unless we
@@ -1792,7 +1832,7 @@ async function fetchStream(id) {
   );
   const best2 = urls2.find(u => (QUALITY_RANK[u.quality] || 0) <= targetTier2) || urls2[urls2.length - 1];
   if (!best2?.link) throw new Error('No stream link in SIGMA response');
-  Log.info('Stream OK', { id, quality: best2.quality, network: getNetworkQuality() });
+  Log.info('Stream OK', { id, quality: best2.quality, network: getNetworkQuality(), isHls: best2.link.includes('.m3u8') });
   return {
     url:      best2.link,
     quality:  best2.quality,
@@ -2286,7 +2326,7 @@ seekEl.addEventListener('input', () => {
 // Falls back to audio.volume on desktop when Web Audio is unavailable.
 document.getElementById('np-vol').addEventListener('input', e => {
   const v = +e.target.value; // no NORM_VOLUME cap — per-track LUFS handles loudness
-  if (_corsAvailable) _gainNode.gain.value = v; else audio.volume = v;
+  if (_corsAvailable && !_airPlayActive) _gainNode.gain.value = v; else audio.volume = v;
 });
 
 // ── UI REFRESH ─────────────────────────────────────────────────────────────────
@@ -2535,6 +2575,9 @@ document.getElementById('np-repeat-btn').addEventListener('click', () => {
 document.getElementById('np-menu-btn').addEventListener('click', () => { if (nowSong) showSongSheet(nowSong); });
 document.getElementById('np-add-pl-btn').addEventListener('click', () => { if (nowSong) showAddToPlaylist(nowSong); });
 document.getElementById('np-queue-btn').addEventListener('click', showQueueSheet);
+document.getElementById('np-airplay-btn').addEventListener('click', () => {
+  if (typeof audio.webkitShowPlaybackTargetPicker === 'function') audio.webkitShowPlaybackTargetPicker();
+});
 
 // ── EQ Panel ─────────────────────────────────────────────────────────────────
 // 10-band gains for 32, 64, 125, 250, 500, 1k, 2k, 4k, 8k, 16k Hz
