@@ -889,7 +889,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.20';
+const APP_VERSION = '4.1.21';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -1094,6 +1094,7 @@ let queue        = [];
 let qIdx         = 0;
 let playing      = false;
 let userPaused   = false;   // true only when the user explicitly paused (not iOS interruption)
+let _iosPaused   = false;   // true when iOS interrupted playback (app switch, phone call, etc.)
 let loadingUrl   = false;   // true while fetching stream URL
 let _pendingNext = false;   // next() was tapped during a fetch; fire it once load settles
 let shuffleOn    = false;
@@ -1272,18 +1273,26 @@ document.addEventListener('visibilitychange', () => {
     }
     return;
   }
-  // Foregrounding — resume AudioContext and sync MediaSession state
+  // Foregrounding — resume AudioContext and auto-recover from iOS interruption
   if (_audioCtx?.state === 'suspended') _audioCtx.resume().catch(() => {});
-  if (!userPaused && nowSong && audio.paused) audio.play().catch(() => {});
+  // Resume if: user didn't pause AND either iOS paused us OR audio is simply paused
+  if (!userPaused && nowSong && (_iosPaused || audio.paused)) {
+    _iosPaused = false;
+    audio.play().catch(() => {});
+  }
   if ('mediaSession' in navigator) {
-    navigator.mediaSession.playbackState = (playing && !userPaused) ? 'playing' : 'paused';
+    navigator.mediaSession.playbackState = (!userPaused && nowSong) ? 'playing' : 'paused';
   }
 });
 
-// iOS Page Lifecycle: fired when PWA is frozen/unfrozen (back-swipe, tab switch)
+// iOS Page Lifecycle: fired when PWA is restored from bfcache (back-swipe, tab switch)
 window.addEventListener('pageshow', (e) => {
-  if (e.persisted && _audioCtx?.state === 'suspended') _audioCtx.resume().catch(() => {});
-  if (e.persisted && !userPaused && nowSong && audio.paused) audio.play().catch(() => {});
+  if (!e.persisted) return;
+  if (_audioCtx?.state === 'suspended') _audioCtx.resume().catch(() => {});
+  if (!userPaused && nowSong && (_iosPaused || audio.paused)) {
+    _iosPaused = false;
+    audio.play().catch(() => {});
+  }
 });
 // pagehide: last chance to commit MediaSession state before iOS suspends the page
 window.addEventListener('pagehide', () => {
@@ -1299,7 +1308,10 @@ document.addEventListener('freeze', () => {
 });
 document.addEventListener('resume', () => {
   if (_audioCtx?.state === 'suspended') _audioCtx.resume().catch(() => {});
-  if (!userPaused && nowSong && audio.paused) audio.play().catch(() => {});
+  if (!userPaused && nowSong && (_iosPaused || audio.paused)) {
+    _iosPaused = false;
+    audio.play().catch(() => {});
+  }
 });
 
 // ── STORAGE ────────────────────────────────────────────────────────────────────
@@ -1797,6 +1809,7 @@ async function togglePlay() {
   if (!nowSong || loadingUrl) return;
   if (playing) {
     userPaused = true;
+    _iosPaused = false;
     audio.pause();
   } else {
     userPaused = false;
@@ -1918,6 +1931,7 @@ async function preloadNext() {
 audio.addEventListener('play', () => {
   playing = true;
   userPaused = false;
+  _iosPaused = false;
   // Defer clearing preload src — clearing it immediately on play can briefly interrupt
   // the iOS audio session on some firmware versions
   setTimeout(() => { if (playing) audioPreload.src = ''; }, 500);
@@ -1926,6 +1940,9 @@ audio.addEventListener('play', () => {
 });
 audio.addEventListener('pause', () => {
   playing = false;
+  // If the user didn't pause and we have a current song, iOS interrupted us
+  // (app switch, phone call, Siri, etc.) — mark it so we can auto-resume on foreground
+  if (!userPaused && nowSong && !loadingUrl) _iosPaused = true;
   refreshPlayBtns();
   if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
 });
