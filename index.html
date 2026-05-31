@@ -889,7 +889,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.25';
+const APP_VERSION = '4.1.26';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -1261,19 +1261,28 @@ async function _resumeAudioCtx() {
 let _bgKeepAliveTimer = null;
 function _startBgKeepAlive() {
   _stopBgKeepAlive();
-  _bgKeepAliveTimer = setInterval(() => {
+  _bgKeepAliveTimer = setInterval(async () => {
     if (!playing || userPaused || !_audioCtx) return;
-    if (_audioCtx.state === 'suspended') { _audioCtx.resume().catch(() => {}); return; }
+    // Resume AudioContext first — iOS suspends it when backgrounded
+    if (_audioCtx.state === 'suspended') {
+      try { await _audioCtx.resume(); } catch {}
+    }
+    // If audio stopped playing (iOS killed the session), restart it
+    if (audio.paused && !userPaused && nowSong) {
+      try { await audio.play(); } catch {}
+      return;
+    }
+    // Fire a silent 1ms oscillator to assert we are an active audio producer
     try {
       const osc = _audioCtx.createOscillator();
       const g   = _audioCtx.createGain();
-      g.gain.value = 0;          // truly silent — zero amplitude
+      g.gain.value = 0;
       osc.connect(g);
       g.connect(_audioCtx.destination);
       osc.start();
       osc.stop(_audioCtx.currentTime + 0.001);
     } catch {}
-  }, 25000);
+  }, 10000);  // 10s — iOS can suspend audio session within ~15s of silence
 }
 function _stopBgKeepAlive() {
   clearInterval(_bgKeepAliveTimer);
@@ -1292,24 +1301,30 @@ document.addEventListener('visibilitychange', () => {
   }
   // Foregrounding — stop heartbeat, resume AudioContext if needed
   _stopBgKeepAlive();
-  if (_audioCtx?.state === 'suspended') _audioCtx.resume().catch(() => {});
-  if (!userPaused && nowSong && (_iosPaused || audio.paused)) {
-    _iosPaused = false;
-    audio.play().catch(() => {});
-  }
-  if ('mediaSession' in navigator) {
-    navigator.mediaSession.playbackState = (!userPaused && nowSong) ? 'playing' : 'paused';
-  }
+  (async () => {
+    if (_audioCtx?.state === 'suspended') {
+      try { await _audioCtx.resume(); } catch {}
+    }
+    if (!userPaused && nowSong && (_iosPaused || audio.paused)) {
+      _iosPaused = false;
+      audio.play().catch(() => {});
+    }
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.playbackState = (!userPaused && nowSong) ? 'playing' : 'paused';
+    }
+  })();
 });
 
 // iOS Page Lifecycle: fired when PWA is restored from bfcache (back-swipe, tab switch)
 window.addEventListener('pageshow', (e) => {
   if (!e.persisted) return;
-  if (_audioCtx?.state === 'suspended') _audioCtx.resume().catch(() => {});
-  if (!userPaused && nowSong && (_iosPaused || audio.paused)) {
-    _iosPaused = false;
-    audio.play().catch(() => {});
-  }
+  (async () => {
+    if (_audioCtx?.state === 'suspended') { try { await _audioCtx.resume(); } catch {} }
+    if (!userPaused && nowSong && (_iosPaused || audio.paused)) {
+      _iosPaused = false;
+      audio.play().catch(() => {});
+    }
+  })();
 });
 // pagehide: last chance to commit MediaSession state before iOS suspends the page
 window.addEventListener('pagehide', () => {
@@ -1324,11 +1339,13 @@ document.addEventListener('freeze', () => {
   }
 });
 document.addEventListener('resume', () => {
-  if (_audioCtx?.state === 'suspended') _audioCtx.resume().catch(() => {});
-  if (!userPaused && nowSong && (_iosPaused || audio.paused)) {
-    _iosPaused = false;
-    audio.play().catch(() => {});
-  }
+  (async () => {
+    if (_audioCtx?.state === 'suspended') { try { await _audioCtx.resume(); } catch {} }
+    if (!userPaused && nowSong && (_iosPaused || audio.paused)) {
+      _iosPaused = false;
+      audio.play().catch(() => {});
+    }
+  })();
 });
 
 // ── STORAGE ────────────────────────────────────────────────────────────────────
@@ -1967,10 +1984,23 @@ audio.addEventListener('pause', () => {
     // This is the only reliable way to keep audio alive in the background on iOS Safari PWA.
     // The tiny delay lets the pause event fully propagate before we countermand it.
     _iosPaused = true;
-    setTimeout(() => {
+    setTimeout(async () => {
       if (_iosPaused && !userPaused && nowSong) {
-        if (_audioCtx?.state === 'suspended') _audioCtx.resume().catch(() => {});
-        audio.play().catch(() => {});
+        // Must resume AudioContext BEFORE play() — iOS rejects play() on a suspended context
+        if (_audioCtx?.state === 'suspended') {
+          try { await _audioCtx.resume(); } catch {}
+        }
+        try {
+          await audio.play();
+        } catch {
+          // Second attempt after a short delay if first fails
+          setTimeout(async () => {
+            if (_iosPaused && !userPaused && nowSong && audio.paused) {
+              if (_audioCtx?.state === 'suspended') { try { await _audioCtx.resume(); } catch {} }
+              audio.play().catch(() => {});
+            }
+          }, 500);
+        }
       }
     }, 50);
   } else {
