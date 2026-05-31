@@ -889,7 +889,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.18';
+const APP_VERSION = '4.1.19';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -3169,6 +3169,14 @@ function _expireSuppressions() {
   });
 }
 
+// 21-day half-life: score from 3 weeks ago = 50% weight; 6 weeks ago = 25%
+const _SCORE_HALF_LIFE_MS = 21 * 24 * 60 * 60 * 1000;
+function _decayedScore(artist) {
+  if (!artist.lastPlayed) return artist.score * 0.1;
+  const age = Date.now() - artist.lastPlayed;
+  return Math.max(artist.score * 0.1, artist.score * Math.pow(2, -age / _SCORE_HALF_LIFE_MS));
+}
+
 function intelGetTopArtists(n = 3, contextual = false, filtered = false) {
   if (filtered) _expireSuppressions();
   const d = intelLoad();
@@ -3182,15 +3190,16 @@ function intelGetTopArtists(n = 3, contextual = false, filtered = false) {
         const totalB = Object.values(b.slots || {}).reduce((s, v) => s + v, 0);
         const slotA = (a.slots?.[slot] || 0) + (weekend ? (a.slots?.['weekend'] || 0) : 0);
         const slotB = (b.slots?.[slot] || 0) + (weekend ? (b.slots?.['weekend'] || 0) : 0);
-        // Penalise artists with plays in other slots but zero in current slot
-        const relevanceA = totalA > 0 ? (slotA > 0 ? a.score * (1 + slotA / totalA) : a.score * 0.5) : a.score;
-        const relevanceB = totalB > 0 ? (slotB > 0 ? b.score * (1 + slotB / totalB) : b.score * 0.5) : b.score;
+        const baseA = _decayedScore(a);
+        const baseB = _decayedScore(b);
+        const relevanceA = totalA > 0 ? (slotA > 0 ? baseA * (1 + slotA / totalA) : baseA * 0.5) : baseA;
+        const relevanceB = totalB > 0 ? (slotB > 0 ? baseB * (1 + slotB / totalB) : baseB * 0.5) : baseB;
         if (relevanceA !== relevanceB) return relevanceB - relevanceA;
       }
-      return b.score - a.score;
+      return _decayedScore(b) - _decayedScore(a);
     })
     .slice(0, n)
-    .map(([key, a]) => ({ key, id: a.id || '', name: a.name, score: a.score, plays: a.plays, slots: a.slots || {} }));
+    .map(([key, a]) => ({ key, id: a.id || '', name: a.name, score: a.score, plays: a.plays, slots: a.slots || {}, lastPlayed: a.lastPlayed || 0 }));
 }
 
 function intelTotalPlays() {
@@ -3207,6 +3216,68 @@ let _forYouCache = null;           // { rows, ts }
 const _FOR_YOU_TTL = 30 * 60 * 1000;
 let _forYouRenderPending = false;
 
+// ── SMART SUGGESTIONS — row builders ─────────────────────────────────────────
+
+async function _buildSlotRow(played) {
+  const slot = _timeSlot();
+  const slotLabel = { morning: 'Your Morning Mix', afternoon: 'Your Afternoon Mix',
+                      evening: 'Your Evening Mix',  night: 'Your Night Mix' }[slot];
+  const d = intelLoad();
+  const slotArtists = Object.entries(d.artists)
+    .filter(([, a]) => a.score > 0 && (a.slots?.[slot] || 0) > 0)
+    .sort(([, a], [, b]) => (b.slots?.[slot] || 0) - (a.slots?.[slot] || 0))
+    .slice(0, 3)
+    .map(([key, a]) => ({ key, name: a.name, score: a.score, plays: a.plays, slots: a.slots || {} }));
+  if (!slotArtists.length) return null;
+
+  const results = await Promise.allSettled(slotArtists.map(a => fetchArtistSongs(a.name, 15)));
+  const songs = results
+    .filter(r => r.status === 'fulfilled')
+    .flatMap(r => r.value)
+    .filter(s => s.id && !played.has(s.id))
+    .sort(() => Math.random() - 0.5)
+    .slice(0, 10);
+  if (songs.length < 2) return null;
+  return { type: 'slot', label: slotLabel, reason: _timeGreeting(), artist: null, songs };
+}
+
+async function fetchBecauseYouLiked(artistName, excludeIds, limit = 10) {
+  const queries = [`${artistName} hits`, `${artistName} feat`, `${artistName} latest`];
+  const results = await Promise.allSettled(queries.map(q => searchSongs(q, 15)));
+  const seen = new Set(excludeIds);
+  const scored = [];
+  for (const r of results) {
+    if (r.status !== 'fulfilled') continue;
+    for (const song of r.value) {
+      if (!song.id || seen.has(song.id)) continue;
+      seen.add(song.id);
+      const artistLower = artistName.toLowerCase();
+      const score = (song.artist || '').toLowerCase().includes(artistLower) ? 3 : 1;
+      scored.push({ song, score });
+    }
+  }
+  return scored
+    .sort((a, b) => b.score - a.score || Math.random() - 0.5)
+    .slice(0, limit)
+    .map(e => e.song);
+}
+
+function _buildRediscoverRow() {
+  const d = intelLoad();
+  const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
+  const cutoff = Date.now() - THIRTY_DAYS;
+  const songs = Object.entries(d.songs)
+    .filter(([, s]) => (s.plays || 0) >= 2 && (s.skips || 0) === 0 &&
+                       (s.lastPlayed || 0) < cutoff && s.name && s.artist)
+    .sort(([, a], [, b]) => (b.lastPlayed || 0) - (a.lastPlayed || 0))
+    .slice(0, 20)
+    .sort(() => Math.random() - 0.5)
+    .slice(0, 10)
+    .map(([id, s]) => ({ id, name: s.name, artist: s.artist, image: s.image || '' }));
+  if (songs.length < 2) return null;
+  return { type: 'rediscover', label: 'Rediscover', reason: 'Songs you loved a while ago', artist: null, songs };
+}
+
 async function buildForYouRows() {
   if (_forYouCache && (Date.now() - _forYouCache.ts) < _FOR_YOU_TTL) return _forYouCache.rows;
 
@@ -3214,18 +3285,53 @@ async function buildForYouRows() {
   if (!topArtists.length) return [];
 
   const played = intelPlayedIds();
+  const excludeIds = new Set(played);
   const rows = [];
 
+  // Slot mix — contextual, always first
+  const slotRow = await _buildSlotRow(played);
+  if (slotRow) { slotRow.songs.forEach(s => excludeIds.add(s.id)); rows.push(slotRow); }
+
+  // Artist rows — "Because you love" or "More from" depending on signal strength
+  const d = intelLoad();
+  const topLang = Object.entries(d.languages || {})
+    .map(([lang, v]) => ({ lang, count: typeof v === 'object' ? (v.count || 0) : (v || 0) }))
+    .sort((a, b) => b.count - a.count)[0]?.lang;
+
   await Promise.allSettled(topArtists.map(async artist => {
-    const allSongs = await fetchArtistSongs(artist.name, 30);
-    const songs = allSongs
-      .filter(s => s.id && !played.has(s.id))
-      .sort(() => Math.random() - 0.5)
-      .slice(0, 10);
-    if (songs.length >= 2) rows.push({ artist, songs });
+    const isBecause = artist.score >= 15 && artist.plays >= 3;
+    let songs;
+    if (isBecause) {
+      songs = await fetchBecauseYouLiked(artist.name, excludeIds, 10);
+    } else {
+      const allSongs = await fetchArtistSongs(artist.name, 30);
+      songs = allSongs
+        .filter(s => s.id && !excludeIds.has(s.id))
+        .map(s => ({ ...s, _boost: ((s.skips || 0) === 0 && (s.plays || 0) > 0 ? 2 : 0) + (topLang && s.language === topLang ? 1 : 0) }))
+        .sort((a, b) => b._boost - a._boost || Math.random() - 0.5)
+        .slice(0, 10);
+    }
+    if (songs.length >= 2) {
+      songs.forEach(s => excludeIds.add(s.id));
+      rows.push({
+        type: isBecause ? 'because' : 'more',
+        label: isBecause ? `Because you love ${artist.name}` : `More from ${artist.name}`,
+        reason: isBecause ? `${artist.plays} songs played` : 'Based on your listening',
+        artist,
+        songs
+      });
+    }
   }));
 
-  rows.sort((a, b) => b.artist.score - a.artist.score);
+  // Rediscover — always last, no API call needed
+  const rediscoverRow = _buildRediscoverRow();
+  if (rediscoverRow) rows.push(rediscoverRow);
+
+  rows.sort((a, b) => {
+    const ORDER = { slot: 0, because: 1, more: 2, rediscover: 3 };
+    return (ORDER[a.type] ?? 9) - (ORDER[b.type] ?? 9);
+  });
+
   _forYouCache = { rows, ts: Date.now() };
   return rows;
 }
@@ -3291,13 +3397,24 @@ async function renderForYouSection() {
 
     const alreadyOnboarded = localStorage.getItem('mbx_onboarded') === '1';
     if (totalPlays < 5 && !alreadyOnboarded) {
+      const LANG_TO_GENRE = {
+        'hi': 'Bollywood', 'pa': 'Punjabi', 'ta': 'Tamil', 'te': 'Telugu',
+        'bn': 'Bengali',   'kn': 'Kannada', 'ml': 'Malayalam', 'en': 'Hip-Hop'
+      };
+      const deviceLang = (navigator.language || '').split('-')[0].toLowerCase();
+      const suggestedGenre = LANG_TO_GENRE[deviceLang] || null;
       const genres = ['Bollywood', 'Punjabi', 'Tamil', 'Classical', 'Hip-Hop', 'Chill', 'Devotional', 'Romantic'];
       rowsEl.innerHTML = `<div class="for-you-empty" style="padding:12px 16px 4px">
         <div style="margin-bottom:10px;font-size:13px;opacity:.8">Pick a vibe to get started</div>
         <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center">
-          ${genres.map(g => `<button class="seed-genre-btn" data-genre="${esc(g)}"
-            style="background:var(--bg3);border:1px solid var(--sep);color:var(--fg);border-radius:20px;
-                   padding:6px 14px;font-size:13px;font-family:inherit;cursor:pointer">${esc(g)}</button>`).join('')}
+          ${genres.map(g => {
+            const isSuggested = g === suggestedGenre;
+            const btnStyle = isSuggested
+              ? `background:var(--accent-grad,var(--grad));border:none;color:#fff;font-weight:600`
+              : `background:var(--bg3);border:1px solid var(--sep);color:var(--fg)`;
+            return `<button class="seed-genre-btn" data-genre="${esc(g)}"
+              style="${btnStyle};border-radius:20px;padding:6px 14px;font-size:13px;font-family:inherit;cursor:pointer">${esc(g)}${isSuggested ? ' ✦' : ''}</button>`;
+          }).join('')}
         </div>
       </div>`;
       rowsEl.querySelectorAll('.seed-genre-btn').forEach(btn => {
@@ -3317,13 +3434,33 @@ async function renderForYouSection() {
         return;
       }
 
-      rows.forEach(({ artist, songs }) => {
+      rows.forEach(row => {
         const wrap = document.createElement('div');
         wrap.className = 'for-you-artist-row';
 
         const hdr = document.createElement('div');
         hdr.className = 'disc-hd';
-        hdr.innerHTML = `<span class="disc-hd-title" style="font-size:16px">Because you play <span style="background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent">${esc(artist.name)}</span></span>`;
+
+        const grad = `style="background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent"`;
+        let labelHtml;
+        switch (row.type) {
+          case 'slot':
+            labelHtml = `<span class="disc-hd-title" style="font-size:16px">${esc(row.label)}</span>`;
+            break;
+          case 'because':
+            labelHtml = `<span class="disc-hd-title" style="font-size:16px">Because you love <span ${grad}>${esc(row.artist?.name || '')}</span></span>`;
+            break;
+          case 'rediscover':
+            labelHtml = `<span class="disc-hd-title" style="font-size:16px">Rediscover</span>`;
+            break;
+          case 'more':
+          default:
+            labelHtml = `<span class="disc-hd-title" style="font-size:16px">More from <span ${grad}>${esc(row.artist?.name || '')}</span></span>`;
+        }
+        if (row.reason) {
+          labelHtml += `<span style="font-size:11px;opacity:.4;margin-left:8px;font-weight:400">${esc(row.reason)}</span>`;
+        }
+        hdr.innerHTML = labelHtml;
         wrap.appendChild(hdr);
 
         const fadeWrap = document.createElement('div');
@@ -3331,9 +3468,9 @@ async function renderForYouSection() {
         const scroll = document.createElement('div');
         scroll.className = 'h-scroll';
 
-        songs.forEach((song, i) => {
+        row.songs.forEach((song, i) => {
           scroll.appendChild(createContentCard(song.name, song.artist, song.image, () => {
-            play(song, [...songs], i);
+            play(song, [...row.songs], i);
           }));
         });
 
