@@ -433,6 +433,37 @@ body::after{
 .sp-info-row-value{font-size:13px;color:var(--fg2);text-align:right;max-width:55%}
 .sp-info-row-value.accent{color:var(--accent);font-weight:600;transition:var(--color-transition)}
 .sp-info-close{display:block;width:calc(100% - 40px);margin:14px 20px 0;padding:14px;text-align:center;background:hsla(var(--accent-h),var(--accent-s),var(--accent-l),.12);border:1px solid hsla(var(--accent-h),var(--accent-s),var(--accent-l),.25);border-radius:14px;color:var(--accent);font-size:16px;font-weight:600;font-family:inherit;cursor:pointer;transition:var(--color-transition)}
+/* ── EQ Panel ───────────────────────────────────────────────────────────────── */
+#eq-sheet{position:fixed;inset:0;z-index:260;display:none;align-items:flex-end}
+#eq-sheet.open{display:flex}
+#eq-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.6)}
+#eq-box{position:relative;width:100%;background:rgba(10,16,26,.97);backdrop-filter:blur(40px) saturate(1.8);-webkit-backdrop-filter:blur(40px) saturate(1.8);border-radius:22px 22px 0 0;border-top:1px solid rgba(255,255,255,.1);padding:0 0 calc(var(--safe-bot) + 10px);transform:translateY(40px);opacity:0;transition:transform .28s ease,opacity .28s ease;max-height:82vh;overflow-y:auto}
+#eq-sheet.open #eq-box{transform:none;opacity:1}
+.eq-handle{width:36px;height:4px;border-radius:2px;background:rgba(255,255,255,.2);margin:12px auto 6px}
+#eq-header{display:flex;align-items:center;justify-content:space-between;padding:6px 20px 10px}
+#eq-title{font-size:15px;font-weight:700;color:var(--fg);letter-spacing:.2px}
+.eq-power-btn{width:30px;height:30px;border-radius:50%;border:1.5px solid rgba(255,255,255,.25);background:rgba(255,255,255,.06);color:var(--fg2);font-size:14px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .2s,border-color .2s,color .2s}
+.eq-power-btn::before{content:'⏻'}
+.eq-power-btn.active{border-color:var(--accent);background:hsla(var(--accent-h),var(--accent-s),var(--accent-l),.15);color:var(--accent)}
+#eq-presets{display:flex;gap:8px;padding:0 20px 14px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.eq-preset-btn{flex-shrink:0;padding:6px 14px;border-radius:20px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.05);color:var(--fg2);font-size:13px;font-family:inherit;cursor:pointer;transition:background .18s,border-color .18s,color .18s}
+.eq-preset-btn.active{border-color:var(--accent);background:hsla(var(--accent-h),var(--accent-s),var(--accent-l),.15);color:var(--accent)}
+#eq-sliders{display:flex;justify-content:space-around;padding:0 12px 18px;gap:6px}
+.eq-band{display:flex;flex-direction:column;align-items:center;flex:1;gap:6px}
+.eq-band-val{font-size:11px;color:var(--accent);font-weight:600;min-height:16px;text-align:center;transition:var(--color-transition)}
+.eq-band-slider{-webkit-appearance:none;appearance:none;writing-mode:vertical-lr;direction:rtl;width:28px;height:120px;background:rgba(255,255,255,.08);border-radius:14px;outline:none;cursor:pointer}
+.eq-band-slider::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:var(--accent);cursor:pointer;transition:var(--color-transition)}
+.eq-band-slider::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:var(--accent);cursor:pointer;border:none}
+.eq-band-label{font-size:10px;color:var(--fg2);text-align:center;white-space:nowrap}
+#eq-options{padding:0 20px 4px;border-top:1px solid rgba(255,255,255,.07)}
+.eq-toggle-row{display:flex;align-items:center;justify-content:space-between;padding:14px 0;cursor:pointer;flex-wrap:wrap;gap:4px}
+.eq-toggle-label{font-size:14px;color:var(--fg);font-weight:500}
+.eq-toggle-sub{font-size:11px;color:var(--fg2);width:100%;margin-top:2px}
+.eq-switch{width:44px;height:26px;border-radius:13px;background:rgba(255,255,255,.12);position:relative;flex-shrink:0;transition:background .2s}
+.eq-switch.on{background:var(--accent)}
+.eq-switch-knob{position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:transform .2s}
+.eq-switch.on .eq-switch-knob{transform:translateX(18px)}
+#eq-close-btn{display:block;width:calc(100% - 40px);margin:10px 20px 0;padding:14px;text-align:center;background:hsla(var(--accent-h),var(--accent-s),var(--accent-l),.12);border:1px solid hsla(var(--accent-h),var(--accent-s),var(--accent-l),.25);border-radius:14px;color:var(--accent);font-size:16px;font-weight:600;font-family:inherit;cursor:pointer;transition:var(--color-transition)}
 </style>
 </head>
 <body>
@@ -796,7 +827,37 @@ body::after{
       <button class="np-foot" id="np-smartplay-btn" title="SmartPlay">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2zm-1 14.5v-9l7 4.5-7 4.5z"/></svg>Smart
       </button>
+      <button class="np-foot" id="np-eq-btn" title="Equalizer">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="4" y1="18" x2="4" y2="6"/><line x1="9" y1="18" x2="9" y2="10"/><line x1="14" y1="18" x2="14" y2="4"/><line x1="19" y1="18" x2="19" y2="12"/><rect x="2.5" y="6" width="3" height="3" rx="1.5" fill="currentColor" stroke="none"/><rect x="7.5" y="10" width="3" height="3" rx="1.5" fill="currentColor" stroke="none"/><rect x="12.5" y="4" width="3" height="3" rx="1.5" fill="currentColor" stroke="none"/><rect x="17.5" y="12" width="3" height="3" rx="1.5" fill="currentColor" stroke="none"/></svg>EQ
+      </button>
     </div>
+  </div>
+</div>
+
+<!-- EQ Panel -->
+<div id="eq-sheet">
+  <div id="eq-backdrop"></div>
+  <div id="eq-box">
+    <div class="eq-handle"></div>
+    <div id="eq-header">
+      <span id="eq-title">Equalizer</span>
+      <button id="eq-power" class="eq-power-btn" title="EQ on/off"></button>
+    </div>
+    <div id="eq-presets">
+      <button class="eq-preset-btn active" data-preset="flat">Flat</button>
+      <button class="eq-preset-btn" data-preset="bass">Bass Boost</button>
+      <button class="eq-preset-btn" data-preset="vocal">Vocal</button>
+      <button class="eq-preset-btn" data-preset="treble">Treble</button>
+    </div>
+    <div id="eq-sliders"></div>
+    <div id="eq-options">
+      <label class="eq-toggle-row" id="eq-cf-row">
+        <span class="eq-toggle-label">Headphone Crossfeed</span>
+        <span class="eq-toggle-sub">Reduces ear fatigue on long sessions</span>
+        <div class="eq-switch" id="eq-cf-toggle"><div class="eq-switch-knob"></div></div>
+      </label>
+    </div>
+    <button id="eq-close-btn">Done</button>
   </div>
 </div>
 
@@ -889,7 +950,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.28';
+const APP_VERSION = '4.1.29';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 400;
@@ -1125,7 +1186,9 @@ const LUFS_TARGET       = -13;   // dBFS integrated target
 const LUFS_MAX_BOOST_DB =   3;   // never boost more than +3 dB (Spotify/Apple standard)
 const LUFS_MAX_CUT_DB   =   6;   // never cut more than −6 dB
 const _lufsCache        = new Map(); // songId → linear gain value
-let   _lufsAnalyser     = null;      // AnalyserNode tapping _gainNode pre-EQ
+let   _lufsAnalyser     = null;      // AnalyserNode tapping K-weighted signal
+let   _lufsKw1          = null;      // K-weighting stage 1: high-pass shelf ~100Hz (ITU-R BS.1770-4)
+let   _lufsKw2          = null;      // K-weighting stage 2: +4dB resonance peak @ 1.5kHz
 
 function _gainFromLufs(measuredLufs) {
   const correctionDb = Math.max(-LUFS_MAX_CUT_DB, Math.min(LUFS_MAX_BOOST_DB, LUFS_TARGET - measuredLufs));
@@ -1186,12 +1249,39 @@ let _bassExciterIn   = null;
 let _bassExciterDist = null;
 let _bassExciterOut  = null;
 let _bassExciterGain = null;
-// Stereo widener + air shelf (post-EQ, pre-limiter)
-let _splitter    = null;
-let _merger      = null;
-let _midGain     = null;
-let _sideGain    = null;
-let _haasDelay   = null;
+// 5-band parametric EQ (post-preMixGain, pre-widener)
+const EQ_BANDS = [
+  { freq:   60, type: 'lowshelf',  label: 'Sub' },
+  { freq:  200, type: 'peaking',   label: 'Bass' },
+  { freq: 1000, type: 'peaking',   label: 'Mid' },
+  { freq: 4000, type: 'peaking',   label: 'Presence' },
+  { freq: 12000, type: 'highshelf', label: 'Air' },
+];
+const EQ_Q = [1.0, 0.8, 1.0, 1.2, 1.0]; // Q per band (shelf bands ignore Q)
+const EQ_KEY = 'mbx_eq_v2';
+let _eqNodes  = [];    // BiquadFilterNode[5]
+let _eqGains  = JSON.parse(localStorage.getItem(EQ_KEY) || '[0,0,0,0,0]');
+let _eqOn     = localStorage.getItem(EQ_KEY + '_on') !== 'false'; // default ON
+
+// Headphone crossfeed BS2B (post-EQ, pre-widener)
+const CF_KEY  = 'mbx_cf_v1';
+let _cfOn     = localStorage.getItem(CF_KEY) !== 'true'; // default OFF
+let _cfSplit  = null;
+let _cfMerge  = null;
+let _cfHpL    = null;   // HPF 700Hz for L→R bleed
+let _cfHpR    = null;   // HPF 700Hz for R→L bleed
+let _cfGainL  = null;   // bleed amount L→R
+let _cfGainR  = null;   // bleed amount R→L
+
+// M/S stereo widener + air shelf (post-EQ/crossfeed, pre-limiter)
+// 4-gain M/S decode: _midGain(+0.5), _sideGainP(+side), _sideGainN(-side), _msInvGain(-1)
+let _splitter    = null;  // input split L/R
+let _merger      = null;  // output merge L/R
+let _midGain     = null;  // M = (L+R)×0.5
+let _sideGain    = null;  // S+ for L output
+let _haasDelay   = null;  // −S for R output (gain node, repurposed from delay name)
+let _msInvGain   = null;  // inverts R for side path
+let _sideGainR   = null;  // +S·R for R output
 let _airShelf    = null;
 let _preMixGain  = null; // summing node: dry + bass exciter → EQ chain
 
@@ -1208,11 +1298,24 @@ function _ensureAudioCtx() {
     });
     _gainNode = _audioCtx.createGain();
     _gainNode.gain.value = NORM_VOLUME; // 1.0 baseline; per-track LUFS adjusts this
-    // LUFS analyser: passive tap on _gainNode (pre-EQ dry signal)
+    // K-weighted LUFS measurement path (ITU-R BS.1770-4, measurement only — not in playback path)
+    // Stage 1: high-pass pre-filter (removes sub-100Hz content ears don't perceive as loud)
+    _lufsKw1 = _audioCtx.createBiquadFilter();
+    _lufsKw1.type = 'highshelf';
+    _lufsKw1.frequency.value = 1500;
+    _lufsKw1.gain.value = 4.0;   // +4dB above 1.5kHz — approximates BS.1770 head-shadow effect
+    // Stage 2: high-pass removes sub-100Hz rumble weight
+    _lufsKw2 = _audioCtx.createBiquadFilter();
+    _lufsKw2.type = 'highpass';
+    _lufsKw2.frequency.value = 100;
+    _lufsKw2.Q.value = 0.5;      // gentle rolloff, Butterworth-like
     _lufsAnalyser = _audioCtx.createAnalyser();
     _lufsAnalyser.fftSize = 4096;
     _lufsAnalyser.smoothingTimeConstant = 0.0; // raw samples for accurate RMS
-    _gainNode.connect(_lufsAnalyser);
+    // Chain: gainNode → kw1 → kw2 → analyser (measurement tap, no destination connection)
+    _gainNode.connect(_lufsKw1);
+    _lufsKw1.connect(_lufsKw2);
+    _lufsKw2.connect(_lufsAnalyser);
     // Route <audio> through Web Audio so EQ nodes affect playback.
     // Requires stream URLs to have CORS headers (Access-Control-Allow-Origin).
     // If the CDN doesn't send CORS headers this throws a SecurityError —
@@ -1232,17 +1335,22 @@ function _ensureAudioCtx() {
     }
     _rewireAudio();
     window._mbxAudio = () => ({
-      corsAvailable:    _corsAvailable,
-      mediaSource:      _mediaSource,
-      gainNode:         _gainNode,
-      audioCtx:         _audioCtx,
-      rewiring:         _rewiring,
-      lufsAnalyser:     _lufsAnalyser,
-      lufsCacheSize:    _lufsCache.size,
-      limiterComp:      _limiterCompressor,
+      corsAvailable:        _corsAvailable,
+      mediaSource:          _mediaSource,
+      gainNode:             _gainNode,
+      audioCtx:             _audioCtx,
+      rewiring:             _rewiring,
+      lufsAnalyser:         _lufsAnalyser,
+      lufsCacheSize:        _lufsCache.size,
+      limiterComp:          _limiterCompressor,
       limiterGainReduction: _limiterCompressor?.reduction ?? 0,
-      bassExciterOn:    !!_bassExciterIn,
-      stereoWidenerOn:  !!_splitter,
+      bassExciterOn:        !!_bassExciterIn,
+      stereoWidenerOn:      !!_splitter,
+      msWidthFactor:        1.2,
+      eqOn:                 _eqOn,
+      eqGains:              [..._eqGains],
+      crossfeedOn:          _cfOn,
+      kWeightOn:            !!_lufsKw1,
     });
     Log.info('AudioContext created');
     return true;
@@ -2346,13 +2454,131 @@ document.getElementById('np-menu-btn').addEventListener('click', () => { if (now
 document.getElementById('np-add-pl-btn').addEventListener('click', () => { if (nowSong) showAddToPlaylist(nowSong); });
 document.getElementById('np-queue-btn').addEventListener('click', showQueueSheet);
 
+// ── EQ Panel ─────────────────────────────────────────────────────────────────
+const EQ_PRESETS = {
+  flat:   [  0,   0,   0,   0,   0],
+  bass:   [  5,   4,   0,   0,   0],
+  vocal:  [ -2,  -1,   4,   3,   1],
+  treble: [  0,  -1,   0,   3,   5],
+};
+const EQ_LABELS = ['Sub', 'Bass', 'Mid', 'Presence', 'Air'];
+
+function _buildEqPanelSliders() {
+  const container = document.getElementById('eq-sliders');
+  container.innerHTML = '';
+  EQ_BANDS.forEach((b, i) => {
+    const band = document.createElement('div');
+    band.className = 'eq-band';
+    const val = document.createElement('div');
+    val.className = 'eq-band-val';
+    val.id = `eq-val-${i}`;
+    val.textContent = (_eqGains[i] >= 0 ? '+' : '') + _eqGains[i].toFixed(0);
+    const slider = document.createElement('input');
+    slider.type = 'range';
+    slider.className = 'eq-band-slider';
+    slider.id = `eq-slider-${i}`;
+    slider.min = -6; slider.max = 6; slider.step = 0.5;
+    slider.value = _eqGains[i];
+    slider.addEventListener('input', () => {
+      _eqGains[i] = parseFloat(slider.value);
+      val.textContent = (_eqGains[i] >= 0 ? '+' : '') + _eqGains[i].toFixed(0);
+      // Deselect any preset
+      document.querySelectorAll('.eq-preset-btn').forEach(b => b.classList.remove('active'));
+      _applyEqGains();
+      _saveEqState();
+    });
+    const label = document.createElement('div');
+    label.className = 'eq-band-label';
+    label.textContent = EQ_LABELS[i];
+    band.append(val, slider, label);
+    container.appendChild(band);
+  });
+}
+
+function _updateEqPanelState() {
+  const powerBtn = document.getElementById('eq-power');
+  if (powerBtn) powerBtn.classList.toggle('active', _eqOn);
+  // Update slider values
+  EQ_BANDS.forEach((_, i) => {
+    const slider = document.getElementById(`eq-slider-${i}`);
+    const val = document.getElementById(`eq-val-${i}`);
+    if (slider) slider.value = _eqGains[i];
+    if (val) val.textContent = (_eqGains[i] >= 0 ? '+' : '') + _eqGains[i].toFixed(0);
+  });
+  // Crossfeed toggle
+  const cfSwitch = document.getElementById('eq-cf-toggle');
+  if (cfSwitch) cfSwitch.classList.toggle('on', _cfOn);
+}
+
+function openEqSheet() {
+  const sheet = document.getElementById('eq-sheet');
+  if (!sheet) return;
+  _buildEqPanelSliders();
+  _updateEqPanelState();
+  sheet.classList.add('open');
+}
+
+function closeEqSheet() {
+  document.getElementById('eq-sheet')?.classList.remove('open');
+}
+
+document.getElementById('np-eq-btn').addEventListener('click', openEqSheet);
+document.getElementById('eq-close-btn').addEventListener('click', closeEqSheet);
+document.getElementById('eq-backdrop').addEventListener('click', closeEqSheet);
+
+document.getElementById('eq-power').addEventListener('click', () => {
+  _eqOn = !_eqOn;
+  _saveEqState();
+  _applyEqGains();
+  document.getElementById('eq-power').classList.toggle('active', _eqOn);
+});
+
+document.querySelectorAll('.eq-preset-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const preset = btn.dataset.preset;
+    if (!EQ_PRESETS[preset]) return;
+    _eqGains = [...EQ_PRESETS[preset]];
+    _eqOn = true;
+    _saveEqState();
+    _applyEqGains();
+    document.querySelectorAll('.eq-preset-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    _updateEqPanelState();
+  });
+});
+
+document.getElementById('eq-cf-toggle').addEventListener('click', () => {
+  _cfOn = !_cfOn;
+  localStorage.setItem(CF_KEY, String(_cfOn));
+  document.getElementById('eq-cf-toggle').classList.toggle('on', _cfOn);
+  _rewireAudio(); // rebuild graph with/without crossfeed
+});
+
+// Highlight matching preset on open
+function _detectActivePreset() {
+  for (const [name, gains] of Object.entries(EQ_PRESETS)) {
+    if (gains.every((g, i) => g === _eqGains[i])) {
+      document.querySelectorAll('.eq-preset-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.preset === name);
+      });
+      return;
+    }
+  }
+  document.querySelectorAll('.eq-preset-btn').forEach(b => b.classList.remove('active'));
+}
+
+// Init EQ button state indicator
+(function _initEqBtn() {
+  const btn = document.getElementById('np-eq-btn');
+  if (_eqOn && _eqGains.some(g => g !== 0)) btn?.classList.add('active');
+})();
 
 // ── True-Peak Limiter ─────────────────────────────────────────────────────────
 function _buildLimiterChain(ctx) {
   _limiterCompressor = ctx.createDynamicsCompressor();
-  _limiterCompressor.threshold.value = -3;   // softer ceiling — less pumping
-  _limiterCompressor.knee.value      =  3;   // soft knee — transparent limiting
-  _limiterCompressor.ratio.value     = 12;   // 12:1 — still brickwall but less aggressive
+  _limiterCompressor.threshold.value = -2;   // tighter ceiling — less headroom burned
+  _limiterCompressor.knee.value      =  2;   // slightly harder knee for cleaner ceiling
+  _limiterCompressor.ratio.value     = 10;   // iOS-safe max (ratio>10 unreliable on iOS 17/18)
   _limiterCompressor.attack.value    = 0.002;
   _limiterCompressor.release.value   = 0.1;  // slower release — no pump breathing
 
@@ -2419,40 +2645,137 @@ function _teardownBassExciter() {
   _bassExciterIn = _bassExciterDist = _bassExciterOut = _bassExciterGain = _preMixGain = null;
 }
 
-// ── Stereo Widener + Air Shelf ────────────────────────────────────────────────
-// L/R split: boost Right channel 1.15× + 18ms Haas delay (safe zone: no comb filtering below 1kHz).
-// 0.6ms caused comb filtering and tonal coloration — Harman standard is 15–30ms.
-// Air shelf at 14kHz +2.0dB — warmth, not harshness.
+// ── 5-Band Parametric EQ ─────────────────────────────────────────────────────
+function _buildEqChain(ctx) {
+  _eqNodes = EQ_BANDS.map((b, i) => {
+    const f = ctx.createBiquadFilter();
+    f.type = b.type;
+    f.frequency.value = b.freq;
+    f.Q.value = EQ_Q[i];
+    f.gain.value = _eqOn ? _eqGains[i] : 0;
+    return f;
+  });
+  // Chain: eqNodes[0] → [1] → [2] → [3] → [4]
+  for (let i = 0; i < _eqNodes.length - 1; i++) _eqNodes[i].connect(_eqNodes[i + 1]);
+}
+
+function _teardownEqChain() {
+  _eqNodes.forEach(n => { try { n.disconnect(); } catch {} });
+  _eqNodes = [];
+}
+
+function _applyEqGains() {
+  _eqNodes.forEach((n, i) => { n.gain.value = _eqOn ? _eqGains[i] : 0; });
+}
+
+function _saveEqState() {
+  localStorage.setItem(EQ_KEY, JSON.stringify(_eqGains));
+  localStorage.setItem(EQ_KEY + '_on', String(_eqOn));
+}
+
+// ── Headphone Crossfeed (BS2B approximation) ──────────────────────────────────
+// L←R and R←L bleed through 700Hz HPF at 40% blend. Reduces ear fatigue on headphones.
+function _buildCrossfeed(ctx) {
+  _cfSplit = ctx.createChannelSplitter(2);
+  _cfMerge = ctx.createChannelMerger(2);
+  // R→L bleed: R channel through HPF → merge into L
+  _cfHpR = ctx.createBiquadFilter();
+  _cfHpR.type = 'highpass';
+  _cfHpR.frequency.value = 700;
+  _cfHpR.Q.value = 0.707;
+  _cfGainR = ctx.createGain();
+  _cfGainR.gain.value = 0.40;
+  // L→R bleed: L channel through HPF → merge into R
+  _cfHpL = ctx.createBiquadFilter();
+  _cfHpL.type = 'highpass';
+  _cfHpL.frequency.value = 700;
+  _cfHpL.Q.value = 0.707;
+  _cfGainL = ctx.createGain();
+  _cfGainL.gain.value = 0.40;
+  // Wiring: splitter L → merge[L], R→HPF→gain → merge[L]
+  //         splitter R → merge[R], L→HPF→gain → merge[R]
+  _cfSplit.connect(_cfMerge, 0, 0);   // L direct → L out
+  _cfSplit.connect(_cfMerge, 1, 1);   // R direct → R out
+  _cfSplit.connect(_cfHpR, 1);        // R → HPF
+  _cfHpR.connect(_cfGainR);
+  _cfGainR.connect(_cfMerge, 0, 0);  // R bleed → L out
+  _cfSplit.connect(_cfHpL, 0);        // L → HPF
+  _cfHpL.connect(_cfGainL);
+  _cfGainL.connect(_cfMerge, 0, 1);  // L bleed → R out
+}
+
+function _teardownCrossfeed() {
+  [_cfGainL, _cfGainR, _cfHpL, _cfHpR, _cfMerge, _cfSplit].forEach(n => {
+    if (n) { try { n.disconnect(); } catch {} }
+  });
+  _cfSplit = _cfMerge = _cfHpL = _cfHpR = _cfGainL = _cfGainR = null;
+}
+
+// ── Stereo Widener (M/S) + Air Shelf ─────────────────────────────────────────
+// True mid-side processing. Mono-compatible. Width 1.2× (iOS-safe cap 1.25).
+//
+// M/S math:
+//   M = (L + R) × 0.5
+//   S = (L − R) × 0.5 × width
+//   L' = M + S = (L+R)×0.5 + (L−R)×side
+//   R' = M − S = (L+R)×0.5 − (L−R)×side
+//
+// Web Audio node graph (no native subtract — use gain(−1) to invert):
+//   splitter[L] → midGain(0.5)  → merger[L]  (M to L)
+//   splitter[R] → midGain(0.5)  → merger[L]  (M to L)  [ChannelMerger sums inputs]
+//   splitter[L] → midGain(0.5)  → merger[R]  (M to R)
+//   splitter[R] → midGain(0.5)  → merger[R]  (M to R)
+//   splitter[L] → sideGain(+s)  → merger[L]  (+S to L)
+//   splitter[R] → msInvGain(−1) → sideGain(+s) → merger[L]  (−S·R to L)
+//   splitter[L] → haasDelay(−s) → merger[R]  (−S·L to R) [haasDelay repurposed as gain(−s)]
+//   splitter[R] → msInvGain(−1) → haasDelay(−s) → merger[R] skipped — use separate node
+//   ... simplified: use _sideGain(+s) for L-side, _haasDelay gain(−s) for R-side
 function _buildStereoWidener(ctx) {
-  _splitter = ctx.createChannelSplitter(2);
-  _merger   = ctx.createChannelMerger(2);
+  const Wc   = 1.2;           // width coefficient, capped at 1.25 for iOS safety
+  const mid  = 0.5;
+  const side = 0.5 * Wc;     // 0.6 for width=1.2
 
-  _midGain = ctx.createGain();
-  _midGain.gain.value = 1.0;
-  _sideGain = ctx.createGain();
-  _sideGain.gain.value = 1.15; // gentle R boost — cohesive not phasey
+  _splitter  = ctx.createChannelSplitter(2);
+  _merger    = ctx.createChannelMerger(2);
 
-  _haasDelay = ctx.createDelay(0.03);
-  _haasDelay.delayTime.value = 0.018; // 18ms — psychoacoustic width, no comb filtering
+  _midGain   = ctx.createGain();  _midGain.gain.value  =  mid;   // M path: (L+R)×0.5
+  _sideGain  = ctx.createGain();  _sideGain.gain.value =  side;  // +S for L output
+  _haasDelay = ctx.createGain();  _haasDelay.gain.value = -side; // −S for R output (gain, not delay)
+  _msInvGain = ctx.createGain();  _msInvGain.gain.value = -1;    // invert R-channel for side
+
+  // Mid path: L → midGain → L-out and R-out; R → midGain → L-out and R-out
+  _splitter.connect(_midGain, 0);          // L → mid
+  _splitter.connect(_midGain, 1);          // R → mid (ChannelMerger sums, both add to M)
+  _midGain.connect(_merger, 0, 0);         // M → out L
+  _midGain.connect(_merger, 0, 1);         // M → out R
+
+  // Side path for L output: +side·L − side·R
+  _splitter.connect(_sideGain, 0);         // L → +side
+  _sideGain.connect(_merger, 0, 0);        // +side·L → out L
+  _splitter.connect(_msInvGain, 1);        // R → invert → −R
+  _msInvGain.connect(_sideGain);           // −R → +side → −side·R summed into out L ✓
+
+  // Side path for R output: −side·L + side·R
+  _splitter.connect(_haasDelay, 0);        // L → −side
+  _haasDelay.connect(_merger, 0, 1);       // −side·L → out R
+  // +side·R for R output (separate module-level node for proper teardown)
+  _sideGainR = ctx.createGain();
+  _sideGainR.gain.value = side;
+  _splitter.connect(_sideGainR, 1);        // R → +side
+  _sideGainR.connect(_merger, 0, 1);       // +side·R → out R  (R' = M − side·L + side·R ✓)
 
   _airShelf = ctx.createBiquadFilter();
   _airShelf.type = 'highshelf';
   _airShelf.frequency.value = 14000;
-  _airShelf.gain.value = 2.0; // +2.0dB air — smooth, not harsh
-
-  _splitter.connect(_midGain, 0);       // L → L out
-  _splitter.connect(_sideGain, 1);      // R → boosted R
-  _sideGain.connect(_haasDelay);
-  _midGain.connect(_merger, 0, 0);      // L → merger L
-  _haasDelay.connect(_merger, 0, 1);    // R+delay → merger R
+  _airShelf.gain.value = 2.0;
   _merger.connect(_airShelf);
 }
 
 function _teardownStereoWidener() {
-  [_airShelf, _merger, _haasDelay, _sideGain, _midGain, _splitter].forEach(n => {
+  [_airShelf, _merger, _sideGainR, _haasDelay, _msInvGain, _sideGain, _midGain, _splitter].forEach(n => {
     if (n) { try { n.disconnect(); } catch {} }
   });
-  _splitter = _merger = _midGain = _sideGain = _haasDelay = _airShelf = null;
+  _splitter = _merger = _midGain = _sideGain = _haasDelay = _msInvGain = _sideGainR = _airShelf = null;
 }
 
 let _rewiring = false;
@@ -2464,22 +2787,36 @@ function _rewireAudio() {
   try {
     _teardownLimiterChain();
     _teardownBassExciter();
+    _teardownEqChain();
+    _teardownCrossfeed();
     _teardownStereoWidener();
     _gainNode.disconnect();
-    if (_lufsAnalyser) { try { _gainNode.connect(_lufsAnalyser); } catch {} }
+    // Reconnect K-weighted LUFS measurement tap after gainNode disconnect
+    if (_lufsKw1) { try { _gainNode.connect(_lufsKw1); } catch {} }
     if (_mediaSource) _mediaSource.connect(_gainNode);
 
     _buildBassExciter(_audioCtx);
+    _buildEqChain(_audioCtx);
+    if (_cfOn) _buildCrossfeed(_audioCtx);
     _buildStereoWidener(_audioCtx);
     _buildLimiterChain(_audioCtx);
 
-    // Pre-mix: dry + bass exciter → stereo widener → limiter → destination
+    // Signal graph: gainNode → preMixGain → EQ[0..4] → [crossfeed] → splitter(widener) → airShelf → limiter → destination
     _preMixGain = _audioCtx.createGain();
     _preMixGain.gain.value = 1.0;
     _gainNode.connect(_preMixGain);
     _bassExciterIn && _gainNode.connect(_bassExciterIn);
     _bassExciterGain && _bassExciterGain.connect(_preMixGain);
-    _preMixGain.connect(_splitter);
+    // EQ chain: preMixGain → eq[0] → ... → eq[4]
+    _preMixGain.connect(_eqNodes[0]);
+    // Crossfeed (optional) or direct → stereo widener splitter
+    const _eqOut = _eqNodes[_eqNodes.length - 1];
+    if (_cfOn && _cfSplit) {
+      _eqOut.connect(_cfSplit);
+      _cfMerge.connect(_splitter);
+    } else {
+      _eqOut.connect(_splitter);
+    }
     _airShelf.connect(_limiterCompressor);
     _limiterWaveshaper.connect(_audioCtx.destination);
   } finally {
