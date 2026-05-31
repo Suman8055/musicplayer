@@ -10,6 +10,7 @@
   "theme_color": "#000814",
   "orientation": "portrait",
   "categories": ["music", "entertainment"],
+  "features": ["audio_playback"],
   "icons": [
     {
       "src": "icon-192.png",

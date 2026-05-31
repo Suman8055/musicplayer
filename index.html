@@ -889,7 +889,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.16';
+const APP_VERSION = '4.1.17';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -1254,12 +1254,33 @@ async function _resumeAudioCtx() {
 
 // Resume after screen lock / app foreground
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden && _audioCtx?.state === 'suspended') {
-    _audioCtx.resume().catch(() => {});
+  if (document.hidden) {
+    // Keep AudioContext alive in background — iOS suspends contexts with no active nodes.
+    // Schedule a silent 1ms oscillator to prevent suspension.
+    if (_audioCtx && _audioCtx.state === 'running') {
+      try {
+        const osc = _audioCtx.createOscillator();
+        osc.frequency.value = 0;
+        osc.connect(_audioCtx.destination);
+        osc.start();
+        osc.stop(_audioCtx.currentTime + 0.001);
+      } catch {}
+    }
+    return;
   }
-  if (!document.hidden && !userPaused && nowSong && audio.paused) {
-    audio.play().catch(() => {});
-  }
+  // Foregrounding
+  if (_audioCtx?.state === 'suspended') _audioCtx.resume().catch(() => {});
+  if (!userPaused && nowSong && audio.paused) audio.play().catch(() => {});
+});
+
+// iOS Page Lifecycle: fired when PWA is frozen/unfrozen (back-swipe, tab switch)
+window.addEventListener('pageshow', (e) => {
+  if (e.persisted && _audioCtx?.state === 'suspended') _audioCtx.resume().catch(() => {});
+  if (e.persisted && !userPaused && nowSong && audio.paused) audio.play().catch(() => {});
+});
+document.addEventListener('resume', () => {
+  if (_audioCtx?.state === 'suspended') _audioCtx.resume().catch(() => {});
+  if (!userPaused && nowSong && audio.paused) audio.play().catch(() => {});
 });
 
 // ── STORAGE ────────────────────────────────────────────────────────────────────
@@ -2145,7 +2166,7 @@ async function updateMediaSession() {
     artwork: [],
   });
   navigator.mediaSession.playbackState = 'playing';
-  navigator.mediaSession.setActionHandler('play',          () => { userPaused = false; if (_audioCtx?.state === 'suspended') _audioCtx.resume().catch(() => {}); audio.play().catch(e => Log.warn('MediaSession play failed', {err: e.message})); });
+  navigator.mediaSession.setActionHandler('play',          async () => { userPaused = false; if (_audioCtx?.state === 'suspended') await _audioCtx.resume().catch(() => {}); audio.play().catch(e => Log.warn('MediaSession play failed', {err: e.message})); });
   navigator.mediaSession.setActionHandler('pause',         () => { userPaused = true; audio.pause(); });
   navigator.mediaSession.setActionHandler('previoustrack', prev);
   navigator.mediaSession.setActionHandler('nexttrack',     next);
