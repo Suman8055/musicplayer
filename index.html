@@ -889,7 +889,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.19';
+const APP_VERSION = '4.1.20';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -1266,17 +1266,36 @@ document.addEventListener('visibilitychange', () => {
         osc.stop(_audioCtx.currentTime + 0.001);
       } catch {}
     }
+    // Tell iOS lock screen we are still playing — prevents OS from tearing down audio session
+    if ('mediaSession' in navigator && playing && !userPaused) {
+      navigator.mediaSession.playbackState = 'playing';
+    }
     return;
   }
-  // Foregrounding
+  // Foregrounding — resume AudioContext and sync MediaSession state
   if (_audioCtx?.state === 'suspended') _audioCtx.resume().catch(() => {});
   if (!userPaused && nowSong && audio.paused) audio.play().catch(() => {});
+  if ('mediaSession' in navigator) {
+    navigator.mediaSession.playbackState = (playing && !userPaused) ? 'playing' : 'paused';
+  }
 });
 
 // iOS Page Lifecycle: fired when PWA is frozen/unfrozen (back-swipe, tab switch)
 window.addEventListener('pageshow', (e) => {
   if (e.persisted && _audioCtx?.state === 'suspended') _audioCtx.resume().catch(() => {});
   if (e.persisted && !userPaused && nowSong && audio.paused) audio.play().catch(() => {});
+});
+// pagehide: last chance to commit MediaSession state before iOS suspends the page
+window.addEventListener('pagehide', () => {
+  if (playing && !userPaused && 'mediaSession' in navigator) {
+    navigator.mediaSession.playbackState = 'playing';
+  }
+});
+// freeze: iOS PWA freeze event — identical commit
+document.addEventListener('freeze', () => {
+  if (playing && !userPaused && 'mediaSession' in navigator) {
+    navigator.mediaSession.playbackState = 'playing';
+  }
 });
 document.addEventListener('resume', () => {
   if (_audioCtx?.state === 'suspended') _audioCtx.resume().catch(() => {});
@@ -1899,7 +1918,9 @@ async function preloadNext() {
 audio.addEventListener('play', () => {
   playing = true;
   userPaused = false;
-  audioPreload.src = ''; // release iOS audio session slot — only one element active at a time
+  // Defer clearing preload src — clearing it immediately on play can briefly interrupt
+  // the iOS audio session on some firmware versions
+  setTimeout(() => { if (playing) audioPreload.src = ''; }, 500);
   refreshPlayBtns();
   if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
 });
@@ -2165,7 +2186,7 @@ async function updateMediaSession() {
     album:  nowSong.album  || '',
     artwork: [],
   });
-  navigator.mediaSession.playbackState = 'playing';
+  navigator.mediaSession.playbackState = audio.paused ? 'paused' : 'playing';
   navigator.mediaSession.setActionHandler('play',          async () => { userPaused = false; if (_audioCtx?.state === 'suspended') await _audioCtx.resume().catch(() => {}); audio.play().catch(e => Log.warn('MediaSession play failed', {err: e.message})); });
   navigator.mediaSession.setActionHandler('pause',         () => { userPaused = true; audio.pause(); });
   navigator.mediaSession.setActionHandler('previoustrack', prev);
