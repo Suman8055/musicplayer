@@ -969,7 +969,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.11';
+const APP_VERSION = '4.1.12';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -2367,7 +2367,7 @@ let _eqGains  = (() => {
 })();
 let _eqNodes  = [];   // BiquadFilterNode array, parallel to EQ_BANDS
 
-const _EQ_Q_VALUES = [1.0, 1.4, 1.6, 2.0, 2.0, 2.2, 2.2, 2.5, 2.0, 1.0];
+const _EQ_Q_VALUES = [1.0, 1.0, 1.2, 1.4, 1.4, 1.6, 1.6, 1.8, 1.6, 1.0];
 
 function _buildEqChain(ctx) {
   _eqNodes = EQ_BANDS.map((b, i) => {
@@ -2390,11 +2390,11 @@ function _teardownEqChain() {
 // ── True-Peak Limiter ─────────────────────────────────────────────────────────
 function _buildLimiterChain(ctx) {
   _limiterCompressor = ctx.createDynamicsCompressor();
-  _limiterCompressor.threshold.value = -1;
-  _limiterCompressor.knee.value      =  0;  // hard knee — true limiter
-  _limiterCompressor.ratio.value     = 20;  // 20:1 brick wall
-  _limiterCompressor.attack.value    = 0.001;
-  _limiterCompressor.release.value   = 0.05;
+  _limiterCompressor.threshold.value = -3;   // softer ceiling — less pumping
+  _limiterCompressor.knee.value      =  3;   // soft knee — transparent limiting
+  _limiterCompressor.ratio.value     = 12;   // 12:1 — still brickwall but less aggressive
+  _limiterCompressor.attack.value    = 0.002;
+  _limiterCompressor.release.value   = 0.1;  // slower release — no pump breathing
 
   _limiterWaveshaper = ctx.createWaveShaper();
   _limiterWaveshaper.oversample = '4x'; // catches inter-sample peaks via upsampling
@@ -2445,7 +2445,7 @@ function _buildBassExciter(ctx) {
   _bassExciterOut.Q.value = 0.8;
 
   _bassExciterGain = ctx.createGain();
-  _bassExciterGain.gain.value = 0.28; // 28% blend — powerful, not muddy
+  _bassExciterGain.gain.value = 0.14; // 14% blend — felt warmth, not mud
 
   _bassExciterIn.connect(_bassExciterDist);
   _bassExciterDist.connect(_bassExciterOut);
@@ -2460,8 +2460,9 @@ function _teardownBassExciter() {
 }
 
 // ── Stereo Widener + Air Shelf ────────────────────────────────────────────────
-// M/S processing: splits L/R, boosts Side channel 1.4×, adds Haas 0.6ms delay.
-// Air shelf at 14kHz +3.5dB — makes cheap earbuds sound expensive.
+// L/R split: boost Right channel 1.15× + 18ms Haas delay (safe zone: no comb filtering below 1kHz).
+// 0.6ms caused comb filtering and tonal coloration — Harman standard is 15–30ms.
+// Air shelf at 14kHz +2.0dB — warmth, not harshness.
 function _buildStereoWidener(ctx) {
   _splitter = ctx.createChannelSplitter(2);
   _merger   = ctx.createChannelMerger(2);
@@ -2469,21 +2470,21 @@ function _buildStereoWidener(ctx) {
   _midGain = ctx.createGain();
   _midGain.gain.value = 1.0;
   _sideGain = ctx.createGain();
-  _sideGain.gain.value = 1.4; // max safe width: 1.8 for mono compatibility
+  _sideGain.gain.value = 1.15; // gentle R boost — cohesive not phasey
 
-  _haasDelay = ctx.createDelay(0.005);
-  _haasDelay.delayTime.value = 0.0006; // 0.6ms — psychoacoustic width, mono-safe
+  _haasDelay = ctx.createDelay(0.03);
+  _haasDelay.delayTime.value = 0.018; // 18ms — psychoacoustic width, no comb filtering
 
   _airShelf = ctx.createBiquadFilter();
   _airShelf.type = 'highshelf';
   _airShelf.frequency.value = 14000;
-  _airShelf.gain.value = 3.5; // +3.5dB air above 14kHz
+  _airShelf.gain.value = 2.0; // +2.0dB air — smooth, not harsh
 
-  _splitter.connect(_midGain, 0);       // L → Mid
-  _splitter.connect(_sideGain, 1);      // R → Side
+  _splitter.connect(_midGain, 0);       // L → L out
+  _splitter.connect(_sideGain, 1);      // R → boosted R
   _sideGain.connect(_haasDelay);
-  _midGain.connect(_merger, 0, 0);      // Mid → L out
-  _haasDelay.connect(_merger, 0, 1);    // Side+delay → R out
+  _midGain.connect(_merger, 0, 0);      // L → merger L
+  _haasDelay.connect(_merger, 0, 1);    // R+delay → merger R
   _merger.connect(_airShelf);
 }
 
