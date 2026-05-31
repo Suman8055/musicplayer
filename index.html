@@ -889,7 +889,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.15';
+const APP_VERSION = '4.1.16';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -904,13 +904,11 @@ const ENVS = {
   production: {
     label:    'Production',
     sigma:    'https://jiosaavn-api-sigma-sandy.vercel.app',
-    lyra:     'https://hayasaka.8man.in',
     saavn:    'https://saavn.8man.dev',
   },
   staging: {
     label:    'Staging',
     sigma:    'https://jiosaavn-api-sigma-sandy.vercel.app',  // swap with staging endpoints when ready
-    lyra:     'https://hayasaka.8man.in',
     saavn:    'https://saavn.8man.dev',
   },
 };
@@ -925,7 +923,6 @@ function setEnv(env) {
   // Swap live API constants so subsequent calls use the right endpoints
   const cfg = getEnvCfg();
   SIGMA_API = cfg.sigma;
-  LYRA_API  = cfg.lyra;
   SAAVN_API = cfg.saavn;
 }
 
@@ -1496,33 +1493,7 @@ function getNetworkQuality() {
 }
 
 async function fetchStream(id) {
-  // ── Fast path: hayasaka.8man.in — single attempt, short timeout ──────────────
-  for (let attempt = 1; attempt <= 1; attempt++) {
-    try {
-      const r = await fetch(`https://hayasaka.8man.in/api/songs/${encodeURIComponent(id)}`, {
-        signal: AbortSignal.timeout(3000),
-      });
-      if (!r.ok) { Log.warn('Fast stream HTTP error', { id, status: r.status, attempt }); break; }
-      const data = await r.json();
-      const song = Array.isArray(data?.data) ? data.data[0] : null;
-      if (song) {
-        const targetTier = QUALITY_RANK[getNetworkQuality()];
-        const urls = (song.downloadUrl || []).slice().sort(
-          (a, b) => (QUALITY_RANK[b.quality] || 0) - (QUALITY_RANK[a.quality] || 0)
-        );
-        // Pick highest quality that doesn't exceed what the network can handle
-        const best = urls.find(u => (QUALITY_RANK[u.quality] || 0) <= targetTier) || urls[urls.length - 1];
-        if (best?.url) {
-          Log.info('Stream OK (fast)', { id, quality: best.quality, network: getNetworkQuality(), attempt });
-          return { url: best.url, quality: best.quality, image: bestImg(song.image, '500x500'), duration: song.duration || 0 };
-        }
-      }
-    } catch (e) {
-      Log.warn('Fast stream failed, falling back to SIGMA', { id, err: e.message });
-    }
-  }
-
-  // ── Fallback: SIGMA_API /songs?id= (CORS-open, returns pre-decrypted CDN URLs) ─
+  // ── SIGMA_API /songs?id= (CORS-open, returns pre-decrypted CDN URLs) ──────────
   const r2 = await fetch(`${SIGMA_API}/songs?id=${encodeURIComponent(id)}`, {
     signal: AbortSignal.timeout(10000),
   });
@@ -1536,7 +1507,7 @@ async function fetchStream(id) {
   );
   const best2 = urls2.find(u => (QUALITY_RANK[u.quality] || 0) <= targetTier2) || urls2[urls2.length - 1];
   if (!best2?.link) throw new Error('No stream link in SIGMA response');
-  Log.info('Stream OK (SIGMA fallback)', { id, quality: best2.quality, network: getNetworkQuality() });
+  Log.info('Stream OK', { id, quality: best2.quality, network: getNetworkQuality() });
   return {
     url:      best2.link,
     quality:  best2.quality,
@@ -3551,7 +3522,6 @@ async function startSmartRadio(song) {
 
 // ── BROWSE (JioSaavn-style) ────────────────────────────────────────────────────
 let SIGMA_API = getEnvCfg().sigma;
-let LYRA_API  = getEnvCfg().lyra;
 let SAAVN_API = getEnvCfg().saavn;
 
 // Resilient fetch: exponential backoff + jitter, skips retry on 4xx client errors
@@ -4532,7 +4502,7 @@ if ('serviceWorker' in navigator) {
 })();
 
 // ── INIT ────────────────────────────────────────────────────────────────────────
-setEnv(getEnv()); // apply saved env — patches SIGMA_API/LYRA_API/SAAVN_API and shows banner
+setEnv(getEnv()); // apply saved env — patches SIGMA_API/SAAVN_API and shows banner
 Log.init();
 intelPrune(); // trim stale listening history once per session
 buildDiscover();
