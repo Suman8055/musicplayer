@@ -889,7 +889,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.17';
+const APP_VERSION = '4.1.18';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -1821,7 +1821,7 @@ function next() {
       if (_sessionSkipStreak >= 2) {
         // Mood shift: suppress this artist for the session, show badge
         const key = _artistKey(nowSong);
-        if (key && key !== 'n:') { _sessionSuppressed.add(key); _suppressedAt.set(key, Date.now()); }
+        if (key && key !== 'n:') { _sessionSuppressed.add(key); _suppressedAt.set(key, Date.now()); _forYouCache = null; }
         _sessionSkipStreak = 0;
         _showMoodShiftBadge(nowSong.artist || null);
         _refreshSuppressedRow();
@@ -2882,12 +2882,26 @@ const INTEL_KEY = 'mbx_intel_v2';
 function intelLoad() {
   try {
     const s = localStorage.getItem(INTEL_KEY);
-    if (s) return JSON.parse(s);
+    if (s) {
+      const d = JSON.parse(s);
+      if (d && typeof d === 'object') {
+        d.artists   = (d.artists   && typeof d.artists   === 'object') ? d.artists   : {};
+        d.songs     = (d.songs     && typeof d.songs     === 'object') ? d.songs     : {};
+        d.languages = (d.languages && typeof d.languages === 'object') ? d.languages : {};
+        d.flows     = (d.flows     && typeof d.flows     === 'object') ? d.flows     : {};
+        d.streaks   = (d.streaks   && typeof d.streaks   === 'object') ? d.streaks   : {};
+        return d;
+      }
+    }
   } catch {}
   return { artists: {}, languages: {}, songs: {}, flows: {}, streaks: {} };
 }
 function intelSave(d) {
-  try { localStorage.setItem(INTEL_KEY, JSON.stringify(d)); } catch {}
+  try {
+    localStorage.setItem(INTEL_KEY, JSON.stringify(d));
+  } catch (e) {
+    if (e.name === 'QuotaExceededError') toast('Listening history full — clear in Settings → Memory');
+  }
 }
 
 // Migrate v1 data into v2 schema once, then removes old key.
@@ -3048,6 +3062,10 @@ function intelTrackPlay(song, completionRatio, isFastSkip = false) {
   if (!d.streaks) d.streaks = {};
 
   const sr = d.songs[song.id] || { plays: 0, skips: 0, fastSkips: 0, lastPlayed: 0 };
+  // Persist song metadata for Rediscover row (Sprint 2)
+  if (song.name)   sr.name   = song.name;
+  if (song.artist) sr.artist = song.artist;
+  if (song.image)  sr.image  = song.image;
   if (completionRatio >= 0.8) {
     sr.plays++;
   } else if (completionRatio < 0.2) {
@@ -3067,6 +3085,7 @@ function intelTrackPlay(song, completionRatio, isFastSkip = false) {
   if (completionRatio >= 0.8) {
     ar.score += 3;
     ar.plays++;
+    ar.lastPlayed = Date.now();
     _sessionStreak++;
     // Streak bonus: 3 consecutive full plays on same artist → +2
     if (_sessionStreak >= 3 && _artistKey(song) === key) ar.score += 2;
@@ -3085,6 +3104,7 @@ function intelTrackPlay(song, completionRatio, isFastSkip = false) {
   } else if (completionRatio >= 0.3) {
     ar.score += 1;
     ar.plays++;
+    ar.lastPlayed = ar.lastPlayed || Date.now();
     _sessionStreak = 0;
     _prevFullPlayArtistKey = null; // partial play breaks flow chain
   } else if (completionRatio < 0.2) {
@@ -3120,7 +3140,15 @@ function intelTrackLike(song) {
   if (song.artistId) ar.id = song.artistId;
   ar.score += 4;
   ar.plays = (ar.plays || 0) + 1;
+  ar.lastPlayed = Date.now();
   d.artists[key] = ar;
+  const sr = d.songs[song.id] || { plays: 0, skips: 0, fastSkips: 0, lastPlayed: 0 };
+  sr.liked   = true;
+  sr.likedAt = Date.now();
+  if (song.name)   sr.name   = song.name;
+  if (song.artist) sr.artist = song.artist;
+  if (song.image)  sr.image  = song.image;
+  d.songs[song.id] = sr;
   intelSave(d);
   _forYouCache = null;
 }
@@ -3177,25 +3205,24 @@ function intelPlayedIds() {
 // ── FOR YOU — UI ───────────────────────────────────────────────────────────────
 let _forYouCache = null;           // { rows, ts }
 const _FOR_YOU_TTL = 30 * 60 * 1000;
+let _forYouRenderPending = false;
 
 async function buildForYouRows() {
   if (_forYouCache && (Date.now() - _forYouCache.ts) < _FOR_YOU_TTL) return _forYouCache.rows;
 
-  const topArtists = intelGetTopArtists(3);
+  const topArtists = intelGetTopArtists(3, false, true);
   if (!topArtists.length) return [];
 
   const played = intelPlayedIds();
   const rows = [];
 
-  await Promise.all(topArtists.map(async artist => {
-    try {
-      const allSongs = await fetchArtistSongs(artist.name, 30);
-      const songs = allSongs
-        .filter(s => s.id && !played.has(s.id))
-        .sort(() => Math.random() - 0.5)
-        .slice(0, 10);
-      if (songs.length >= 2) rows.push({ artist, songs });
-    } catch { /* silent — skip this artist */ }
+  await Promise.allSettled(topArtists.map(async artist => {
+    const allSongs = await fetchArtistSongs(artist.name, 30);
+    const songs = allSongs
+      .filter(s => s.id && !played.has(s.id))
+      .sort(() => Math.random() - 0.5)
+      .slice(0, 10);
+    if (songs.length >= 2) rows.push({ artist, songs });
   }));
 
   rows.sort((a, b) => b.artist.score - a.artist.score);
@@ -3238,7 +3265,7 @@ async function _seedSmartPlay(genre) {
   try {
     const results = await searchSongs(genre, 5);
     if (!results.length) { toast('Try another genre'); return; }
-    results.forEach(song => intelTrackPlay(song, 1.0, false));
+    results.filter(song => song.artist && song.artist.trim()).forEach(song => intelTrackPlay(song, 1.0, false));
     localStorage.setItem('mbx_onboarded', '1');
     _forYouCache = null; // bust cache so For You rebuilds immediately
     renderForYouSection();
@@ -3249,70 +3276,76 @@ async function _seedSmartPlay(genre) {
 }
 
 async function renderForYouSection() {
-  const section = document.getElementById('for-you-section');
-  const rowsEl  = document.getElementById('for-you-rows');
-  if (!section || !rowsEl) return;
-
-  const totalPlays = intelTotalPlays();
-  section.style.display = 'block';
-
-  // Update time-aware greeting and slot labels
-  _refreshTimeContext();
-
-  const alreadyOnboarded = localStorage.getItem('mbx_onboarded') === '1';
-  if (totalPlays < 5 && !alreadyOnboarded) {
-    const genres = ['Bollywood', 'Punjabi', 'Tamil', 'Classical', 'Hip-Hop', 'Chill', 'Devotional', 'Romantic'];
-    rowsEl.innerHTML = `<div class="for-you-empty" style="padding:12px 16px 4px">
-      <div style="margin-bottom:10px;font-size:13px;opacity:.8">Pick a vibe to get started</div>
-      <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center">
-        ${genres.map(g => `<button class="seed-genre-btn" data-genre="${esc(g)}"
-          style="background:var(--bg3);border:1px solid var(--sep);color:var(--fg);border-radius:20px;
-                 padding:6px 14px;font-size:13px;font-family:inherit;cursor:pointer">${esc(g)}</button>`).join('')}
-      </div>
-    </div>`;
-    rowsEl.querySelectorAll('.seed-genre-btn').forEach(btn => {
-      btn.addEventListener('click', () => _seedSmartPlay(btn.dataset.genre));
-    });
-    return;
-  }
-
-  rowsEl.innerHTML = '<div style="padding:4px 16px 12px"><div class="spinner" style="margin:0;width:22px;height:22px;border-width:2px"></div></div>';
-
+  if (_forYouRenderPending) return;
+  _forYouRenderPending = true;
   try {
-    const rows = await buildForYouRows();
-    rowsEl.innerHTML = '';
+    const section = document.getElementById('for-you-section');
+    const rowsEl  = document.getElementById('for-you-rows');
+    if (!section || !rowsEl) return;
 
-    if (!rows.length) {
-      rowsEl.innerHTML = '<div class="for-you-empty">Explore more music to unlock recommendations</div>';
+    const totalPlays = intelTotalPlays();
+    section.style.display = 'block';
+
+    // Update time-aware greeting and slot labels
+    _refreshTimeContext();
+
+    const alreadyOnboarded = localStorage.getItem('mbx_onboarded') === '1';
+    if (totalPlays < 5 && !alreadyOnboarded) {
+      const genres = ['Bollywood', 'Punjabi', 'Tamil', 'Classical', 'Hip-Hop', 'Chill', 'Devotional', 'Romantic'];
+      rowsEl.innerHTML = `<div class="for-you-empty" style="padding:12px 16px 4px">
+        <div style="margin-bottom:10px;font-size:13px;opacity:.8">Pick a vibe to get started</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center">
+          ${genres.map(g => `<button class="seed-genre-btn" data-genre="${esc(g)}"
+            style="background:var(--bg3);border:1px solid var(--sep);color:var(--fg);border-radius:20px;
+                   padding:6px 14px;font-size:13px;font-family:inherit;cursor:pointer">${esc(g)}</button>`).join('')}
+        </div>
+      </div>`;
+      rowsEl.querySelectorAll('.seed-genre-btn').forEach(btn => {
+        btn.addEventListener('click', () => _seedSmartPlay(btn.dataset.genre));
+      });
       return;
     }
 
-    rows.forEach(({ artist, songs }) => {
-      const wrap = document.createElement('div');
-      wrap.className = 'for-you-artist-row';
+    rowsEl.innerHTML = '<div style="padding:4px 16px 12px"><div class="spinner" style="margin:0;width:22px;height:22px;border-width:2px"></div></div>';
 
-      const hdr = document.createElement('div');
-      hdr.className = 'disc-hd';
-      hdr.innerHTML = `<span class="disc-hd-title" style="font-size:16px">Because you play <span style="background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent">${esc(artist.name)}</span></span>`;
-      wrap.appendChild(hdr);
+    try {
+      const rows = await buildForYouRows();
+      rowsEl.innerHTML = '';
 
-      const fadeWrap = document.createElement('div');
-      fadeWrap.className = 'scroll-fade-wrap';
-      const scroll = document.createElement('div');
-      scroll.className = 'h-scroll';
+      if (!rows.length) {
+        rowsEl.innerHTML = '<div class="for-you-empty">Explore more music to unlock recommendations</div>';
+        return;
+      }
 
-      songs.forEach((song, i) => {
-        scroll.appendChild(createContentCard(song.name, song.artist, song.image, () => {
-          play(song, [...songs], i);
-        }));
+      rows.forEach(({ artist, songs }) => {
+        const wrap = document.createElement('div');
+        wrap.className = 'for-you-artist-row';
+
+        const hdr = document.createElement('div');
+        hdr.className = 'disc-hd';
+        hdr.innerHTML = `<span class="disc-hd-title" style="font-size:16px">Because you play <span style="background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent">${esc(artist.name)}</span></span>`;
+        wrap.appendChild(hdr);
+
+        const fadeWrap = document.createElement('div');
+        fadeWrap.className = 'scroll-fade-wrap';
+        const scroll = document.createElement('div');
+        scroll.className = 'h-scroll';
+
+        songs.forEach((song, i) => {
+          scroll.appendChild(createContentCard(song.name, song.artist, song.image, () => {
+            play(song, [...songs], i);
+          }));
+        });
+
+        fadeWrap.appendChild(scroll);
+        wrap.appendChild(fadeWrap);
+        rowsEl.appendChild(wrap);
       });
-
-      fadeWrap.appendChild(scroll);
-      wrap.appendChild(fadeWrap);
-      rowsEl.appendChild(wrap);
-    });
-  } catch {
-    rowsEl.innerHTML = '<div class="for-you-empty">Could not load — check connection</div>';
+    } catch {
+      rowsEl.innerHTML = '<div class="for-you-empty">Could not load — check connection</div>';
+    }
+  } finally {
+    _forYouRenderPending = false;
   }
 }
 
@@ -3345,6 +3378,7 @@ function _initNotNowLongPress() {
       if (key && key !== 'n:') {
         _sessionSuppressed.add(key);
         _suppressedAt.set(key, Date.now());
+        _forYouCache = null;
         _refreshSuppressedRow();
         toast(`Skipping ${nowSong.artist || 'artist'} · session only`);
       }
