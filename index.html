@@ -969,7 +969,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.12';
+const APP_VERSION = '4.1.13';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -1204,8 +1204,8 @@ const NORM_VOLUME = 1.0; // baseline — per-track gain managed by _measureAndAp
 
 // LUFS normalization constants
 const LUFS_TARGET       = -13;   // dBFS integrated target
-const LUFS_MAX_BOOST_DB =   6;   // never boost more than +6 dB (prevents noise pump)
-const LUFS_MAX_CUT_DB   =  12;   // never cut more than −12 dB
+const LUFS_MAX_BOOST_DB =   3;   // never boost more than +3 dB (Spotify/Apple standard)
+const LUFS_MAX_CUT_DB   =   6;   // never cut more than −6 dB
 const _lufsCache        = new Map(); // songId → linear gain value
 let   _lufsAnalyser     = null;      // AnalyserNode tapping _gainNode pre-EQ
 
@@ -1218,15 +1218,18 @@ async function _measureAndApplyLufs(song) {
   if (!_audioCtx || !_lufsAnalyser || !_gainNode) return;
   if (_lufsCache.has(song.id)) {
     const cached = _lufsCache.get(song.id);
-    _gainNode.gain.setTargetAtTime(cached, _audioCtx.currentTime, 0.1);
+    // τ=2.0 — 6s ramp: inaudible transition, no "volume jump" sensation
+    _gainNode.gain.setTargetAtTime(cached, _audioCtx.currentTime, 2.0);
     return;
   }
-  const FRAMES = 28; // 28 × 250ms = 7s window
+  const WARMUP = 8;  // skip first 2s — avoids measuring quiet intros as the song level
+  const FRAMES = 28; // 28 × 250ms = 7s measurement window after warmup
   let sumSq = 0, frameCount = 0;
   const buf = new Float32Array(_lufsAnalyser.fftSize);
-  for (let f = 0; f < FRAMES; f++) {
+  for (let f = 0; f < WARMUP + FRAMES; f++) {
     await new Promise(r => setTimeout(r, 250));
     if (!nowSong || nowSong.id !== song.id) return; // song changed mid-analysis
+    if (f < WARMUP) continue; // discard quiet-intro frames
     _lufsAnalyser.getFloatTimeDomainData(buf);
     for (let i = 0; i < buf.length; i++) sumSq += buf[i] * buf[i];
     frameCount += buf.length;
@@ -1238,7 +1241,8 @@ async function _measureAndApplyLufs(song) {
   const gain = _gainFromLufs(measuredLufs);
   _lufsCache.set(song.id, gain);
   if (_lufsCache.size > 50) _lufsCache.delete(_lufsCache.keys().next().value); // LRU evict
-  _gainNode.gain.setTargetAtTime(gain, _audioCtx.currentTime, 0.1); // smooth 0.3s ramp
+  // τ=2.0 — slow 6s ramp; correction is imperceptible, never a sudden volume jump
+  _gainNode.gain.setTargetAtTime(gain, _audioCtx.currentTime, 2.0);
   Log.info('LUFS norm', { name: song.name, lufs: measuredLufs.toFixed(1), gainDb: (20*Math.log10(gain)).toFixed(1) });
 }
 // ── End LUFS ──────────────────────────────────────────────────────────────────
