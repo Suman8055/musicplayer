@@ -15,6 +15,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/meyda@5.2.3/dist/web/meyda.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -923,7 +924,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.6';
+const APP_VERSION = '4.1.7';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -1202,8 +1203,12 @@ function _ensureAudioCtx() {
       audioCtx:      _audioCtx,
       eqNodes:       _eqNodes,
       eqOn:          _eqOn,
-      eqGains:       _eqGains,
-      rewiring:      _rewiring,
+      eqGains:         _eqGains,
+      rewiring:        _rewiring,
+      meydaOn:         _meydaOn,
+      meydaAnalyser:   _meydaAnalyser,
+      meydaSmoothed:   Array.from(_meydaSmoothed),
+      meydaLastUpdate: _meydaLastUpdate,
     });
     Log.info('AudioContext created');
     return true;
@@ -1702,6 +1707,7 @@ async function play(song, newQueue, idx) {
       audio.crossOrigin = null;       // blob:// URLs are same-origin; crossOrigin must be null
       _ensureAudioCtx();
       await _resumeAudioCtx();
+      if (_meydaOn && _corsAvailable) _startMeyda();
       audio.src = offlineBlobUrl;
       await audio.play().catch(e => Log.warn('Offline play failed', { err: e.message }));
       if (nowSong?.id !== song.id) return;
@@ -1725,6 +1731,7 @@ async function play(song, newQueue, idx) {
       audio.crossOrigin = 'anonymous'; // required for Web Audio routing on network streams
       _ensureAudioCtx();
       await _resumeAudioCtx();
+      if (_meydaOn && _corsAvailable) _startMeyda();
       if (offlineBlobUrl) { URL.revokeObjectURL(offlineBlobUrl); offlineBlobUrl = null; }
       audio.src = stream.url;
       await audio.play().catch(e => Log.warn('Play failed', { err: e.message }));
@@ -1884,6 +1891,7 @@ audio.addEventListener('play', () => {
 });
 audio.addEventListener('pause', () => {
   playing = false;
+  _stopMeyda();
   refreshPlayBtns();
   if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
 });
@@ -1908,7 +1916,7 @@ audio.addEventListener('stalled', () => {
     }, stallWait);
   }
 });
-audio.addEventListener('ended', () => { _intelNaturalEnd = true; next(); });
+audio.addEventListener('ended', () => { _intelNaturalEnd = true; _stopMeyda(); next(); });
 audio.addEventListener('error', () => {
   if (!loadingUrl) {
     const MEDIA_ERR = { 1:'ABORTED', 2:'NETWORK', 3:'DECODE', 4:'SRC_NOT_SUPPORTED' };
@@ -2293,6 +2301,7 @@ function _rewireEq() {
   _rewiring = true;
   try {
     Log.info('_rewireEq start', _getAudioState());
+    _stopMeyda();
     _teardownEqChain();
     _autoEqAnalyser = null;
     _gainNode.disconnect();
@@ -2301,6 +2310,7 @@ function _rewireEq() {
     _gainNode.connect(_eqNodes[0]);
     _eqNodes[_eqNodes.length - 1].connect(_audioCtx.destination);
     Log.info('_rewireEq done', _getAudioState());
+    if (_meydaOn && _corsAvailable) _startMeyda();
   } finally {
     _rewiring = false;
   }
@@ -2432,6 +2442,14 @@ let _autoEqOn = localStorage.getItem(AUTO_EQ_KEY + '_on') !== 'false'; // defaul
 const _autoEqCache = new Map();
 let _autoEqAnalyser = null; // live tap AnalyserNode, rewired with EQ chain
 let _manualEqAdjusted = false; // true if user moved a slider during active Auto-EQ analysis
+
+// ── Meyda real-time spectral EQ state ─────────────────────────────────────────
+const MEYDA_KEY = 'mbx_meyda_v1';
+let _meydaAnalyser   = null;
+let _meydaOn         = localStorage.getItem(MEYDA_KEY + '_on') !== 'false';
+let _meydaLastUpdate = 0;
+let _meydaGains      = new Float32Array(10);
+let _meydaSmoothed   = new Float32Array(10);
 
 // Per-language Harman targets: each int[10] is dB offset per band relative to midrange.
 const HARMAN_TARGETS = {
@@ -2576,6 +2594,100 @@ function _refreshAutoEqUI() {
 }
 
 // ── End Auto-EQ ───────────────────────────────────────────────────────────────
+
+// ── Meyda real-time continuous EQ adaptation ──────────────────────────────────
+function _computeMeydaGains(features) {
+  const gains = new Float32Array(10);
+  if (!features) return gains;
+  const { spectralCentroid = null, perceptualSharpness = null, spectralFlatness = null, rms = null } = features;
+
+  // spectralCentroid → high-frequency air (bands 7,8,9 = 4k,8k,16k)
+  if (spectralCentroid !== null && isFinite(spectralCentroid)) {
+    const drive = Math.max(-1, Math.min(1, (2500 - spectralCentroid) / 1000));
+    gains[7] += drive * 3;
+    gains[8] += drive * 3;
+    gains[9] += drive * 3;
+  }
+
+  // perceptualSharpness → presence/harshness (bands 5,6,7 = 1k,2k,4k)
+  if (perceptualSharpness !== null && isFinite(perceptualSharpness)) {
+    const harshDrive = Math.max(0, Math.min(1, (perceptualSharpness - 1.5) / 1.0));
+    gains[6] -= harshDrive * 3;
+    gains[7] -= harshDrive * 3;
+    const dullDrive = Math.max(0, Math.min(1, (0.8 - perceptualSharpness) / 0.8));
+    gains[5] += dullDrive * 2;
+    gains[6] += dullDrive * 2;
+  }
+
+  // spectralFlatness → bass/body (bands 0,1 = 32,64 Hz)
+  if (spectralFlatness !== null && isFinite(spectralFlatness)) {
+    const tonalDrive = Math.max(0, Math.min(1, (0.1 - spectralFlatness) / 0.1));
+    const noiseDrive = Math.max(0, Math.min(1, (spectralFlatness - 0.5) / 0.5));
+    const bassDelta  = (tonalDrive * 2) - (noiseDrive * 2);
+    gains[0] += bassDelta;
+    gains[1] += bassDelta;
+  }
+
+  // rms → loudness compensation (all bands)
+  if (rms !== null && isFinite(rms)) {
+    const quietDrive = Math.max(0, Math.min(1, (0.05 - rms) / 0.05));
+    const loudDrive  = Math.max(0, Math.min(1, (rms - 0.70) / 0.30));
+    const rmsDelta   = quietDrive - loudDrive;
+    for (let i = 0; i < 10; i++) gains[i] += rmsDelta;
+  }
+
+  for (let i = 0; i < 10; i++) gains[i] = Math.max(-4, Math.min(4, gains[i]));
+  return gains;
+}
+
+function _startMeyda() {
+  if (!_corsAvailable || !window.Meyda || _meydaAnalyser || !_meydaOn || !_audioCtx || !_gainNode) return;
+  try {
+    _meydaAnalyser = Meyda.createMeydaAnalyzer({
+      audioContext:      _audioCtx,
+      source:            _gainNode,
+      bufferSize:        2048,
+      featureExtractors: ['spectralCentroid', 'spectralFlatness', 'perceptualSharpness', 'rms'],
+      callback:          _onMeydaFrame,
+    });
+    _meydaAnalyser.start();
+    Log.info('Meyda started');
+  } catch (e) {
+    _meydaAnalyser = null;
+    Log.warn('Meyda start failed', { err: e.message });
+  }
+}
+
+function _stopMeyda() {
+  if (!_meydaAnalyser) return;
+  try { _meydaAnalyser.stop(); } catch {}
+  _meydaAnalyser = null;
+  Log.info('Meyda stopped');
+}
+
+function _onMeydaFrame(features) {
+  if (!features) return;
+  const now = Date.now();
+  if (now - _meydaLastUpdate < 2000) return;
+  _meydaLastUpdate = now;
+  const raw = _computeMeydaGains(features);
+  const ALPHA = 0.15;
+  for (let i = 0; i < 10; i++) {
+    _meydaSmoothed[i] = ALPHA * raw[i] + (1 - ALPHA) * _meydaSmoothed[i];
+    _meydaGains[i]    = raw[i];
+  }
+  _applyMeydaGains();
+}
+
+function _applyMeydaGains() {
+  if (!_eqOn || !_corsAvailable || _eqNodes.length !== 10) return;
+  for (let i = 0; i < 10; i++) {
+    const base    = _eqNodes[i].gain.value;
+    const clamped = Math.max(-12, Math.min(12, base + _meydaSmoothed[i]));
+    _eqNodes[i].gain.setTargetAtTime(clamped, _audioCtx.currentTime, 0.3);
+  }
+}
+// ── End Meyda ─────────────────────────────────────────────────────────────────
 
 // ── End EQ ───────────────────────────────────────────────────────────────────
 
