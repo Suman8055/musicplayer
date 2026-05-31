@@ -889,7 +889,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.26';
+const APP_VERSION = '4.1.27';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -1200,6 +1200,11 @@ function _ensureAudioCtx() {
   if (_ctxFailed || !AC) return false;
   try {
     _audioCtx = new AC({ sampleRate: 48000 });
+    _audioCtx.addEventListener('statechange', () => {
+      if (_audioCtx.state === 'suspended') {
+        _audioCtx.resume().catch(() => {});
+      }
+    });
     _gainNode = _audioCtx.createGain();
     _gainNode.gain.value = NORM_VOLUME; // 1.0 baseline; per-track LUFS adjusts this
     // LUFS analyser: passive tap on _gainNode (pre-EQ dry signal)
@@ -1301,6 +1306,7 @@ document.addEventListener('visibilitychange', () => {
   }
   // Foregrounding — stop heartbeat, resume AudioContext if needed
   _stopBgKeepAlive();
+  if ('audioSession' in navigator) navigator.audioSession.type = 'playback';
   (async () => {
     if (_audioCtx?.state === 'suspended') {
       try { await _audioCtx.resume(); } catch {}
@@ -1787,6 +1793,7 @@ async function play(song, newQueue, idx) {
       // audio.play() within the user-gesture stack with no async gap after src set.
       audio.crossOrigin = null;       // blob:// URLs are same-origin; crossOrigin must be null
       _ensureAudioCtx();
+      if ('audioSession' in navigator) navigator.audioSession.type = 'playback';
       await _resumeAudioCtx();
       audio.src = offlineBlobUrl;
       await audio.play().catch(e => Log.warn('Offline play failed', { err: e.message }));
@@ -1810,6 +1817,7 @@ async function play(song, newQueue, idx) {
       // before src). (WebKit bug #232076: blob URLs cause HTTP 416 range errors.)
       audio.crossOrigin = 'anonymous'; // required for Web Audio routing on network streams
       _ensureAudioCtx();
+      if ('audioSession' in navigator) navigator.audioSession.type = 'playback';
       await _resumeAudioCtx();
       if (offlineBlobUrl) { URL.revokeObjectURL(offlineBlobUrl); offlineBlobUrl = null; }
       audio.src = stream.url;
@@ -1964,6 +1972,7 @@ async function preloadNext() {
 
 // ── AUDIO EVENTS ───────────────────────────────────────────────────────────────
 audio.addEventListener('play', () => {
+  if ('audioSession' in navigator) navigator.audioSession.type = 'playback';
   playing = true;
   userPaused = false;
   _iosPaused = false;
@@ -2256,6 +2265,7 @@ async function _fetchArtDataUrl(url) {
 
 async function updateMediaSession() {
   if (!('mediaSession' in navigator) || !nowSong) return;
+  if ('audioSession' in navigator) navigator.audioSession.type = 'playback';
 
   // Set text metadata immediately — speaker shows title/artist without waiting for art
   navigator.mediaSession.metadata = new MediaMetadata({
@@ -2269,8 +2279,6 @@ async function updateMediaSession() {
   navigator.mediaSession.setActionHandler('pause',         () => { userPaused = true; audio.pause(); });
   navigator.mediaSession.setActionHandler('previoustrack', prev);
   navigator.mediaSession.setActionHandler('nexttrack',     next);
-  try { navigator.mediaSession.setActionHandler('seekbackward', null); } catch {}
-  try { navigator.mediaSession.setActionHandler('seekforward',  null); } catch {}
   try { navigator.mediaSession.setActionHandler('seekto', ({seekTime}) => { if (isFinite(seekTime)) audio.currentTime = seekTime; }); } catch {}
 
   const img = nowSong.image || '';
