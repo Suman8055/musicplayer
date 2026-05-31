@@ -924,7 +924,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.8';
+const APP_VERSION = '4.1.9';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -1152,11 +1152,51 @@ const audio        = document.getElementById('audio');
 const audioPreload = document.getElementById('audio-preload');
 
 // ── LOUDNESS NORMALISATION ─────────────────────────────────────────────────────
-// JioSaavn 320kbps AAC masters average ~−8 to −10 LUFS (hot masters).
-// audio.volume = 0.794 ≡ −2 dB → brings ~−8 LUFS masters to ~−10 LUFS perceived.
-// When the Web Audio graph is active, this value is applied to the GainNode instead
-// (GainNode.gain.value works on iOS, unlike audio.volume which iOS hardware ignores).
-const NORM_VOLUME = 0.794; // 10^(−2/20) = −2 dB
+// Per-track LUFS normalization: target −13 LUFS (beats Spotify −14, Apple −16).
+// Measured from a 7s RMS window on the dry signal (pre-EQ tap on _gainNode).
+// Gain is applied via setTargetAtTime for smooth, click-free transitions.
+const NORM_VOLUME = 1.0; // baseline — per-track gain managed by _measureAndApplyLufs()
+
+// LUFS normalization constants
+const LUFS_TARGET       = -13;   // dBFS integrated target
+const LUFS_MAX_BOOST_DB =   6;   // never boost more than +6 dB (prevents noise pump)
+const LUFS_MAX_CUT_DB   =  12;   // never cut more than −12 dB
+const _lufsCache        = new Map(); // songId → linear gain value
+let   _lufsAnalyser     = null;      // AnalyserNode tapping _gainNode pre-EQ
+
+function _gainFromLufs(measuredLufs) {
+  const correctionDb = Math.max(-LUFS_MAX_CUT_DB, Math.min(LUFS_MAX_BOOST_DB, LUFS_TARGET - measuredLufs));
+  return Math.pow(10, correctionDb / 20);
+}
+
+async function _measureAndApplyLufs(song) {
+  if (!_audioCtx || !_lufsAnalyser || !_gainNode) return;
+  if (_lufsCache.has(song.id)) {
+    const cached = _lufsCache.get(song.id);
+    _gainNode.gain.setTargetAtTime(cached, _audioCtx.currentTime, 0.1);
+    return;
+  }
+  const FRAMES = 28; // 28 × 250ms = 7s window
+  let sumSq = 0, frameCount = 0;
+  const buf = new Float32Array(_lufsAnalyser.fftSize);
+  for (let f = 0; f < FRAMES; f++) {
+    await new Promise(r => setTimeout(r, 250));
+    if (!nowSong || nowSong.id !== song.id) return; // song changed mid-analysis
+    _lufsAnalyser.getFloatTimeDomainData(buf);
+    for (let i = 0; i < buf.length; i++) sumSq += buf[i] * buf[i];
+    frameCount += buf.length;
+  }
+  if (frameCount === 0) return;
+  const rms = Math.sqrt(sumSq / frameCount);
+  if (rms < 1e-6) return; // silence — skip
+  const measuredLufs = 20 * Math.log10(rms) - 0.691; // LUFS ≈ dBFS(RMS) − 0.691
+  const gain = _gainFromLufs(measuredLufs);
+  _lufsCache.set(song.id, gain);
+  if (_lufsCache.size > 50) _lufsCache.delete(_lufsCache.keys().next().value); // LRU evict
+  _gainNode.gain.setTargetAtTime(gain, _audioCtx.currentTime, 0.1); // smooth 0.3s ramp
+  Log.info('LUFS norm', { name: song.name, lufs: measuredLufs.toFixed(1), gainDb: (20*Math.log10(gain)).toFixed(1) });
+}
+// ── End LUFS ──────────────────────────────────────────────────────────────────
 
 // ── AUDIO ENGINE ───────────────────────────────────────────────────────────────
 // AudioContext drives the EQ chain only. All playback uses <audio> element.
@@ -1170,13 +1210,36 @@ let _mediaSource  = null;   // MediaElementAudioSourceNode (created once)
 let _ctxFailed      = false;  // permanent failure flag
 let _corsAvailable  = false;  // true when MediaElementSource connected successfully
 
+// ── NEW AUDIO CHAIN NODES ─────────────────────────────────────────────────────
+// True-peak limiter (last node before destination)
+let _limiterCompressor = null;
+let _limiterWaveshaper = null;
+// Psychoacoustic bass exciter (parallel path, pre-EQ)
+let _bassExciterIn   = null;
+let _bassExciterDist = null;
+let _bassExciterOut  = null;
+let _bassExciterGain = null;
+// Stereo widener + air shelf (post-EQ, pre-limiter)
+let _splitter    = null;
+let _merger      = null;
+let _midGain     = null;
+let _sideGain    = null;
+let _haasDelay   = null;
+let _airShelf    = null;
+let _preMixGain  = null; // summing node: dry + bass exciter → EQ chain
+
 function _ensureAudioCtx() {
   if (_audioCtx) return true;
   if (_ctxFailed || !AC) return false;
   try {
     _audioCtx = new AC({ sampleRate: 48000 });
     _gainNode = _audioCtx.createGain();
-    _gainNode.gain.value = NORM_VOLUME;
+    _gainNode.gain.value = NORM_VOLUME; // 1.0 baseline; per-track LUFS adjusts this
+    // LUFS analyser: passive tap on _gainNode (pre-EQ dry signal)
+    _lufsAnalyser = _audioCtx.createAnalyser();
+    _lufsAnalyser.fftSize = 4096;
+    _lufsAnalyser.smoothingTimeConstant = 0.0; // raw samples for accurate RMS
+    _gainNode.connect(_lufsAnalyser);
     // Route <audio> through Web Audio so EQ nodes affect playback.
     // Requires stream URLs to have CORS headers (Access-Control-Allow-Origin).
     // If the CDN doesn't send CORS headers this throws a SecurityError —
@@ -1197,18 +1260,25 @@ function _ensureAudioCtx() {
     _rewireEq();
     // Expose audio engine state on window for diagnostic/testing access
     window._mbxAudio = () => ({
-      corsAvailable: _corsAvailable,
-      mediaSource:   _mediaSource,
-      gainNode:      _gainNode,
-      audioCtx:      _audioCtx,
-      eqNodes:       _eqNodes,
-      eqOn:          _eqOn,
-      eqGains:         _eqGains,
-      rewiring:        _rewiring,
-      meydaOn:         _meydaOn,
-      meydaAnalyser:   _meydaAnalyser,
-      meydaSmoothed:   Array.from(_meydaSmoothed),
-      meydaLastUpdate: _meydaLastUpdate,
+      corsAvailable:    _corsAvailable,
+      mediaSource:      _mediaSource,
+      gainNode:         _gainNode,
+      audioCtx:         _audioCtx,
+      eqNodes:          _eqNodes,
+      eqOn:             _eqOn,
+      eqGains:          _eqGains,
+      rewiring:         _rewiring,
+      meydaOn:          _meydaOn,
+      meydaAnalyser:    _meydaAnalyser,
+      meydaSmoothed:    Array.from(_meydaSmoothed),
+      meydaApplied:     Array.from(_meydaAppliedGains),
+      meydaLastUpdate:  _meydaLastUpdate,
+      lufsAnalyser:     _lufsAnalyser,
+      lufsCacheSize:    _lufsCache.size,
+      limiterComp:      _limiterCompressor,
+      limiterGainReduction: _limiterCompressor?.reduction ?? 0,
+      bassExciterOn:    !!_bassExciterIn,
+      stereoWidenerOn:  !!_splitter,
     });
     Log.info('AudioContext created');
     return true;
@@ -1712,7 +1782,7 @@ async function play(song, newQueue, idx) {
       if (nowSong?.id !== song.id) return;
       playing = true;
       Log.info('Playback (offline)', { name: song.name });
-      setTimeout(() => { if (nowSong?.id === song.id) { _analyseAndAutoEq(song); if (_meydaOn && _corsAvailable) _startMeyda(); } }, 3000);
+      setTimeout(() => { if (nowSong?.id === song.id) { _analyseAndAutoEq(song); _measureAndApplyLufs(song); if (_meydaOn && _corsAvailable) _startMeyda(); } }, 3000);
 
     } else {
       // ── Network stream path ────────────────────────────────────────────────
@@ -1738,7 +1808,7 @@ async function play(song, newQueue, idx) {
       playing = true;
       _intelPlayStartTs = Date.now();
       // Kick off spectral analysis + Meyda after play is confirmed stable
-      setTimeout(() => { if (nowSong?.id === song.id) { _analyseAndAutoEq(song); if (_meydaOn && _corsAvailable) _startMeyda(); } }, 3000);
+      setTimeout(() => { if (nowSong?.id === song.id) { _analyseAndAutoEq(song); _measureAndApplyLufs(song); if (_meydaOn && _corsAvailable) _startMeyda(); } }, 3000);
     }
     setTimeout(preloadNext, 1500);
   } catch (e) {
@@ -1971,7 +2041,7 @@ seekEl.addEventListener('input', () => {
 // Volume slider — routes through GainNode when Web Audio is active (works on iOS too).
 // Falls back to audio.volume on desktop when Web Audio is unavailable.
 document.getElementById('np-vol').addEventListener('input', e => {
-  const v = +e.target.value * NORM_VOLUME;
+  const v = +e.target.value; // no NORM_VOLUME cap — per-track LUFS handles loudness
   if (_corsAvailable) _gainNode.gain.value = v; else audio.volume = v;
 });
 
@@ -2256,7 +2326,7 @@ let _eqGains  = (() => {
 })();
 let _eqNodes  = [];   // BiquadFilterNode array, parallel to EQ_BANDS
 
-const _EQ_Q_VALUES = [1.0, 0.7, 0.7, 0.7, 1.0, 1.0, 1.0, 1.4, 1.4, 1.0];
+const _EQ_Q_VALUES = [1.0, 1.4, 1.6, 2.0, 2.0, 2.2, 2.2, 2.5, 2.0, 1.0];
 
 function _buildEqChain(ctx) {
   _eqNodes = EQ_BANDS.map((b, i) => {
@@ -2274,6 +2344,113 @@ function _buildEqChain(ctx) {
 function _teardownEqChain() {
   _eqNodes.forEach(n => { try { n.disconnect(); } catch {} });
   _eqNodes = [];
+}
+
+// ── True-Peak Limiter ─────────────────────────────────────────────────────────
+function _buildLimiterChain(ctx) {
+  _limiterCompressor = ctx.createDynamicsCompressor();
+  _limiterCompressor.threshold.value = -1;
+  _limiterCompressor.knee.value      =  0;  // hard knee — true limiter
+  _limiterCompressor.ratio.value     = 20;  // 20:1 brick wall
+  _limiterCompressor.attack.value    = 0.001;
+  _limiterCompressor.release.value   = 0.05;
+
+  _limiterWaveshaper = ctx.createWaveShaper();
+  _limiterWaveshaper.oversample = '4x'; // catches inter-sample peaks via upsampling
+  const N = 65536;
+  const curve = new Float32Array(N);
+  const CEIL = 0.891; // −1 dBTP = 10^(−1/20)
+  for (let i = 0; i < N; i++) {
+    const x = (i * 2) / N - 1;
+    const a = Math.abs(x);
+    if (a <= CEIL) {
+      curve[i] = x;
+    } else {
+      const sign = x < 0 ? -1 : 1;
+      curve[i] = sign * (CEIL + (1 - CEIL) * Math.tanh((a - CEIL) / (1 - CEIL)));
+    }
+  }
+  _limiterWaveshaper.curve = curve;
+  _limiterCompressor.connect(_limiterWaveshaper);
+}
+
+function _teardownLimiterChain() {
+  if (_limiterWaveshaper) { try { _limiterWaveshaper.disconnect(); } catch {} _limiterWaveshaper = null; }
+  if (_limiterCompressor) { try { _limiterCompressor.disconnect(); } catch {} _limiterCompressor = null; }
+}
+
+// ── Psychoacoustic Bass Exciter ───────────────────────────────────────────────
+// Generates 2nd/3rd harmonics in 80–400Hz from sub-bass 30–100Hz.
+// Users feel bass on earbuds that can't reproduce 40Hz fundamentals.
+function _buildBassExciter(ctx) {
+  _bassExciterIn = ctx.createBiquadFilter();
+  _bassExciterIn.type = 'bandpass';
+  _bassExciterIn.frequency.value = 65;
+  _bassExciterIn.Q.value = 0.7;
+
+  _bassExciterDist = ctx.createWaveShaper();
+  _bassExciterDist.oversample = '4x';
+  const N = 256;
+  const curve = new Float32Array(N);
+  for (let i = 0; i < N; i++) {
+    const x = (i * 2) / N - 1;
+    curve[i] = 1.5 * x - 0.5 * x * x * x; // Chebyshev: generates 2nd+3rd harmonics
+  }
+  _bassExciterDist.curve = curve;
+
+  _bassExciterOut = ctx.createBiquadFilter();
+  _bassExciterOut.type = 'bandpass';
+  _bassExciterOut.frequency.value = 180;
+  _bassExciterOut.Q.value = 0.8;
+
+  _bassExciterGain = ctx.createGain();
+  _bassExciterGain.gain.value = 0.28; // 28% blend — powerful, not muddy
+
+  _bassExciterIn.connect(_bassExciterDist);
+  _bassExciterDist.connect(_bassExciterOut);
+  _bassExciterOut.connect(_bassExciterGain);
+}
+
+function _teardownBassExciter() {
+  [_bassExciterGain, _bassExciterOut, _bassExciterDist, _bassExciterIn, _preMixGain].forEach(n => {
+    if (n) { try { n.disconnect(); } catch {} }
+  });
+  _bassExciterIn = _bassExciterDist = _bassExciterOut = _bassExciterGain = _preMixGain = null;
+}
+
+// ── Stereo Widener + Air Shelf ────────────────────────────────────────────────
+// M/S processing: splits L/R, boosts Side channel 1.4×, adds Haas 0.6ms delay.
+// Air shelf at 14kHz +3.5dB — makes cheap earbuds sound expensive.
+function _buildStereoWidener(ctx) {
+  _splitter = ctx.createChannelSplitter(2);
+  _merger   = ctx.createChannelMerger(2);
+
+  _midGain = ctx.createGain();
+  _midGain.gain.value = 1.0;
+  _sideGain = ctx.createGain();
+  _sideGain.gain.value = 1.4; // max safe width: 1.8 for mono compatibility
+
+  _haasDelay = ctx.createDelay(0.005);
+  _haasDelay.delayTime.value = 0.0006; // 0.6ms — psychoacoustic width, mono-safe
+
+  _airShelf = ctx.createBiquadFilter();
+  _airShelf.type = 'highshelf';
+  _airShelf.frequency.value = 14000;
+  _airShelf.gain.value = 3.5; // +3.5dB air above 14kHz
+
+  _splitter.connect(_midGain, 0);       // L → Mid
+  _splitter.connect(_sideGain, 1);      // R → Side
+  _sideGain.connect(_haasDelay);
+  _midGain.connect(_merger, 0, 0);      // Mid → L out
+  _haasDelay.connect(_merger, 0, 1);    // Side+delay → R out
+  _merger.connect(_airShelf);
+}
+
+function _teardownStereoWidener() {
+  [_airShelf, _merger, _haasDelay, _sideGain, _midGain, _splitter].forEach(n => {
+    if (n) { try { n.disconnect(); } catch {} }
+  });
+  _splitter = _merger = _midGain = _sideGain = _haasDelay = _airShelf = null;
 }
 
 // Insert EQ chain between _gainNode and destination.
@@ -2301,12 +2478,38 @@ function _rewireEq() {
     Log.info('_rewireEq start', _getAudioState());
     _stopMeyda();
     _teardownEqChain();
+    _teardownLimiterChain();
+    _teardownBassExciter();
+    _teardownStereoWidener();
     _autoEqAnalyser = null;
+    _meydaAppliedGains.fill(0);
     _gainNode.disconnect();
+    // Reconnect LUFS analyser tap (passive, no audio routing)
+    if (_lufsAnalyser) { try { _gainNode.connect(_lufsAnalyser); } catch {} }
     if (_mediaSource) _mediaSource.connect(_gainNode);
+
+    // Build all chain nodes
     _buildEqChain(_audioCtx);
-    _gainNode.connect(_eqNodes[0]);
-    _eqNodes[_eqNodes.length - 1].connect(_audioCtx.destination);
+    _buildBassExciter(_audioCtx);
+    _buildStereoWidener(_audioCtx);
+    _buildLimiterChain(_audioCtx);
+
+    // Pre-mix summing node: dry signal + bass exciter blend → EQ
+    _preMixGain = _audioCtx.createGain();
+    _preMixGain.gain.value = 1.0;
+    _gainNode.connect(_preMixGain);              // dry path
+    _bassExciterIn && _gainNode.connect(_bassExciterIn); // feed exciter
+    _bassExciterGain && _bassExciterGain.connect(_preMixGain); // exciter blend
+    _preMixGain.connect(_eqNodes[0]);            // → EQ chain
+
+    // EQ → stereo widener → air shelf → limiter → destination
+    _eqNodes[_eqNodes.length - 1].connect(_splitter);
+    _airShelf.connect(_limiterCompressor);
+    _limiterWaveshaper.connect(_audioCtx.destination);
+
+    // Pipeline: _mediaSource → _gainNode → [lufsAnalyser tap]
+    //           _gainNode → preMix(dry + bassExciter) → EQ[0..9]
+    //           → splitter → M/S widener → airShelf → limiterComp → limiterWaveshaper → destination
     Log.info('_rewireEq done', _getAudioState());
     if (_meydaOn && _corsAvailable) _startMeyda();
   } finally {
@@ -2446,18 +2649,22 @@ const MEYDA_KEY = 'mbx_meyda_v1';
 let _meydaAnalyser   = null;
 let _meydaOn         = localStorage.getItem(MEYDA_KEY + '_on') !== 'false';
 let _meydaLastUpdate = 0;
-let _meydaGains      = new Float32Array(10);
-let _meydaSmoothed   = new Float32Array(10);
+let _meydaGains         = new Float32Array(10);
+let _meydaSmoothed      = new Float32Array(10);
+let _meydaAppliedGains  = new Float32Array(10); // last absolute offsets applied — prevents drift
 
 // Per-language Harman targets: each int[10] is dB offset per band relative to midrange.
+// Harman 2018 IEM target (Sean Olive et al.) — ~5dB bass shelf, flat mids,
+// +2dB presence peak at 4kHz, gentle roll-off above 8kHz. Tuned per language.
 const HARMAN_TARGETS = {
   //             32   64  125  250  500   1k   2k   4k   8k  16k
-  hindi:    [  3,  4,  2,  1,  0, -1,  1,  2,  1,  1 ],
-  punjabi:  [  4,  5,  3,  2,  0, -1,  0,  1,  2,  2 ],
-  english:  [  4,  3,  1,  0, -1, -2, -1,  0,  1,  2 ],
-  tamil:    [  3,  3,  2,  1,  0, -1,  0,  2,  2,  2 ],
-  telugu:   [  3,  3,  2,  1,  0, -1,  0,  1,  2,  2 ],
-  default:  [  4,  3,  1,  0, -1, -2, -1,  0,  1,  2 ],
+  hindi:    [  6,  5,  3,  1,  0, -1,  0,  2,  2,  2 ],
+  punjabi:  [  7,  6,  4,  2,  0, -1,  0,  1,  2,  2 ],
+  english:  [  4,  3,  2,  0, -1, -1,  0,  2,  2,  3 ],
+  tamil:    [  5,  4,  3,  1,  0, -1,  0,  2,  2,  2 ],
+  telugu:   [  5,  4,  3,  1,  0, -1,  0,  2,  2,  2 ],
+  classical:[  2,  2,  2,  1,  1,  1,  1,  1,  1,  1 ],
+  default:  [  5,  4,  3,  1,  0, -1,  0,  2,  2,  2 ],
 };
 
 function _getHarmanTarget(song) {
@@ -2483,13 +2690,12 @@ function _ensureAutoEqAnalyser() {
   _autoEqAnalyser = _audioCtx.createAnalyser();
   _autoEqAnalyser.fftSize = 16384;
   _autoEqAnalyser.smoothingTimeConstant = 0.3;
-  // Tap after the last EQ node (pre-destination)
-  const last = _eqNodes[_eqNodes.length - 1];
-  if (last) {
-    last.disconnect();
-    last.connect(_autoEqAnalyser);
-    _autoEqAnalyser.connect(_audioCtx.destination);
-  }
+  // Tap PRE-EQ: passive listener on _gainNode output (measures dry source signal, not EQ'd output)
+  // This prevents the feedback loop where EQ corrects its own output in a cycle.
+  try {
+    _gainNode.connect(_autoEqAnalyser);
+    // _autoEqAnalyser is passive — no connection to destination needed
+  } catch {}
 }
 
 async function _analyseAndAutoEq(song) {
@@ -2601,7 +2807,8 @@ function _computeMeydaGains(features) {
 
   // spectralCentroid → high-frequency air (bands 7,8,9 = 4k,8k,16k)
   if (spectralCentroid !== null && isFinite(spectralCentroid)) {
-    const drive = Math.max(-1, Math.min(1, (2500 - spectralCentroid) / 1000));
+    const centroidHz = spectralCentroid * (_audioCtx?.sampleRate ?? 48000) / 2048;
+    const drive = Math.max(-1, Math.min(1, (2500 - centroidHz) / 1000));
     gains[7] += drive * 3;
     gains[8] += drive * 3;
     gains[9] += drive * 3;
@@ -2645,7 +2852,7 @@ function _startMeyda() {
       audioContext:      _audioCtx,
       source:            _gainNode,
       bufferSize:        2048,
-      featureExtractors: ['spectralCentroid', 'spectralFlatness', 'perceptualSharpness', 'rms'],
+      featureExtractors: ['spectralCentroid', 'spectralFlatness', 'perceptualSharpness', 'rms', 'energy'],
       callback:          _onMeydaFrame,
     });
     _meydaAnalyser.start();
@@ -2663,13 +2870,34 @@ function _stopMeyda() {
   Log.info('Meyda stopped');
 }
 
+// Beat detection state
+let _beatEnergySmooth = 0;
+let _beatPulseActive  = false;
+
+function _detectBeat(features) {
+  const energy = features.energy ?? (features.rms ? features.rms * features.rms : 0);
+  _beatEnergySmooth = 0.92 * _beatEnergySmooth + 0.08 * energy;
+  if (energy > _beatEnergySmooth * 1.8 && !_beatPulseActive) {
+    _beatPulseActive = true;
+    // Sync EQ bar animation to the beat
+    const bars = document.querySelectorAll('.eq-bar');
+    bars.forEach(b => { b.style.animationDuration = '0.18s'; b.style.transform = 'scaleY(1.6)'; });
+    setTimeout(() => {
+      bars.forEach(b => { b.style.animationDuration = ''; b.style.transform = ''; });
+      _beatPulseActive = false;
+    }, 80);
+  }
+}
+
 function _onMeydaFrame(features) {
   if (!features) return;
+  // Beat detection runs every frame (no throttle)
+  _detectBeat(features);
   const now = Date.now();
   if (now - _meydaLastUpdate < 2000) return;
   _meydaLastUpdate = now;
   const raw = _computeMeydaGains(features);
-  const ALPHA = 0.15;
+  const ALPHA = 0.9; // tuned for 2s update interval (was 0.15 which is per-frame only)
   for (let i = 0; i < 10; i++) {
     _meydaSmoothed[i] = ALPHA * raw[i] + (1 - ALPHA) * _meydaSmoothed[i];
     _meydaGains[i]    = raw[i];
@@ -2680,8 +2908,10 @@ function _onMeydaFrame(features) {
 function _applyMeydaGains() {
   if (!_eqOn || !_corsAvailable || _eqNodes.length !== 10) return;
   for (let i = 0; i < 10; i++) {
-    const base    = _eqNodes[i].gain.value;
-    const clamped = Math.max(-12, Math.min(12, base + _meydaSmoothed[i]));
+    // Remove previous Meyda offset, add new one — prevents accumulation/drift
+    const baseGain = _eqNodes[i].gain.value - _meydaAppliedGains[i];
+    const clamped  = Math.max(-12, Math.min(12, baseGain + _meydaSmoothed[i]));
+    _meydaAppliedGains[i] = _meydaSmoothed[i];
     _eqNodes[i].gain.setTargetAtTime(clamped, _audioCtx.currentTime, 0.3);
   }
 }
