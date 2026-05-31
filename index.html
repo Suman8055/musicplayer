@@ -924,7 +924,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.9';
+const APP_VERSION = '4.1.10';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -1536,11 +1536,11 @@ function getNetworkQuality() {
 }
 
 async function fetchStream(id) {
-  // ── Fast path: hayasaka.8man.in — retry once on transient failure ──────────────
-  for (let attempt = 1; attempt <= 2; attempt++) {
+  // ── Fast path: hayasaka.8man.in — single attempt, short timeout ──────────────
+  for (let attempt = 1; attempt <= 1; attempt++) {
     try {
       const r = await fetch(`https://hayasaka.8man.in/api/songs/${encodeURIComponent(id)}`, {
-        signal: AbortSignal.timeout(attempt === 1 ? 6000 : 10000),
+        signal: AbortSignal.timeout(3000),
       });
       if (!r.ok) { Log.warn('Fast stream HTTP error', { id, status: r.status, attempt }); break; }
       const data = await r.json();
@@ -1558,12 +1558,7 @@ async function fetchStream(id) {
         }
       }
     } catch (e) {
-      if (attempt === 1) {
-        Log.info('Fast stream attempt 1 failed, retrying', { id, err: e.message });
-        await new Promise(r => setTimeout(r, 400));
-      } else {
-        Log.warn('Fast stream failed after retry, falling back', { id, err: e.message });
-      }
+      Log.warn('Fast stream failed, falling back to SIGMA', { id, err: e.message });
     }
   }
 
@@ -1740,6 +1735,7 @@ function cacheSongs(arr) { arr.forEach(cacheSong); }
 
 // ── PLAYER ─────────────────────────────────────────────────────────────────────
 async function play(song, newQueue, idx) {
+  if (loadingUrl && nowSong?.id === song.id) return; // block double-tap on same song
   audioPreload.src = '';  // cancel any in-progress preload
 
   if (newQueue !== undefined) {
@@ -2719,6 +2715,7 @@ async function _analyseAndAutoEq(song) {
     for (let s = 0; s < NUM_SAMPLES; s++) {
       await new Promise(r => setTimeout(r, 250));
       if (!nowSong || nowSong.id !== song.id) return; // song changed, abort
+      if (!_autoEqAnalyser) return; // rewire happened mid-analysis
       _autoEqAnalyser.getFloatFrequencyData(freqData);
 
       _AUTO_EQ_BAND_RANGES.forEach(([lo, hi], bi) => {
