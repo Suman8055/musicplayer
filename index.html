@@ -889,7 +889,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.22';
+const APP_VERSION = '4.1.23';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 200;
@@ -4738,10 +4738,21 @@ if ('serviceWorker' in navigator) {
     });
 
     // Once a new SW takes control, reload so the new HTML is served (not stale cache)
-    navigator.serviceWorker.addEventListener('controllerchange', () => location.reload());
+    // Small delay so the SW finishes caching shell files before the reload
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      setTimeout(() => location.reload(), 400);
+    });
 
-    // iOS doesn't auto-check for SW updates — poll every 5 minutes to catch deploys fast
-    setInterval(() => reg.update(), 5 * 60 * 1000);
+    // Check immediately on registration — catches users who have the app open right now
+    reg.update();
+    // iOS doesn't auto-check for SW updates — poll every 30s for 10 min after load,
+    // then settle to every 5 min. Ensures background-audio fix reaches users fast.
+    let _swPollCount = 0;
+    const _swPoller = setInterval(() => {
+      reg.update();
+      _swPollCount++;
+      if (_swPollCount >= 20) { clearInterval(_swPoller); setInterval(() => reg.update(), 5 * 60 * 1000); }
+    }, 30 * 1000);
   }).catch(() => {});
 }
 
