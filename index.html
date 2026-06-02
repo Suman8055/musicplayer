@@ -224,10 +224,6 @@ body::after{
 .ctl.dim{color:var(--fg3)}
 .ctl.accent{color:var(--accent);transition:var(--color-transition)}
 #np-play{background:none;border:none;color:var(--fg);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:4px}
-#np-vol-wrap{display:flex;align-items:center;gap:10px;padding:4px 28px 8px}
-.vol-ico{color:var(--fg3);font-size:14px;flex-shrink:0}
-#np-vol{flex:1;height:4px;-webkit-appearance:none;appearance:none;background:rgba(255,255,255,.2);border-radius:2px;outline:none;cursor:pointer}
-#np-vol::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:#fff;margin-top:-5px}
 #np-footer{display:flex;justify-content:space-around;padding:4px 20px 0;flex-shrink:0}
 .np-foot{background:none;border:none;color:var(--fg3);font-size:13px;cursor:pointer;font-family:inherit;padding:8px 12px;display:flex;align-items:center;gap:5px}
 .np-foot.active{color:var(--red)}
@@ -873,11 +869,6 @@ body::after{
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
       </button>
     </div>
-    <div id="np-vol-wrap">
-      <span class="vol-ico">🔈</span>
-      <input id="np-vol" type="range" min="0" max="1" step="0.02" value="1">
-      <span class="vol-ico">🔊</span>
-    </div>
     <!-- "Why this song?" chip — hidden until SmartQueue fills -->
     <div id="np-why-chip" style="display:none;margin:6px 20px 0;padding:5px 12px;border-radius:20px;background:hsla(var(--accent-h),var(--accent-s),var(--accent-l),.1);border:1px solid hsla(var(--accent-h),var(--accent-s),var(--accent-l),.25);font-size:11px;color:var(--fg2);text-align:center;cursor:pointer"></div>
     <div id="np-footer">
@@ -1017,7 +1008,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.36';
+const APP_VERSION = '4.1.37';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 400;
@@ -1249,10 +1240,10 @@ const audioPreload = document.getElementById('audio-preload');
 // Gain is applied via setTargetAtTime for smooth, click-free transitions.
 const NORM_VOLUME = 1.0; // baseline — per-track gain managed by _measureAndApplyLufs()
 
-// LUFS normalization constants
-const LUFS_TARGET       = -13;   // dBFS integrated target
-const LUFS_MAX_BOOST_DB =   6;   // never boost more than +6 dB — matches Spotify/Apple Music ceiling; reduces worst-case GR demand on limiter from 16→11 dB
-const LUFS_MAX_CUT_DB   =   9;   // never cut more than −9 dB (headroom for hot masters)
+// LUFS normalization constants — target −16 LUFS (Apple Music standard, safe for all content)
+const LUFS_TARGET       = -16;   // dBFS integrated target (−16 = safe at system volume 100%)
+const LUFS_MAX_BOOST_DB =   3;   // cap boost at +3 dB — prevents quiet tracks from blasting
+const LUFS_MAX_CUT_DB   =  12;   // allow up to −12 dB cut for hot masters (brick-wall pop)
 const _lufsCache        = new Map(); // songId → linear gain value
 let   _lufsAnalyser     = null;      // AnalyserNode tapping K-weighted signal
 let   _lufsKw1          = null;      // K-weighting stage 1: high-pass shelf ~100Hz (ITU-R BS.1770-4)
@@ -2324,16 +2315,7 @@ seekEl.addEventListener('input', () => {
   seekEl.style.setProperty('--pct', (seekEl.value / 10).toFixed(2) + '%');
   if (audio.duration) audio.currentTime = (seekEl.value / 1000) * audio.duration;
 });
-// Volume slider — routes through GainNode when Web Audio is active (works on iOS too).
-// Falls back to audio.volume on desktop when Web Audio is unavailable.
-document.getElementById('np-vol').addEventListener('input', e => {
-  const v = +e.target.value;
-  // Above 80% volume, apply a soft headroom curve so the limiter chain never needs
-  // more than ~3 dB of gain reduction — prevents audible compressor pumping on hot masters.
-  // Perceived loudness still increases to 100% (curve is concave, not a hard cap).
-  const mapped = v > 0.8 ? 0.8 + (v - 0.8) * 0.4 : v; // 80%→80%, 100%→88% (steeper from 0.6 slope; gives +0.35dB more limiter headroom without perceptible loudness loss)
-  if (_corsAvailable && !_airPlayActive) _gainNode.gain.value = mapped; else audio.volume = mapped;
-});
+// Volume is managed entirely by LUFS normalization — no user slider.
 
 // ── UI REFRESH ─────────────────────────────────────────────────────────────────
 function refreshMini() {
