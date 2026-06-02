@@ -655,14 +655,12 @@ body::after{
         </div>
         <div id="settings-eq-sliders"></div>
         <div id="settings-eq-options">
-          <label class="seq-toggle-row" id="seq-autoeq-row">
-            <span class="seq-toggle-label">Auto-EQ<span class="seq-toggle-sub">Per-song FFT correction to Harman target</span></span>
-            <div class="seq-switch" id="seq-autoeq-toggle"><div class="seq-switch-knob"></div></div>
-          </label>
-          <label class="seq-toggle-row" id="seq-meyda-row">
-            <span class="seq-toggle-label">AI EQ<span class="seq-toggle-sub">Real-time spectral adaptation via Meyda</span></span>
-            <div class="seq-switch" id="seq-meyda-toggle"><div class="seq-switch-knob"></div></div>
-          </label>
+          <!-- Auto-EQ removed from UI: _analyseAndAutoEq / _applyAutoEqGains are not
+               implemented in this build. Toggle was a dead control — removing it prevents
+               user confusion. Re-add when FFT→Harman correction is actually shipped. -->
+          <!-- AI EQ (Meyda) removed from UI: _startMeyda / _stopMeyda / _computeMeydaGains
+               are not implemented in this build. Toggle was a dead control. Re-add when
+               real-time spectral adaptation is actually shipped. -->
           <label class="seq-toggle-row" id="seq-cf-row">
             <span class="seq-toggle-label">Headphone Crossfeed<span class="seq-toggle-sub">Reduces ear fatigue on long sessions</span></span>
             <div class="seq-switch" id="seq-cf-toggle"><div class="seq-switch-knob"></div></div>
@@ -1019,7 +1017,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.34';
+const APP_VERSION = '4.1.35';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 400;
@@ -1351,7 +1349,7 @@ let _eqOn     = localStorage.getItem(EQ_KEY + '_on') !== 'false'; // default ON
 
 // Headphone crossfeed BS2B (post-EQ, pre-widener)
 const CF_KEY  = 'mbx_cf_v1';
-let _cfOn     = localStorage.getItem(CF_KEY) !== 'true'; // default OFF
+let _cfOn     = localStorage.getItem(CF_KEY) === 'true'; // default OFF (opt-in)
 let _cfSplit  = null;
 let _cfMerge  = null;
 let _cfHpL    = null;   // HPF 700Hz for L→R bleed
@@ -1432,7 +1430,7 @@ function _ensureAudioCtx() {
       limiterGainReduction: _limiterCompressor?.reduction ?? 0,
       bassExciterOn:        !!_bassExciterIn,
       stereoWidenerOn:      !!_splitter,
-      msWidthFactor:        1.2,
+      msWidthFactor:        1.0,
       eqOn:                 _eqOn,
       eqGains:              [..._eqGains],
       crossfeedOn:          _cfOn,
@@ -2331,11 +2329,6 @@ document.getElementById('np-vol').addEventListener('input', e => {
   // Perceived loudness still increases to 100% (curve is concave, not a hard cap).
   const mapped = v > 0.8 ? 0.8 + (v - 0.8) * 0.4 : v; // 80%→80%, 100%→88% (steeper from 0.6 slope; gives +0.35dB more limiter headroom without perceptible loudness loss)
   if (_corsAvailable && !_airPlayActive) _gainNode.gain.value = mapped; else audio.volume = mapped;
-  // Taper bass exciter at high volumes — Chebyshev harmonics grow non-linearly above 80%
-  if (_bassExciterGain && _audioCtx) {
-    const blend = v > 0.8 ? 0.08 * (1 - (v - 0.8) / 0.2 * 0.5) : 0.08; // 8% → 4% from 80–100%
-    _bassExciterGain.gain.setTargetAtTime(blend, _audioCtx.currentTime, 0.05);
-  }
 });
 
 // ── UI REFRESH ─────────────────────────────────────────────────────────────────
@@ -2768,7 +2761,8 @@ document.getElementById('eq-backdrop')?.addEventListener('click', closeEqSheet);
 // ── True-Peak Limiter ─────────────────────────────────────────────────────────
 function _buildLimiterChain(ctx) {
   _limiterCompressor = ctx.createDynamicsCompressor();
-  _limiterCompressor.threshold.value = -6;   // start limiting at −6 dB — wide safety margin before waveshaper
+  _limiterCompressor.threshold.value = -3;   // start limiting at −3 dB — tighter threshold reduces GR demand;
+  // bass exciter and widener overload removed so −3 dBFS is now a safe catch-all ceiling
   _limiterCompressor.knee.value      =  3;   // soft knee: gradual onset, inaudible transition into limiting
   _limiterCompressor.ratio.value     = 10;   // iOS-safe max (ratio>10 unreliable on iOS 17/18)
   _limiterCompressor.attack.value    = 0.001; // 1ms — fast enough to catch transient peaks
@@ -2800,35 +2794,17 @@ function _teardownLimiterChain() {
 }
 
 // ── Psychoacoustic Bass Exciter ───────────────────────────────────────────────
-// Generates 2nd/3rd harmonics in 80–400Hz from sub-bass 30–100Hz.
-// Users feel bass on earbuds that can't reproduce 40Hz fundamentals.
+// DISABLED: The output bandpass (180Hz Q=0.8, BW≈225Hz, extends to ~450Hz) does
+// NOT filter the Chebyshev 2nd/3rd harmonics of a 65Hz input (195Hz, 260Hz —
+// both inside the passband). Harmonics leaked directly into the mix, adding
+// harmonic distortion audible at all volume levels. Removed in favour of the
+// clean LUFS-normalised signal, matching Spotify/Apple Music practice.
 function _buildBassExciter(ctx) {
-  _bassExciterIn = ctx.createBiquadFilter();
-  _bassExciterIn.type = 'bandpass';
-  _bassExciterIn.frequency.value = 65;
-  _bassExciterIn.Q.value = 0.7;
-
-  _bassExciterDist = ctx.createWaveShaper();
-  _bassExciterDist.oversample = '4x';
-  const N = 256;
-  const curve = new Float32Array(N);
-  for (let i = 0; i < N; i++) {
-    const x = (i * 2) / N - 1;
-    curve[i] = 1.5 * x - 0.5 * x * x * x; // Chebyshev: generates 2nd+3rd harmonics
-  }
-  _bassExciterDist.curve = curve;
-
-  _bassExciterOut = ctx.createBiquadFilter();
-  _bassExciterOut.type = 'bandpass';
-  _bassExciterOut.frequency.value = 180;
-  _bassExciterOut.Q.value = 0.8;
-
-  _bassExciterGain = ctx.createGain();
-  _bassExciterGain.gain.value = 0.08; // 8% blend — warmth without harmonic overload at high LUFS gain
-
-  _bassExciterIn.connect(_bassExciterDist);
-  _bassExciterDist.connect(_bassExciterOut);
-  _bassExciterOut.connect(_bassExciterGain);
+  // Stub — no nodes created. Wiring in _rewireAudio guards with &&-checks.
+  _bassExciterIn   = null;
+  _bassExciterDist = null;
+  _bassExciterOut  = null;
+  _bassExciterGain = null;
 }
 
 function _teardownBassExciter() {
@@ -2924,9 +2900,14 @@ function _teardownCrossfeed() {
 //   splitter[R] → msInvGain(−1) → haasDelay(−s) → merger[R] skipped — use separate node
 //   ... simplified: use _sideGain(+s) for L-side, _haasDelay gain(−s) for R-side
 function _buildStereoWidener(ctx) {
-  const Wc   = 1.2;           // width coefficient, capped at 1.25 for iOS safety
+  // Width reduced from 1.2 to 1.0 (side = 0.5×1.0 = 0.5 = unity).
+  // At Wc=1.2 a hard-panned stereo signal produced +1.58 dB above input level,
+  // causing the limiter to pump. At Wc=1.0 the M/S matrix is transparent
+  // (L'=L, R'=R) — zero gain staging penalty while keeping the graph intact
+  // for a future user-facing width control.
+  const Wc   = 1.0;           // unity width — transparent passthrough
   const mid  = 0.5;
-  const side = 0.5 * Wc;     // 0.6 for width=1.2
+  const side = 0.5 * Wc;     // 0.5 for width=1.0
 
   _splitter  = ctx.createChannelSplitter(2);
   _merger    = ctx.createChannelMerger(2);
@@ -2960,7 +2941,9 @@ function _buildStereoWidener(ctx) {
   _airShelf = ctx.createBiquadFilter();
   _airShelf.type = 'highshelf';
   _airShelf.frequency.value = 14000;
-  _airShelf.gain.value = 1.5; // reduced from +2dB — still audible air presence; -0.5dB less HF energy entering limiter reduces transient bleedthrough through waveshaper
+  _airShelf.gain.value = 0; // DISABLED: +1.5dB at 14kHz added harshness on compressed
+  // streaming audio (128kbps JioSaavn) and increased peak energy entering the limiter,
+  // causing transient bleedthrough the waveshaper. Set to 0 dB = transparent passthrough.
   _merger.connect(_airShelf);
 }
 
