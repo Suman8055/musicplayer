@@ -1019,7 +1019,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.32';
+const APP_VERSION = '4.1.33';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 400;
@@ -2325,8 +2325,17 @@ seekEl.addEventListener('input', () => {
 // Volume slider — routes through GainNode when Web Audio is active (works on iOS too).
 // Falls back to audio.volume on desktop when Web Audio is unavailable.
 document.getElementById('np-vol').addEventListener('input', e => {
-  const v = +e.target.value; // no NORM_VOLUME cap — per-track LUFS handles loudness
-  if (_corsAvailable && !_airPlayActive) _gainNode.gain.value = v; else audio.volume = v;
+  const v = +e.target.value;
+  // Above 80% volume, apply a soft headroom curve so the limiter chain never needs
+  // more than ~3 dB of gain reduction — prevents audible compressor pumping on hot masters.
+  // Perceived loudness still increases to 100% (curve is concave, not a hard cap).
+  const mapped = v > 0.8 ? 0.8 + (v - 0.8) * 0.6 : v; // 80%→80%, 100%→92%
+  if (_corsAvailable && !_airPlayActive) _gainNode.gain.value = mapped; else audio.volume = mapped;
+  // Taper bass exciter at high volumes — Chebyshev harmonics grow non-linearly above 80%
+  if (_bassExciterGain && _audioCtx) {
+    const blend = v > 0.8 ? 0.08 * (1 - (v - 0.8) / 0.2 * 0.5) : 0.08; // 8% → 4% from 80–100%
+    _bassExciterGain.gain.setTargetAtTime(blend, _audioCtx.currentTime, 0.05);
+  }
 });
 
 // ── UI REFRESH ─────────────────────────────────────────────────────────────────
@@ -2759,17 +2768,17 @@ document.getElementById('eq-backdrop')?.addEventListener('click', closeEqSheet);
 // ── True-Peak Limiter ─────────────────────────────────────────────────────────
 function _buildLimiterChain(ctx) {
   _limiterCompressor = ctx.createDynamicsCompressor();
-  _limiterCompressor.threshold.value = -2;   // tighter ceiling — less headroom burned
-  _limiterCompressor.knee.value      =  2;   // slightly harder knee for cleaner ceiling
+  _limiterCompressor.threshold.value = -6;   // start limiting at −6 dB — wide safety margin before waveshaper
+  _limiterCompressor.knee.value      =  3;   // soft knee: gradual onset, inaudible transition into limiting
   _limiterCompressor.ratio.value     = 10;   // iOS-safe max (ratio>10 unreliable on iOS 17/18)
-  _limiterCompressor.attack.value    = 0.002;
-  _limiterCompressor.release.value   = 0.1;  // slower release — no pump breathing
+  _limiterCompressor.attack.value    = 0.001; // 1ms — fast enough to catch transient peaks
+  _limiterCompressor.release.value   = 0.2;  // 200ms — slow release prevents pumping on sustained loud content
 
   _limiterWaveshaper = ctx.createWaveShaper();
   _limiterWaveshaper.oversample = '4x'; // catches inter-sample peaks via upsampling
   const N = 65536;
   const curve = new Float32Array(N);
-  const CEIL = 0.891; // −1 dBTP = 10^(−1/20)
+  const CEIL = 0.708; // −3 dBTP = 10^(−3/20) — safety ceiling after compressor, inaudible soft-clip zone
   for (let i = 0; i < N; i++) {
     const x = (i * 2) / N - 1;
     const a = Math.abs(x);
@@ -2777,7 +2786,8 @@ function _buildLimiterChain(ctx) {
       curve[i] = x;
     } else {
       const sign = x < 0 ? -1 : 1;
-      curve[i] = sign * (CEIL + (1 - CEIL) * Math.tanh((a - CEIL) / (1 - CEIL)));
+      // Wide tanh transition — audibly transparent, not a hard clip
+      curve[i] = sign * (CEIL + (1 - CEIL) * Math.tanh((a - CEIL) / (1 - CEIL) * 2));
     }
   }
   _limiterWaveshaper.curve = curve;
@@ -2814,7 +2824,7 @@ function _buildBassExciter(ctx) {
   _bassExciterOut.Q.value = 0.8;
 
   _bassExciterGain = ctx.createGain();
-  _bassExciterGain.gain.value = 0.14; // 14% blend — felt warmth, not mud
+  _bassExciterGain.gain.value = 0.08; // 8% blend — warmth without harmonic overload at high LUFS gain
 
   _bassExciterIn.connect(_bassExciterDist);
   _bassExciterDist.connect(_bassExciterOut);
