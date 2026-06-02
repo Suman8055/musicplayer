@@ -1008,7 +1008,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.38';
+const APP_VERSION = '4.1.39';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 400;
@@ -1362,7 +1362,8 @@ let _haasDelay   = null;  // −S for R output (gain node, repurposed from delay
 let _msInvGain   = null;  // inverts R for side path
 let _sideGainR   = null;  // +S·R for R output
 let _airShelf    = null;
-let _preMixGain  = null; // summing node: dry + bass exciter → EQ chain
+let _preMixGain      = null; // summing node: dry + bass exciter → EQ chain
+let _eqHeadroomGain  = null; // pre-EQ half-boost compensation (Apple Music method)
 
 function _ensureAudioCtx() {
   if (_audioCtx) return true;
@@ -2751,14 +2752,14 @@ function _buildLimiterChain(ctx) {
   // bass exciter and widener overload removed so −3 dBFS is now a safe catch-all ceiling
   _limiterCompressor.knee.value      =  3;   // soft knee: gradual onset, inaudible transition into limiting
   _limiterCompressor.ratio.value     = 10;   // iOS-safe max (ratio>10 unreliable on iOS 17/18)
-  _limiterCompressor.attack.value    = 0.001; // 1ms — fast enough to catch transient peaks
+  _limiterCompressor.attack.value    = 0.0001; // 100µs — catches transients before waveshaper (Apple/Spotify spec)
   _limiterCompressor.release.value   = 0.2;  // 200ms — slow release prevents pumping on sustained loud content
 
   _limiterWaveshaper = ctx.createWaveShaper();
   _limiterWaveshaper.oversample = '4x'; // catches inter-sample peaks via upsampling
   const N = 65536;
   const curve = new Float32Array(N);
-  const CEIL = 0.891; // −1 dBTP = 10^(−1/20) — EBU R68 compliant true-peak ceiling; old −3 dBTP was unnecessarily conservative and caused audible tanh clipping on transient bleedthrough
+  const CEIL = 0.794; // −2 dBTP = 10^(−2/20) — 1 dB additional margin; tanh onset below limiter floor
   for (let i = 0; i < N; i++) {
     const x = (i * 2) / N - 1;
     const a = Math.abs(x);
@@ -2794,10 +2795,10 @@ function _buildBassExciter(ctx) {
 }
 
 function _teardownBassExciter() {
-  [_bassExciterGain, _bassExciterOut, _bassExciterDist, _bassExciterIn, _preMixGain].forEach(n => {
+  [_bassExciterGain, _bassExciterOut, _bassExciterDist, _bassExciterIn, _preMixGain, _eqHeadroomGain].forEach(n => {
     if (n) { try { n.disconnect(); } catch {} }
   });
-  _bassExciterIn = _bassExciterDist = _bassExciterOut = _bassExciterGain = _preMixGain = null;
+  _bassExciterIn = _bassExciterDist = _bassExciterOut = _bassExciterGain = _preMixGain = _eqHeadroomGain = null;
 }
 
 // ── 10-Band Parametric EQ (Apple Music band layout) ──────────────────────────
@@ -2819,8 +2820,18 @@ function _teardownEqChain() {
   _eqNodes = [];
 }
 
+function _computeEqHeadroomGain() {
+  // Apple Music half-boost pre-compensation: attenuate by half the largest active EQ boost.
+  // For r_and_b (+7 dB max): applies −3.5 dB trim → post-EQ peak drops from −9 to −12.5 dBFS.
+  // When EQ off: maxBoostDb = 0, gain = 1.0 (transparent).
+  const maxBoostDb = _eqOn ? Math.max(0, ..._eqGains) : 0;
+  const gain = Math.pow(10, -(maxBoostDb / 2) / 20);
+  if (_eqHeadroomGain) _eqHeadroomGain.gain.value = gain;
+}
+
 function _applyEqGains() {
   _eqNodes.forEach((n, i) => { n.gain.value = _eqOn ? _eqGains[i] : 0; });
+  _computeEqHeadroomGain();
 }
 
 function _saveEqState() {
@@ -2839,14 +2850,14 @@ function _buildCrossfeed(ctx) {
   _cfHpR.frequency.value = 700;
   _cfHpR.Q.value = 0.707;
   _cfGainR = ctx.createGain();
-  _cfGainR.gain.value = 0.40;
+  _cfGainR.gain.value = 0.25; // reduced from 0.40 — was adding +2.9 dB on correlated signal; 0.25 = +1.5 dB (BS2B intermediate mode)
   // L→R bleed: L channel through HPF → merge into R
   _cfHpL = ctx.createBiquadFilter();
   _cfHpL.type = 'highpass';
   _cfHpL.frequency.value = 700;
   _cfHpL.Q.value = 0.707;
   _cfGainL = ctx.createGain();
-  _cfGainL.gain.value = 0.40;
+  _cfGainL.gain.value = 0.25; // reduced from 0.40 — matches _cfGainR
   // Wiring: splitter L → merge[L], R→HPF→gain → merge[L]
   //         splitter R → merge[R], L→HPF→gain → merge[R]
   _cfSplit.connect(_cfMerge, 0, 0);   // L direct → L out
@@ -2963,14 +2974,18 @@ function _rewireAudio() {
     _buildStereoWidener(_audioCtx);
     _buildLimiterChain(_audioCtx);
 
-    // Signal graph: gainNode → preMixGain → EQ[0..4] → [crossfeed] → splitter(widener) → airShelf → limiter → destination
+    // Signal graph: gainNode → preMixGain → eqHeadroomGain → EQ[0..9] → [crossfeed] → splitter(widener) → airShelf → limiter → destination
     _preMixGain = _audioCtx.createGain();
     _preMixGain.gain.value = 1.0;
     _gainNode.connect(_preMixGain);
     _bassExciterIn && _gainNode.connect(_bassExciterIn);
     _bassExciterGain && _bassExciterGain.connect(_preMixGain);
-    // EQ chain: preMixGain → eq[0] → ... → eq[4]
-    _preMixGain.connect(_eqNodes[0]);
+    // EQ headroom compensation: half-boost pre-attenuation before EQ (Apple Music method)
+    _eqHeadroomGain = _audioCtx.createGain();
+    _preMixGain.connect(_eqHeadroomGain);
+    _computeEqHeadroomGain(); // set initial gain from current preset
+    // EQ chain: eqHeadroomGain → eq[0] → ... → eq[9]
+    _eqHeadroomGain.connect(_eqNodes[0]);
     // Crossfeed (optional) or direct → stereo widener splitter
     const _eqOut = _eqNodes[_eqNodes.length - 1];
     if (_cfOn && _cfSplit) {
