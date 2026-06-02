@@ -1008,7 +1008,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.37';
+const APP_VERSION = '4.1.38';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 400;
@@ -4640,6 +4640,28 @@ async function openBrowseDetail(id, type, title, songIds) {
       const item = data?.data;
       if (!item) throw new Error('Not found');
       songs = (item.songs || []).map(normSigmaSong);
+      // Fallback: some JioSaavn editorial playlists return empty songs from /playlists.
+      // Extract the most meaningful search keyword from the playlist title:
+      //   "Let's Play - {Artist}"  → search by artist name
+      //   "Hip Hop Workout"        → strip filler words → "Hip Hop"
+      if (!songs.length && title) {
+        try {
+          const letsPlayMatch = title.match(/^let['']s play\s*[-–]\s*(.+)/i);
+          let searchQuery;
+          if (letsPlayMatch) {
+            searchQuery = letsPlayMatch[1].trim();
+          } else {
+            // Strip common filler words that don't help search, then take first 2 tokens
+            const filler = /\b(workout|mix|remix|finds|cheer|english|hindi|hits|top|best|ultimate|playlist|edition|vol|volume|music|songs|tracks|ft|feat|for|the|a|an|of|and|&|with|by|from)\b/gi;
+            const cleaned = title.replace(filler, ' ').replace(/\s{2,}/g, ' ').trim();
+            const tokens = cleaned.split(/\s+/).filter(Boolean);
+            searchQuery = tokens.slice(0, 2).join(' ') || title;
+          }
+          const sr = await saavnFetch(`${SIGMA_API}/search/songs?query=${encodeURIComponent(searchQuery)}&limit=30`);
+          const sd = await sr.json();
+          songs = (sd?.data?.results || []).map(normSigmaSong);
+        } catch {}
+      }
     } else if (type === 'artist') {
       const resp = await saavnFetch(`${SIGMA_API}/artists/${encodeURIComponent(id)}/songs`);
       const data = await resp.json();
