@@ -1019,7 +1019,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.31';
+const APP_VERSION = '4.1.32';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 400;
@@ -1253,8 +1253,8 @@ const NORM_VOLUME = 1.0; // baseline — per-track gain managed by _measureAndAp
 
 // LUFS normalization constants
 const LUFS_TARGET       = -13;   // dBFS integrated target
-const LUFS_MAX_BOOST_DB =   3;   // never boost more than +3 dB (Spotify/Apple standard)
-const LUFS_MAX_CUT_DB   =   6;   // never cut more than −6 dB
+const LUFS_MAX_BOOST_DB =   8;   // never boost more than +8 dB (covers classical/old recordings)
+const LUFS_MAX_CUT_DB   =   9;   // never cut more than −9 dB (headroom for hot masters)
 const _lufsCache        = new Map(); // songId → linear gain value
 let   _lufsAnalyser     = null;      // AnalyserNode tapping K-weighted signal
 let   _lufsKw1          = null;      // K-weighting stage 1: high-pass shelf ~100Hz (ITU-R BS.1770-4)
