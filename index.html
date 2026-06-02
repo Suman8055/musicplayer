@@ -1017,7 +1017,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.35';
+const APP_VERSION = '4.1.36';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 400;
@@ -1344,7 +1344,11 @@ let _manualEqAdjusted = false;
     } catch(e) { localStorage.removeItem(EQ_KEY); }
   }
 })();
-let _eqGains  = JSON.parse(localStorage.getItem(EQ_KEY) || '[0,0,0,0,0,0,0,0,0,0]');
+// Default: gentle streaming clarity curve — compensates 128kbps codec rolloff above 2kHz.
+// Slight low-mid cut removes muddiness masking vocals. Presence/air boost restores definition.
+// Applied only on first load (no stored preference). User's manual EQ always takes precedence.
+const _EQ_DEFAULT = '[0,0,0,-1,0,0,2,3,2,1]';
+let _eqGains  = JSON.parse(localStorage.getItem(EQ_KEY) || _EQ_DEFAULT);
 let _eqOn     = localStorage.getItem(EQ_KEY + '_on') !== 'false'; // default ON
 
 // Headphone crossfeed BS2B (post-EQ, pre-widener)
