@@ -1035,7 +1035,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.46';
+const APP_VERSION = '4.1.47';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 400;
@@ -2857,6 +2857,7 @@ function _computeEqHeadroomGain() {
 }
 
 function _applyEqGains() {
+  if (_rewiring) return; // graph is mid-teardown; _rewireAudio rebuilds with current _eqGains
   _eqNodes.forEach((n, i) => { n.gain.value = _eqOn ? _eqGains[i] : 0; });
   _computeEqHeadroomGain();
 }
@@ -2869,35 +2870,55 @@ function _saveEqState() {
 // ── Headphone Crossfeed (BS2B approximation) ──────────────────────────────────
 // L←R and R←L bleed through 700Hz HPF at 40% blend. Reduces ear fatigue on headphones.
 function _buildCrossfeed(ctx) {
+  const blend = 0.25; // bleed fraction (BS2B intermediate mode)
+  const direct = 1.0 - blend; // compensate direct path so total energy is flat (direct² + blend² ≈ 1)
+
   _cfSplit = ctx.createChannelSplitter(2);
   _cfMerge = ctx.createChannelMerger(2);
+
+  // Direct path attenuators: L→L and R→R at (1−blend) so adding blend from opposite side stays unity
+  const _cfDirectL = ctx.createGain(); _cfDirectL.gain.value = direct;
+  const _cfDirectR = ctx.createGain(); _cfDirectR.gain.value = direct;
+
   // R→L bleed: R channel through HPF → merge into L
   _cfHpR = ctx.createBiquadFilter();
   _cfHpR.type = 'highpass';
   _cfHpR.frequency.value = 700;
   _cfHpR.Q.value = 0.707;
   _cfGainR = ctx.createGain();
-  _cfGainR.gain.value = 0.25; // reduced from 0.40 — was adding +2.9 dB on correlated signal; 0.25 = +1.5 dB (BS2B intermediate mode)
+  _cfGainR.gain.value = blend;
   // L→R bleed: L channel through HPF → merge into R
   _cfHpL = ctx.createBiquadFilter();
   _cfHpL.type = 'highpass';
   _cfHpL.frequency.value = 700;
   _cfHpL.Q.value = 0.707;
   _cfGainL = ctx.createGain();
-  _cfGainL.gain.value = 0.25; // reduced from 0.40 — matches _cfGainR
-  // Wiring: splitter L → merge[L], R→HPF→gain → merge[L]
-  //         splitter R → merge[R], L→HPF→gain → merge[R]
-  _cfSplit.connect(_cfMerge, 0, 0);   // L direct → L out
-  _cfSplit.connect(_cfMerge, 1, 1);   // R direct → R out
-  _cfSplit.connect(_cfHpR, 1);        // R → HPF
+  _cfGainL.gain.value = blend;
+
+  // Wiring: attenuated direct + HPF bleed from opposite side
+  //         L-out = direct·L + blend·R(>700Hz)
+  //         R-out = direct·R + blend·L(>700Hz)
+  _cfSplit.connect(_cfDirectL, 0);
+  _cfDirectL.connect(_cfMerge, 0, 0);  // attenuated L direct → L out
+  _cfSplit.connect(_cfDirectR, 1);
+  _cfDirectR.connect(_cfMerge, 0, 1);  // attenuated R direct → R out
+  _cfSplit.connect(_cfHpR, 1);         // R → HPF
   _cfHpR.connect(_cfGainR);
-  _cfGainR.connect(_cfMerge, 0, 0);  // R bleed → L out
-  _cfSplit.connect(_cfHpL, 0);        // L → HPF
+  _cfGainR.connect(_cfMerge, 0, 0);   // blend·R(hpf) → L out
+  _cfSplit.connect(_cfHpL, 0);         // L → HPF
   _cfHpL.connect(_cfGainL);
-  _cfGainL.connect(_cfMerge, 0, 1);  // L bleed → R out
+  _cfGainL.connect(_cfMerge, 0, 1);   // blend·L(hpf) → R out
+
+  // Keep direct gain nodes referenced for teardown
+  _cfSplit._directL = _cfDirectL;
+  _cfSplit._directR = _cfDirectR;
 }
 
 function _teardownCrossfeed() {
+  if (_cfSplit) {
+    try { _cfSplit._directL?.disconnect(); } catch {}
+    try { _cfSplit._directR?.disconnect(); } catch {}
+  }
   [_cfGainL, _cfGainR, _cfHpL, _cfHpR, _cfMerge, _cfSplit].forEach(n => {
     if (n) { try { n.disconnect(); } catch {} }
   });
