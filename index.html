@@ -1045,7 +1045,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.50';
+const APP_VERSION = '4.1.51';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 400;
@@ -3368,12 +3368,14 @@ async function runSearch(q) {
     ]);
     if (mySeq !== searchSeq) return;
 
+    const filteredSongs = filterByLanguage(songs);
+
     // Use first song as topHit when there's a strong name match, otherwise null
     const ql = q.toLowerCase();
-    const topSong = songs.find(s => s.name?.toLowerCase().includes(ql));
+    const topSong = filteredSongs.find(s => s.name?.toLowerCase().includes(ql));
     const topHit  = topSong ? { ...topSong, type: 'song' } : null;
 
-    const result = { topHit, songs, albums, artists, playlists };
+    const result = { topHit, songs: filteredSongs, albums, artists, playlists };
     searchCache.set(q, result);
     if (searchCache.size > 10) searchCache.delete(searchCache.keys().next().value);
     cacheSongs(songs);
@@ -4007,9 +4009,9 @@ async function _buildSlotRow(played) {
   if (!slotArtists.length) return null;
 
   const results = await Promise.allSettled(slotArtists.map(a => fetchArtistSongs(a.name, 15)));
-  const songs = results
-    .filter(r => r.status === 'fulfilled')
-    .flatMap(r => r.value)
+  const songs = filterByLanguage(
+    results.filter(r => r.status === 'fulfilled').flatMap(r => r.value)
+  )
     .filter(s => s.id && !played.has(s.id))
     .sort(() => Math.random() - 0.5)
     .slice(0, 10);
@@ -4032,10 +4034,12 @@ async function fetchBecauseYouLiked(artistName, excludeIds, limit = 10) {
       scored.push({ song, score });
     }
   }
-  return scored
-    .sort((a, b) => b.score - a.score || Math.random() - 0.5)
-    .slice(0, limit)
-    .map(e => e.song);
+  return filterByLanguage(
+    scored
+      .sort((a, b) => b.score - a.score || Math.random() - 0.5)
+      .slice(0, limit * 2)
+      .map(e => e.song)
+  ).slice(0, limit);
 }
 
 function _buildRediscoverRow() {
@@ -4081,10 +4085,9 @@ async function buildForYouRows() {
       songs = await fetchBecauseYouLiked(artist.name, excludeIds, 10);
     } else {
       const allSongs = await fetchArtistSongs(artist.name, 30);
-      songs = allSongs
+      songs = filterByLanguage(allSongs)
         .filter(s => s.id && !excludeIds.has(s.id))
-        .map(s => ({ ...s, _boost: ((s.skips || 0) === 0 && (s.plays || 0) > 0 ? 2 : 0) + (topLang && s.language === topLang ? 1 : 0) }))
-        .sort((a, b) => b._boost - a._boost || Math.random() - 0.5)
+        .sort(() => Math.random() - 0.5)
         .slice(0, 10);
     }
     if (songs.length >= 2) {
@@ -4388,7 +4391,7 @@ async function smartInjectAhead() {
     const played = intelPlayedIds();
     const inQueue = new Set(queue.slice(qIdx + 1).map(s => s.id));
     const seenIds = new Set();
-    const allSongs = await fetchArtistSongs(artist.name, 20);
+    const allSongs = filterByLanguage(await fetchArtistSongs(artist.name, 20));
     const picks = allSongs
       .filter(s => {
         if (!s.id || played.has(s.id) || inQueue.has(s.id) || seenIds.has(s.id)) return false;
@@ -4439,7 +4442,7 @@ async function smartQueueFill() {
 
   try {
     const played = intelPlayedIds();
-    const allSongs = await fetchArtistSongs(artist.name, 30);
+    const allSongs = filterByLanguage(await fetchArtistSongs(artist.name, 30));
     const songs = allSongs
       .filter(s => s.id && !played.has(s.id))
       .sort(() => Math.random() - 0.5)
@@ -4487,7 +4490,7 @@ async function startSmartRadio(song) {
 
   for (const seed of seedArtists) {
     try {
-      const songs = await fetchArtistSongs(seed.artist || '', 20);
+      const songs = filterByLanguage(await fetchArtistSongs(seed.artist || '', 20));
       queue.push(...songs.filter(s => s.id));
     } catch {}
   }
@@ -4647,6 +4650,11 @@ function buildDiscover() {
   if (intelTotalPlays() > 0) renderForYouSection();
 }
 
+const ALLOWED_LANGUAGES = new Set(['english', 'hindi', 'telugu', 'tamil', 'punjabi']);
+function filterByLanguage(songs) {
+  return songs.filter(s => ALLOWED_LANGUAGES.has((s.language || '').toLowerCase().trim()));
+}
+
 function normSigmaSong(s) {
   const pa = Array.isArray(s.primaryArtists) ? s.primaryArtists : [];
   const artistStr = pa.length
@@ -4666,9 +4674,9 @@ function normSigmaSong(s) {
 
 function renderLangItems(albumItems, playlistItems, albumsEl, playlistEl) {
   // Build a queue from all song-type items so tapping one plays the section
-  const songQueue = albumItems
+  const songQueue = filterByLanguage(albumItems
     .filter(it => it.type === 'song')
-    .map(normSigmaSong);
+    .map(normSigmaSong));
 
   albumsEl.innerHTML = '';
   let songPos = 0;
@@ -4723,7 +4731,7 @@ function _renderGlobalSections(md, lang) {
   // New Releases
   const albums = (md.albums || []).slice(0, 15);
   releasesWrap.innerHTML = '';
-  const relSongQueue = albums.filter(it => it.type === 'song').map(normSigmaSong);
+  const relSongQueue = filterByLanguage(albums.filter(it => it.type === 'song').map(normSigmaSong));
   let relSongPos = 0;
   albums.forEach(item => {
     const artists = ((item.primaryArtists?.length ? item.primaryArtists : item.artists) || []).map(a => a.name).slice(0, 2).join(', ');
@@ -4940,12 +4948,7 @@ async function openBrowseDetail(id, type, title, songIds, lang) {
           const langQuery = playlistLang ? `${playlistLang} ${searchQuery}` : searchQuery;
           const sr = await saavnFetch(`${SIGMA_API}/search/songs?query=${encodeURIComponent(langQuery)}&limit=50`);
           const sd = await sr.json();
-          let fallbackSongs = (sd?.data?.results || []).map(normSigmaSong);
-          // Post-filter by language as a second guard
-          if (playlistLang && fallbackSongs.some(s => s.language.toLowerCase() === playlistLang)) {
-            fallbackSongs = fallbackSongs.filter(s => s.language.toLowerCase() === playlistLang);
-          }
-          songs = fallbackSongs;
+          songs = (sd?.data?.results || []).map(normSigmaSong);
         } catch {}
       }
     } else if (type === 'artist') {
@@ -4959,6 +4962,9 @@ async function openBrowseDetail(id, type, title, songIds, lang) {
       const n = (s.name || '').toLowerCase();
       return !(n.includes('sample trailer') || (n.includes('sample') && s.duration > 0 && s.duration <= 30));
     });
+
+    // Restrict to allowed languages (english, hindi, telugu, tamil, punjabi)
+    songs = filterByLanguage(songs);
 
     document.getElementById('browse-detail-sub').textContent = `${songs.length} songs`;
     cacheSongs(songs);
