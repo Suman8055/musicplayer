@@ -1035,7 +1035,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.44';
+const APP_VERSION = '4.1.45';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 400;
@@ -4556,49 +4556,86 @@ function renderLangItems(albumItems, playlistItems, albumsEl, playlistEl) {
   });
 }
 
+function _renderGlobalSections(md, lang) {
+  const trendingWrap  = document.getElementById('browse-trending-row');
+  const releasesWrap  = document.getElementById('browse-newreleases-row');
+  const playlistsWrap = document.getElementById('browse-playlists-row');
+
+  // Trending
+  const trending = (md.trending?.songs || md.trending || []).slice(0, 15);
+  trendingWrap.innerHTML = '';
+  trending.forEach(item => {
+    const isSong = item.type === 'song';
+    const sub = isSong
+      ? (typeof item.primaryArtists === 'string' ? item.primaryArtists : (item.primaryArtists || []).map(a => a.name).join(', '))
+      : (item.year || item.language || '');
+    trendingWrap.appendChild(createContentCard(
+      item.name || item.title, sub, bestImg(item.image),
+      isSong
+        ? () => { const s = normSigmaSong(item); play(s, [s], 0); }
+        : () => openBrowseDetail(item.id, item.type === 'album' ? 'album' : 'playlist', item.name || item.title)
+    ));
+  });
+  if (!trending.length) trendingWrap.innerHTML = '<div style="padding:16px;color:var(--fg2);font-size:14px">Nothing here yet</div>';
+
+  // New Releases
+  const albums = (md.albums || []).slice(0, 15);
+  releasesWrap.innerHTML = '';
+  albums.forEach(item => {
+    const artists = (item.primaryArtists?.length ? item.primaryArtists : item.artists || []).map(a => a.name).slice(0, 2).join(', ');
+    releasesWrap.appendChild(createContentCard(
+      item.name, artists || item.year || '', bestImg(item.image),
+      () => openBrowseDetail(item.id, 'album', item.name)
+    ));
+  });
+  if (!albums.length) releasesWrap.innerHTML = '<div style="padding:16px;color:var(--fg2);font-size:14px">Nothing here yet</div>';
+
+  // Featured Playlists
+  const playlists = (md.playlists || []).slice(0, 15);
+  playlistsWrap.innerHTML = '';
+  playlists.forEach(pl => {
+    playlistsWrap.appendChild(createContentCard(
+      pl.title, pl.subtitle || '', bestImg(pl.image),
+      () => openBrowseDetail(pl.id, 'playlist', pl.title, '', pl.language || lang || '')
+    ));
+  });
+  if (!playlists.length) playlistsWrap.innerHTML = '<div style="padding:16px;color:var(--fg2);font-size:14px">Nothing here yet</div>';
+}
+
 async function loadBrowseLang(lang, label) {
-  const content    = document.getElementById('lang-content');
-  const titleEl    = document.getElementById('lang-content-title');
-  const albumsEl   = document.getElementById('lang-albums');
-  const playlistEl = document.getElementById('lang-playlists');
+  const trendingWrap  = document.getElementById('browse-trending-row');
+  const releasesWrap  = document.getElementById('browse-newreleases-row');
+  const playlistsWrap = document.getElementById('browse-playlists-row');
+  const spinner = '<div class="loading-wrap" style="padding:20px 0"><div class="spinner"></div></div>';
 
-  titleEl.textContent = label;
-  content.style.display = 'block';
+  // Show spinners in global sections while loading
+  trendingWrap.innerHTML  = spinner;
+  releasesWrap.innerHTML  = spinner;
+  playlistsWrap.innerHTML = spinner;
 
-  // Serve from cache — re-render from raw data so event listeners are always fresh
+  // Serve from cache
   if (langCache.has(lang)) {
-    const { albumItems, playlistItems } = langCache.get(lang);
-    renderLangItems(albumItems, playlistItems, albumsEl, playlistEl);
+    const { md: cachedMd } = langCache.get(lang);
+    _renderGlobalSections(cachedMd, lang);
     return;
   }
 
-  albumsEl.innerHTML   = '<div class="loading-wrap" style="padding:20px 0"><div class="spinner"></div></div>';
-  playlistEl.innerHTML = '';
-
   try {
-    // Reuse the already-fetched modules data if the lang matches the global fetch
-    let md;
-    const multiLang = 'hindi,english,punjabi,tamil,telugu';
-    if (_modulesCache && multiLang.includes(lang)) {
-      md = _modulesCache;
-    } else {
-      const resp = await saavnFetch(`${SIGMA_API}/modules?language=${encodeURIComponent(lang)}`);
-      const data = await resp.json();
-      if (data.status !== 'SUCCESS') throw new Error('API error');
-      md = data.data;
-    }
+    const resp = await saavnFetch(`${SIGMA_API}/modules?language=${encodeURIComponent(lang)}`);
+    const data = await resp.json();
+    if (data.status !== 'SUCCESS') throw new Error('API error');
+    const md = data.data;
 
-    const albumItems    = (md.albums    || []).slice(0, 15);
-    const playlistItems = (md.playlists || []).slice(0, 15);
-
-    renderLangItems(albumItems, playlistItems, albumsEl, playlistEl);
+    _renderGlobalSections(md, lang);
 
     if (langCache.size >= 8) langCache.delete(langCache.keys().next().value);
-    langCache.set(lang, { albumItems, playlistItems });
+    langCache.set(lang, { md, albumItems: (md.albums || []).slice(0, 15), playlistItems: (md.playlists || []).slice(0, 15) });
   } catch (err) {
     Log.warn('Browse lang failed', { lang, err: err.message });
-    albumsEl.innerHTML = '<div style="padding:16px;color:var(--fg2);font-size:14px">Could not load — check internet</div>';
-    playlistEl.innerHTML = '';
+    const errMsg = '<div style="padding:16px;color:var(--fg2);font-size:14px">Could not load — check internet</div>';
+    trendingWrap.innerHTML  = errMsg;
+    releasesWrap.innerHTML  = errMsg;
+    playlistsWrap.innerHTML = errMsg;
   }
 }
 
@@ -4615,47 +4652,10 @@ async function loadBrowseCharts() {
     const data = await resp.json();
     if (data.status !== 'SUCCESS') throw new Error('API error');
     const md = data.data;
-    _modulesCache = md; // share with loadBrowseLang
+    _modulesCache = md;
 
-    // ── Trending songs/albums row ──────────────────────────────────────────────
-    const trending = (md.trending?.songs || md.trending || []).slice(0, 15);
-    trendingWrap.innerHTML = '';
-    trending.forEach(item => {
-      const isSong = item.type === 'song';
-      const sub = isSong
-        ? (typeof item.primaryArtists === 'string' ? item.primaryArtists : (item.primaryArtists || []).map(a => a.name).join(', '))
-        : (item.year || item.language || '');
-      trendingWrap.appendChild(createContentCard(
-        item.name || item.title, sub, bestImg(item.image),
-        isSong
-          ? () => { const s = normSigmaSong(item); play(s, [s], 0); }
-          : () => openBrowseDetail(item.id, item.type === 'album' ? 'album' : 'playlist', item.name || item.title)
-      ));
-    });
-    if (!trending.length) trendingWrap.innerHTML = '<div style="padding:16px;color:var(--fg2);font-size:14px">Nothing here yet</div>';
-
-    // ── New Releases (albums) ──────────────────────────────────────────────────
-    const albums = (md.albums || []).slice(0, 15);
-    releasesWrap.innerHTML = '';
-    albums.forEach(item => {
-      const artists = (item.primaryArtists?.length ? item.primaryArtists : item.artists || []).map(a => a.name).slice(0, 2).join(', ');
-      releasesWrap.appendChild(createContentCard(
-        item.name, artists || item.year || '', bestImg(item.image),
-        () => openBrowseDetail(item.id, 'album', item.name)
-      ));
-    });
-    if (!albums.length) releasesWrap.innerHTML = '<div style="padding:16px;color:var(--fg2);font-size:14px">Nothing here yet</div>';
-
-    // ── Featured Playlists ─────────────────────────────────────────────────────
-    const playlists = (md.playlists || []).slice(0, 15);
-    playlistsWrap.innerHTML = '';
-    playlists.forEach(pl => {
-      playlistsWrap.appendChild(createContentCard(
-        pl.title, pl.subtitle || '', bestImg(pl.image),
-        () => openBrowseDetail(pl.id, 'playlist', pl.title, '', pl.language || '')
-      ));
-    });
-    if (!playlists.length) playlistsWrap.innerHTML = '<div style="padding:16px;color:var(--fg2);font-size:14px">Nothing here yet</div>';
+    // ── Render Trending, New Releases, Featured Playlists via shared helper ────
+    _renderGlobalSections(md, 'hindi,english,punjabi,tamil,telugu');
 
     // ── Top Charts list ────────────────────────────────────────────────────────
     const charts = (md.charts || []).slice(0, 10);
