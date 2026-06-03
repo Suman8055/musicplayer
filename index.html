@@ -612,8 +612,12 @@ body::after{
         </div>
         <div class="sub-label">New Releases</div>
         <div class="scroll-fade-wrap"><div class="h-scroll" id="lang-albums"></div></div>
+        <div class="sub-label" style="padding-top:8px">Songs</div>
+        <div class="scroll-fade-wrap"><div class="h-scroll" id="lang-songs"></div></div>
         <div class="sub-label" style="padding-top:8px">Featured Playlists</div>
         <div class="scroll-fade-wrap"><div class="h-scroll" id="lang-playlists"></div></div>
+        <div class="sub-label" style="padding-top:8px">Charts</div>
+        <div class="chart-list" id="lang-charts"></div>
       </div>
     </div>
 
@@ -1045,7 +1049,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.52';
+const APP_VERSION = '4.1.53';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 400;
@@ -4655,11 +4659,23 @@ function filterByLanguage(songs) {
   return songs.filter(s => ALLOWED_LANGUAGES.has((s.language || '').toLowerCase().trim()));
 }
 
+// Parse artists from primaryArtists (songs) or artists (albums) — both can be arrays or empty
+function _parseArtists(item) {
+  // Songs: primaryArtists is a populated array
+  if (Array.isArray(item.primaryArtists) && item.primaryArtists.length)
+    return item.primaryArtists.slice(0, 2).map(a => a.name).join(', ');
+  // Albums: primaryArtists is [] but artists is a populated array
+  if (Array.isArray(item.artists) && item.artists.length)
+    return item.artists.slice(0, 2).map(a => a.name).join(', ');
+  // Fallback: plain string
+  if (typeof item.primaryArtists === 'string' && item.primaryArtists && item.primaryArtists !== '[]')
+    return decodeHtml(item.primaryArtists);
+  return '';
+}
+
 function normSigmaSong(s) {
+  const artistStr = _parseArtists(s);
   const pa = Array.isArray(s.primaryArtists) ? s.primaryArtists : [];
-  const artistStr = pa.length
-    ? pa.map(a => a.name).join(', ')
-    : (typeof s.primaryArtists === 'string' ? decodeHtml(s.primaryArtists) : '');
   return {
     id:       s.id,
     name:     decodeHtml(s.name || ''),
@@ -4673,37 +4689,51 @@ function normSigmaSong(s) {
 }
 
 function renderLangItems(albumItems, playlistItems, albumsEl, playlistEl) {
-  // Build a queue from all song-type items so tapping one plays the section
-  const songQueue = filterByLanguage(albumItems
-    .filter(it => it.type === 'song')
-    .map(normSigmaSong));
+  const onlyAlbums = albumItems.filter(it => it.type === 'album');
+  const onlySongs  = filterByLanguage(albumItems.filter(it => it.type === 'song').map(normSigmaSong));
 
+  // New Releases — albums only
   albumsEl.innerHTML = '';
-  let songPos = 0;
-  albumItems.forEach(item => {
-    const artists = ((item.primaryArtists?.length ? item.primaryArtists : item.artists) || [])
-      .map(a => a.name).slice(0, 2).join(', ');
-    if (item.type === 'song') {
-      const pos = songPos++;
-      albumsEl.appendChild(createContentCard(
-        item.name, artists || '', bestImg(item.image),
-        () => play(songQueue[pos], [...songQueue], pos)
-      ));
-    } else {
-      albumsEl.appendChild(createContentCard(
-        item.name, artists || item.year || '', bestImg(item.image),
-        () => openBrowseDetail(item.id, 'album', item.name)
-      ));
-    }
-  });
-
-  playlistEl.innerHTML = '';
-  playlistItems.forEach(pl => {
-    playlistEl.appendChild(createContentCard(
-      pl.title, pl.subtitle || '', bestImg(pl.image),
-      () => openBrowseDetail(pl.id, 'playlist', pl.title, '', pl.language || '')
+  onlyAlbums.forEach(item => {
+    const artists = _parseArtists(item);
+    albumsEl.appendChild(createContentCard(
+      decodeHtml(item.name || ''), artists || '', bestImg(item.image),
+      () => openBrowseDetail(item.id, 'album', decodeHtml(item.name || ''))
     ));
   });
+  if (!onlyAlbums.length) albumsEl.innerHTML = '<div style="padding:16px;color:var(--fg2);font-size:14px">Nothing here yet</div>';
+
+  // Featured Playlists
+  playlistEl.innerHTML = '';
+  playlistItems.forEach(pl => {
+    const sub = pl.subtitle && !pl.subtitle.includes('Followers') ? pl.subtitle
+      : pl.followerCount ? _fmtCount(pl.followerCount) + ' followers' : '';
+    playlistEl.appendChild(createContentCard(
+      pl.title || pl.name || '', sub, bestImg(pl.image),
+      () => openBrowseDetail(pl.id, 'playlist', pl.title || pl.name || '', '', pl.language || '')
+    ));
+  });
+  if (!playlistItems.length) playlistEl.innerHTML = '<div style="padding:16px;color:var(--fg2);font-size:14px">Nothing here yet</div>';
+
+  // Songs row
+  const songsEl = document.getElementById('lang-songs');
+  if (songsEl) {
+    songsEl.innerHTML = '';
+    onlySongs.forEach((s, pos) => {
+      songsEl.appendChild(createContentCard(
+        s.name, s.artist, s.image,
+        () => play(s, [...onlySongs], pos)
+      ));
+    });
+    if (!onlySongs.length) songsEl.innerHTML = '<div style="padding:16px;color:var(--fg2);font-size:14px">Nothing here yet</div>';
+  }
+}
+
+function _fmtCount(n) {
+  n = parseInt(n) || 0;
+  if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+  if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+  return String(n);
 }
 
 function _renderGlobalSections(md, lang) {
@@ -4711,52 +4741,44 @@ function _renderGlobalSections(md, lang) {
   const releasesWrap  = document.getElementById('browse-newreleases-row');
   const playlistsWrap = document.getElementById('browse-playlists-row');
 
-  // Trending
-  const trending = (md.trending?.songs || md.trending || []).slice(0, 15);
+  // Trending — songs + albums combined, up to 15
+  const trendSongs  = (md.trending?.songs || (Array.isArray(md.trending) ? md.trending : []));
+  const trendAlbums = (md.trending?.albums || []);
+  const trending    = [...trendSongs, ...trendAlbums].slice(0, 15);
   trendingWrap.innerHTML = '';
   trending.forEach(item => {
     const isSong = item.type === 'song';
-    const sub = isSong
-      ? (typeof item.primaryArtists === 'string' ? item.primaryArtists : (item.primaryArtists || []).map(a => a.name).join(', '))
-      : (item.year || item.language || '');
+    const sub    = _parseArtists(item) || item.year || '';
     trendingWrap.appendChild(createContentCard(
-      item.name || item.title, sub, bestImg(item.image),
+      decodeHtml(item.name || item.title || ''), sub, bestImg(item.image),
       isSong
         ? () => { const s = normSigmaSong(item); play(s, [s], 0); }
-        : () => openBrowseDetail(item.id, item.type === 'album' ? 'album' : 'playlist', item.name || item.title)
+        : () => openBrowseDetail(item.id, 'album', decodeHtml(item.name || item.title || ''))
     ));
   });
   if (!trending.length) trendingWrap.innerHTML = '<div style="padding:16px;color:var(--fg2);font-size:14px">Nothing here yet</div>';
 
-  // New Releases
-  const albums = (md.albums || []).slice(0, 15);
+  // New Releases — albums only (API mixes songs in, we show only proper album releases)
+  const allNew    = (md.albums || []).slice(0, 20);
+  const newAlbums = allNew.filter(it => it.type === 'album').slice(0, 15);
   releasesWrap.innerHTML = '';
-  const relSongQueue = filterByLanguage(albums.filter(it => it.type === 'song').map(normSigmaSong));
-  let relSongPos = 0;
-  albums.forEach(item => {
-    const artists = ((item.primaryArtists?.length ? item.primaryArtists : item.artists) || []).map(a => a.name).slice(0, 2).join(', ');
-    if (item.type === 'song') {
-      const pos = relSongPos++;
-      releasesWrap.appendChild(createContentCard(
-        item.name, artists || '', bestImg(item.image),
-        () => play(relSongQueue[pos], [...relSongQueue], pos)
-      ));
-    } else {
-      releasesWrap.appendChild(createContentCard(
-        item.name, artists || item.year || '', bestImg(item.image),
-        () => openBrowseDetail(item.id, 'album', item.name)
-      ));
-    }
+  newAlbums.forEach(item => {
+    const artists = _parseArtists(item);
+    releasesWrap.appendChild(createContentCard(
+      decodeHtml(item.name || ''), artists || '', bestImg(item.image),
+      () => openBrowseDetail(item.id, 'album', decodeHtml(item.name || ''))
+    ));
   });
-  if (!albums.length) releasesWrap.innerHTML = '<div style="padding:16px;color:var(--fg2);font-size:14px">Nothing here yet</div>';
+  if (!newAlbums.length) releasesWrap.innerHTML = '<div style="padding:16px;color:var(--fg2);font-size:14px">Nothing here yet</div>';
 
   // Featured Playlists
   const playlists = (md.playlists || []).slice(0, 15);
   playlistsWrap.innerHTML = '';
   playlists.forEach(pl => {
     const plTitle = pl.title || pl.name || '';
+    const sub     = pl.followerCount ? _fmtCount(pl.followerCount) + ' followers' : (pl.subtitle || '');
     playlistsWrap.appendChild(createContentCard(
-      plTitle, pl.subtitle || '', bestImg(pl.image),
+      plTitle, sub, bestImg(pl.image),
       () => openBrowseDetail(pl.id, 'playlist', plTitle, '', pl.language || lang || '')
     ));
   });
@@ -4764,27 +4786,25 @@ function _renderGlobalSections(md, lang) {
 }
 
 async function loadBrowseLang(lang, label) {
-  const trendingWrap  = document.getElementById('browse-trending-row');
-  const releasesWrap  = document.getElementById('browse-newreleases-row');
-  const playlistsWrap = document.getElementById('browse-playlists-row');
   const spinner = '<div class="loading-wrap" style="padding:20px 0"><div class="spinner"></div></div>';
+  const langContent = document.getElementById('lang-content');
+  const langTitle   = document.getElementById('lang-content-title');
 
-  // Show spinners in global sections while loading
-  trendingWrap.innerHTML  = spinner;
-  releasesWrap.innerHTML  = spinner;
-  playlistsWrap.innerHTML = spinner;
+  // Show spinners only in the per-language block, not global sections
+  document.getElementById('lang-albums').innerHTML    = spinner;
+  document.getElementById('lang-playlists').innerHTML = spinner;
+  const songsEl  = document.getElementById('lang-songs');
+  const chartsEl = document.getElementById('lang-charts');
+  if (songsEl)  songsEl.innerHTML  = spinner;
+  if (chartsEl) chartsEl.innerHTML = spinner;
 
   // Serve from cache
   if (langCache.has(lang)) {
     const { md: cachedMd, albumItems: cachedAlbums, playlistItems: cachedPlaylists } = langCache.get(lang);
-    _renderGlobalSections(cachedMd, lang);
-    document.getElementById('lang-content-title').textContent = label + ' Music';
-    renderLangItems(
-      cachedAlbums,
-      cachedPlaylists,
-      document.getElementById('lang-albums'),
-      document.getElementById('lang-playlists')
-    );
+    langTitle.textContent = label + ' Music';
+    renderLangItems(cachedAlbums, cachedPlaylists,
+      document.getElementById('lang-albums'), document.getElementById('lang-playlists'));
+    _renderLangCharts(cachedMd.charts || [], chartsEl);
     return;
   }
 
@@ -4795,30 +4815,38 @@ async function loadBrowseLang(lang, label) {
     const md = data.data;
     if (!md) throw new Error('API returned null data');
 
-    const albumItems    = (md.albums || []).slice(0, 15);
+    const albumItems    = (md.albums || []).slice(0, 20);
     const playlistItems = (md.playlists || []).slice(0, 15);
 
-    _renderGlobalSections(md, lang);
-
-    document.getElementById('lang-content-title').textContent = label + ' Music';
-    renderLangItems(
-      albumItems,
-      playlistItems,
-      document.getElementById('lang-albums'),
-      document.getElementById('lang-playlists')
-    );
+    langTitle.textContent = label + ' Music';
+    renderLangItems(albumItems, playlistItems,
+      document.getElementById('lang-albums'), document.getElementById('lang-playlists'));
+    _renderLangCharts(md.charts || [], chartsEl);
 
     if (langCache.size >= 8) langCache.delete(langCache.keys().next().value);
     langCache.set(lang, { md, albumItems, playlistItems });
   } catch (err) {
     Log.warn('Browse lang failed', { lang, err: err.message });
     const errMsg = '<div style="padding:16px;color:var(--fg2);font-size:14px">Could not load — check internet</div>';
-    trendingWrap.innerHTML  = errMsg;
-    releasesWrap.innerHTML  = errMsg;
-    playlistsWrap.innerHTML = errMsg;
     document.getElementById('lang-albums').innerHTML    = errMsg;
     document.getElementById('lang-playlists').innerHTML = errMsg;
+    if (songsEl)  songsEl.innerHTML  = errMsg;
+    if (chartsEl) chartsEl.innerHTML = errMsg;
   }
+}
+
+function _renderLangCharts(charts, chartsEl) {
+  if (!chartsEl) return;
+  chartsEl.innerHTML = '';
+  charts.slice(0, 8).forEach((chart, i) => {
+    const title = chart.title || chart.name || '';
+    chartsEl.appendChild(createChartRow(
+      i + 1, title, chart.subtitle || chart.language || '',
+      bestImg(chart.image, '150x150'),
+      () => openBrowseDetail(chart.id, 'playlist', title)
+    ));
+  });
+  if (!charts.length) chartsEl.innerHTML = '<div style="padding:16px;color:var(--fg2);font-size:14px">Nothing here yet</div>';
 }
 
 let _modulesCache = null; // full modules data, shared with loadBrowseLang
