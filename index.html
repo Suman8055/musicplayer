@@ -1035,7 +1035,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.47';
+const APP_VERSION = '4.1.48';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 400;
@@ -2093,7 +2093,7 @@ async function play(song, newQueue, idx) {
     if (_pendingNext) { _pendingNext = false; next(); return; }
     setNPLoading(false);
     refreshPlayBtns();
-    updateMediaSession();
+    updateMediaSession().catch(e => Log.warn('MediaSession update failed', { err: e?.message }));
   }
 }
 
@@ -2487,7 +2487,7 @@ function refreshPlayBtns() {
 //   CarPlay/AirPlay work fine with data: URLs too (Safari handles them natively).
 
 async function _fetchArtDataUrl(url) {
-  // Returns a data: URL (base64 JPEG, 128×128) or null on failure.
+  // Returns a data: URL (base64 JPEG, 512×512) or null on failure.
   // Uses a canvas to resize, which also side-steps CORS tainting issues.
   try {
     const res = await fetch(url);
@@ -2497,7 +2497,7 @@ async function _fetchArtDataUrl(url) {
       const img = new Image();
       const objUrl = URL.createObjectURL(blob);
       img.onload = () => {
-        const SIZE = 128;
+        const SIZE = 512;
         const cv = document.createElement('canvas');
         cv.width = SIZE; cv.height = SIZE;
         cv.getContext('2d').drawImage(img, 0, 0, SIZE, SIZE);
@@ -2532,21 +2532,22 @@ async function updateMediaSession() {
   if (!img) return;
 
   // Fetch image and convert to self-contained data: URL via canvas
+  const _mediaSessionSongId = nowSong.id;
   const dataUrl = await _fetchArtDataUrl(img.replace(/\d+x\d+/, '500x500'));
 
   // Only update if this song is still playing (user may have skipped during fetch)
-  if (!navigator.mediaSession.metadata || navigator.mediaSession.metadata.title !== (nowSong.name || '')) return;
+  if (!nowSong || nowSong.id !== _mediaSessionSongId) return;
 
   if (dataUrl) {
-    // data: URL — works for Bluetooth AVRCP, CarPlay, lock screen, notification shade
+    // data: URL — works for Bluetooth AVRCP, CarPlay, Tesla, lock screen, notification shade
     navigator.mediaSession.metadata.artwork = [
-      { src: dataUrl, sizes: '128x128', type: 'image/jpeg' },
+      { src: dataUrl, sizes: '512x512', type: 'image/jpeg' },
     ];
   } else {
-    // Fallback: raw CDN URLs — Bluetooth may still fail but CarPlay/AirPlay will work
+    // Fallback: raw CDN URLs — CarPlay/AirPlay fetch these fine; Bluetooth/Tesla will not
     navigator.mediaSession.metadata.artwork = [
-      { src: img.replace(/\d+x\d+/, '150x150'), sizes: '128x128', type: 'image/jpeg' },
-      { src: img.replace(/\d+x\d+/, '500x500'), sizes: '512x512', type: 'image/jpeg' },
+      { src: img.replace(/\d+x\d+/, '150x150'), sizes: '150x150', type: 'image/jpeg' },
+      { src: img.replace(/\d+x\d+/, '500x500'), sizes: '500x500', type: 'image/jpeg' },
     ];
   }
 }
