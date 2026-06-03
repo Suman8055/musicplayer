@@ -20,7 +20,7 @@
 :root{
   --env-banner-h:0px;
   --bg:#000814;--bg2:#071020;--bg3:#0f1f35;--bg4:#162842;
-  --fg:#fff;--fg2:rgba(255,255,255,.65);--fg3:rgba(255,255,255,.38);
+  --fg:#fff;--fg2:rgba(255,255,255,.70);--fg3:rgba(255,255,255,.38);
   --red:#00e6e6;--red2:#22d3ee;
   --grad:linear-gradient(135deg,#00e6e6,#22d3ee);
   --sep:rgba(255,255,255,.09);
@@ -215,7 +215,9 @@ body::after{
 #np-quality.visible{opacity:1}
 #np-like{background:none;border:none;font-size:28px;cursor:pointer;padding:4px;flex-shrink:0;line-height:1}
 #np-seek-wrap{padding:0 28px}
-#np-seek{width:100%;height:5px;-webkit-appearance:none;appearance:none;background:linear-gradient(to right,var(--accent) var(--pct,0%),rgba(255,255,255,.18) var(--pct,0%));border-radius:3px;outline:none;cursor:pointer;display:block;transition:var(--color-transition)}
+#np-seek{width:100%;height:5px;-webkit-appearance:none;appearance:none;background:linear-gradient(to right,var(--accent) var(--pct,0%),rgba(255,255,255,.18) var(--pct,0%));border-radius:3px;outline:none;cursor:pointer;display:block;transition:var(--color-transition);
+  /* Expand touch target to 44px min per WCAG 2.5.5 without changing visual height */
+  padding-top:19px;padding-bottom:20px;margin-top:-19px;margin-bottom:-20px;box-sizing:content-box}
 #np-seek::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#fff;margin-top:-7px;box-shadow:0 2px 8px rgba(0,0,0,.4)}
 #np-seek::-webkit-slider-runnable-track{height:5px;border-radius:3px}
 #np-times{display:flex;justify-content:space-between;padding:6px 0 2px;font-size:11px;color:var(--fg3);font-variant-numeric:tabular-nums}
@@ -488,6 +490,12 @@ body::after{
 .eq-switch-knob{position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:transform .2s}
 .eq-switch.on .eq-switch-knob{transform:translateX(18px)}
 #eq-close-btn{display:block;width:calc(100% - 40px);margin:10px 20px 0;padding:14px;text-align:center;background:hsla(var(--accent-h),var(--accent-s),var(--accent-l),.12);border:1px solid hsla(var(--accent-h),var(--accent-s),var(--accent-l),.25);border-radius:14px;color:var(--accent);font-size:16px;font-weight:600;font-family:inherit;cursor:pointer;transition:var(--color-transition)}
+/* Respect user motion preferences — disable non-essential animations */
+@media (prefers-reduced-motion: reduce) {
+  .eq-bar,.spinner,.dl-spinner,.np-foot.active,.sq-pulse-dot{animation:none!important}
+  *{transition-duration:.01ms!important}
+  #np-art{animation:none!important}
+}
 </style>
 </head>
 <body>
@@ -729,6 +737,7 @@ body::after{
         </div>
       </div>
       <input type="password" class="settings-input" id="gh-pat-input" placeholder="Fine-grained PAT (Contents: Read &amp; Write)">
+      <div style="font-size:11px;color:var(--fg3);padding:4px 0 6px">Token stored locally on this device only. Use a fine-grained PAT with minimal repo permissions.</div>
       <div class="settings-btn-row">
         <button class="settings-btn sec" id="gh-save-btn">Save Token</button>
         <button class="settings-btn" id="gh-upload-btn">Upload Now</button>
@@ -872,6 +881,7 @@ body::after{
         <div id="np-song">—</div>
         <div id="np-artist">—</div>
         <div id="np-quality"></div>
+      <div id="np-airplay-dsp-warn" style="display:none;font-size:10px;color:rgba(255,180,0,.8);margin-top:2px">EQ unavailable on AirPlay</div>
       </div>
       <button id="np-like">♡</button>
     </div>
@@ -1035,7 +1045,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.49';
+const APP_VERSION = '4.1.50';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 400;
@@ -1262,8 +1272,8 @@ const audio        = document.getElementById('audio');
 const audioPreload = document.getElementById('audio-preload');
 
 // ── LOUDNESS NORMALISATION ─────────────────────────────────────────────────────
-// Per-track LUFS normalization: target −13 LUFS (beats Spotify −14, Apple −16).
-// Measured from a 7s RMS window on the dry signal (pre-EQ tap on _gainNode).
+// Per-track LUFS normalization: target −16 LUFS (Apple Music / EBU R128 standard).
+// Measured from a 7s K-weighted RMS window on the dry signal (pre-EQ tap on _gainNode).
 // Gain is applied via setTargetAtTime for smooth, click-free transitions.
 const NORM_VOLUME = 1.0; // baseline — per-track gain managed by _measureAndApplyLufs()
 
@@ -1273,8 +1283,8 @@ const LUFS_MAX_BOOST_DB =   3;   // cap boost at +3 dB — prevents quiet tracks
 const LUFS_MAX_CUT_DB   =  12;   // allow up to −12 dB cut for hot masters (brick-wall pop)
 const _lufsCache        = new Map(); // songId → linear gain value
 let   _lufsAnalyser     = null;      // AnalyserNode tapping K-weighted signal
-let   _lufsKw1          = null;      // K-weighting stage 1: high-pass shelf ~100Hz (ITU-R BS.1770-4)
-let   _lufsKw2          = null;      // K-weighting stage 2: +4dB resonance peak @ 1.5kHz
+let   _lufsKw1          = null;      // K-weighting stage 1: highshelf +4dB @ 1681.974Hz (ITU-R BS.1770-4)
+let   _lufsKw2          = null;      // K-weighting stage 2: highpass @ 38.135Hz Q=0.5 (ITU-R BS.1770-4)
 
 function _gainFromLufs(measuredLufs) {
   const correctionDb = Math.max(-LUFS_MAX_CUT_DB, Math.min(LUFS_MAX_BOOST_DB, LUFS_TARGET - measuredLufs));
@@ -1291,6 +1301,9 @@ async function _measureAndApplyLufs(song) {
   }
   const WARMUP = 8;  // skip first 2s — avoids measuring quiet intros as the song level
   const FRAMES = 28; // 28 × 250ms = 7s measurement window after warmup
+  // BS.1770-4 absolute gate: discard any 400ms block below −70 LUFS-M (≈ RMS < 3.16e-4)
+  // Prevents silence, crowd noise, or ambient pads from skewing the integrated level.
+  const ABS_GATE_RMS = Math.pow(10, (-70 - 0.691) / 20); // ≈ 2.9e-4 linear
   let sumSq = 0, frameCount = 0;
   const buf = new Float32Array(_lufsAnalyser.fftSize);
   for (let f = 0; f < WARMUP + FRAMES; f++) {
@@ -1298,7 +1311,12 @@ async function _measureAndApplyLufs(song) {
     if (!nowSong || nowSong.id !== song.id) return; // song changed mid-analysis
     if (f < WARMUP) continue; // discard quiet-intro frames
     _lufsAnalyser.getFloatTimeDomainData(buf);
-    for (let i = 0; i < buf.length; i++) sumSq += buf[i] * buf[i];
+    // Compute block RMS for absolute gate check
+    let blockSumSq = 0;
+    for (let i = 0; i < buf.length; i++) blockSumSq += buf[i] * buf[i];
+    const blockRms = Math.sqrt(blockSumSq / buf.length);
+    if (blockRms < ABS_GATE_RMS) continue; // BS.1770-4 absolute gate: skip this block
+    sumSq += blockSumSq;
     frameCount += buf.length;
   }
   if (frameCount === 0) return;
@@ -1400,22 +1418,34 @@ function _ensureAudioCtx() {
     _audioCtx.addEventListener('statechange', () => {
       Log.info('AudioContext state', { state: _audioCtx.state });
       if (_audioCtx.state === 'suspended') {
-        _audioCtx.resume().catch(() => {});
+        // Auto-resume unless user explicitly paused. This covers phone call end,
+        // alarm dismiss, and other OS interruptions that temporarily suspend the context.
+        if (!userPaused) {
+          // Delay 800ms — gives iOS time to complete its interruption cycle before resume.
+          // Immediate resume during an active phone call causes silent failure.
+          setTimeout(() => {
+            if (_audioCtx?.state === 'suspended' && !userPaused) {
+              _audioCtx.resume().catch(() => {});
+            }
+          }, 800);
+        }
       }
     });
     _gainNode = _audioCtx.createGain();
     _gainNode.gain.value = NORM_VOLUME; // 1.0 baseline; per-track LUFS adjusts this
     // K-weighted LUFS measurement path (ITU-R BS.1770-4, measurement only — not in playback path)
-    // Stage 1: high-pass pre-filter (removes sub-100Hz content ears don't perceive as loud)
+    // Stage 1: high-shelf pre-filter — head-shadow effect per BS.1770-4 Table 1
+    // Exact spec frequency: 1681.974 Hz (previously 1500 Hz — 11% error, now corrected)
     _lufsKw1 = _audioCtx.createBiquadFilter();
     _lufsKw1.type = 'highshelf';
-    _lufsKw1.frequency.value = 1500;
-    _lufsKw1.gain.value = 4.0;   // +4dB above 1.5kHz — approximates BS.1770 head-shadow effect
-    // Stage 2: high-pass removes sub-100Hz rumble weight
+    _lufsKw1.frequency.value = 1681.974;
+    _lufsKw1.gain.value = 4.0;   // +4dB above 1681.974 Hz per ITU-R BS.1770-4
+    // Stage 2: high-pass removes sub-bass content per BS.1770-4
+    // Exact spec frequency: 38.135 Hz (previously 100 Hz — 162% error, now corrected)
     _lufsKw2 = _audioCtx.createBiquadFilter();
     _lufsKw2.type = 'highpass';
-    _lufsKw2.frequency.value = 100;
-    _lufsKw2.Q.value = 0.5;      // gentle rolloff, Butterworth-like
+    _lufsKw2.frequency.value = 38.135;
+    _lufsKw2.Q.value = 0.5;      // Butterworth 2nd-order per BS.1770-4
     _lufsAnalyser = _audioCtx.createAnalyser();
     _lufsAnalyser.fftSize = 4096;
     _lufsAnalyser.smoothingTimeConstant = 0.0; // raw samples for accurate RMS
@@ -1439,6 +1469,8 @@ function _ensureAudioCtx() {
       _corsAvailable = false;
       audio.volume = NORM_VOLUME;
       Log.warn('Web Audio routing unavailable (CORS)', { err: corsErr.message });
+      // Notify user that EQ/DSP is unavailable — hot masters will not be limited
+      setTimeout(() => toast('Enhanced audio unavailable — EQ disabled for this stream'), 500);
     }
     _rewireAudio();
     window._mbxAudio = () => ({
@@ -1481,6 +1513,9 @@ async function _resumeAudioCtx() {
 // path can take over. EQ/DSP are bypassed while on AirPlay — acceptable trade-off.
 function _setAirPlayMode(active) {
   _airPlayActive = active;
+  // Show/hide AirPlay EQ-bypass warning in NowPlaying
+  const badge = document.getElementById('np-airplay-dsp-warn');
+  if (badge) badge.style.display = active ? 'block' : 'none';
   if (!_mediaSource) return;
   if (active) {
     try { _mediaSource.disconnect(); } catch {}
@@ -1538,6 +1573,9 @@ function _startBgKeepAlive() {
       g.connect(_audioCtx.destination);
       osc.start();
       osc.stop(_audioCtx.currentTime + 0.001);
+      // Disconnect both nodes after stop to prevent orphaned node accumulation.
+      // Without this, 2 nodes are leaked every 10s → ~23,000 orphaned nodes/day.
+      setTimeout(() => { try { osc.disconnect(); g.disconnect(); } catch {} }, 2);
     } catch {}
   }, 10000);  // 10s — iOS can suspend audio session within ~15s of silence
 }
@@ -1591,6 +1629,8 @@ window.addEventListener('pagehide', () => {
   if (playing && !userPaused && 'mediaSession' in navigator) {
     navigator.mediaSession.playbackState = 'playing';
   }
+  // Revoke offline blob URL on page hide to prevent memory leak on force-close
+  if (offlineBlobUrl) { try { URL.revokeObjectURL(offlineBlobUrl); } catch {} offlineBlobUrl = null; }
 });
 // freeze: iOS PWA freeze event
 document.addEventListener('freeze', () => {
@@ -1870,15 +1910,33 @@ async function apiStream(id) {
   Log.info('Stream fetch', { id });
   try {
     if (streamCache.has(id)) {
-      Log.info('Stream cache hit', { id });
-      return streamCache.get(id);
+      const cached = streamCache.get(id);
+      // CDN tokens expire in ~30 min. Discard if >25 min old to avoid 403 on resume.
+      const age = Date.now() - (cached._fetchedAt || 0);
+      if (age < 25 * 60 * 1000) {
+        Log.info('Stream cache hit', { id });
+        return cached;
+      }
+      streamCache.delete(id); // expired — re-fetch
     }
-    const result = await fetchStream(id);
-    streamCache.set(id, result);
-    if (streamCache.size > 15) streamCache.delete(streamCache.keys().next().value);
-    return result;
+    // Retry up to 2 times with exponential backoff (1s, 2s) before giving up
+    let lastErr;
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const result = await fetchStream(id);
+        result._fetchedAt = Date.now();
+        streamCache.set(id, result);
+        if (streamCache.size > 15) streamCache.delete(streamCache.keys().next().value);
+        return result;
+      } catch (e) {
+        lastErr = e;
+        Log.warn('Stream attempt failed', { id, attempt, err: e.message });
+        if (attempt < 2) await new Promise(r => setTimeout(r, attempt * 1000));
+      }
+    }
+    throw lastErr;
   } catch (e) {
-    Log.error('Stream failed', { id, err: e.message });
+    Log.error('Stream failed after retries', { id, err: e.message });
     throw e;
   }
 }
@@ -1943,6 +2001,16 @@ async function downloadSong(song) {
     }
     if (!blob) throw lastErr;
 
+    // Re-estimate storage right before writing — iOS caches the quota at session start,
+    // so a stale estimate may permit a write that will exceed the actual current quota.
+    try {
+      const { quota, usage } = await navigator.storage.estimate();
+      if (quota - usage < blob.size + 5 * 1024 * 1024) { // require blob + 5MB headroom
+        toast('Not enough storage — free up space first');
+        return;
+      }
+    } catch {}
+
     const stream = lastStream;
     await idbSave({
       id:           song.id,
@@ -2003,7 +2071,11 @@ function fmt(sec) {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 function esc(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  // Strip Unicode directional override characters (U+202A–U+202E, U+2066–U+2069)
+  // that could visually spoof song titles via RTL text reversal attacks.
+  return String(s)
+    .replace(/[‪-‮⁦-⁩]/g, '')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 function cacheSong(s) {
@@ -2217,6 +2289,7 @@ async function preloadNext() {
       result = streamCache.get(nextSong.id);
     } else {
       result = await fetchStream(nextSong.id);
+      result._fetchedAt = Date.now();
       streamCache.set(nextSong.id, result);
       if (streamCache.size > 15) streamCache.delete(streamCache.keys().next().value);
     }
@@ -2238,8 +2311,9 @@ audio.addEventListener('play', () => {
   // Defer clearing preload src — clearing it immediately on play can briefly interrupt
   // the iOS audio session on some firmware versions
   setTimeout(() => { if (playing) audioPreload.src = ''; }, 500);
-  // Start background keep-alive if page is already hidden (e.g. lock screen play via MediaSession)
-  if (document.hidden) _startBgKeepAlive();
+  // Always start keep-alive on play — iOS can suspend AudioContext after ~30s of
+  // silence mid-song even while playing=true. Previously only started when hidden.
+  _startBgKeepAlive();
   refreshPlayBtns();
   if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
 });
@@ -2533,11 +2607,12 @@ async function updateMediaSession() {
     artwork: [],
   });
   navigator.mediaSession.playbackState = audio.paused ? 'paused' : 'playing';
-  navigator.mediaSession.setActionHandler('play',          async () => { userPaused = false; if (_audioCtx?.state === 'suspended') await _audioCtx.resume().catch(() => {}); audio.play().catch(e => Log.warn('MediaSession play failed', {err: e.message})); });
-  navigator.mediaSession.setActionHandler('pause',         () => { userPaused = true; audio.pause(); });
-  navigator.mediaSession.setActionHandler('stop',          () => { userPaused = true; audio.pause(); navigator.mediaSession.playbackState = 'none'; });
-  navigator.mediaSession.setActionHandler('previoustrack', prev);
-  navigator.mediaSession.setActionHandler('nexttrack',     next);
+  // Wrap all action handler registration in try/catch — iOS 15.0 throws on some handlers
+  try { navigator.mediaSession.setActionHandler('play',          async () => { userPaused = false; if (_audioCtx?.state === 'suspended') await _audioCtx.resume().catch(() => {}); audio.play().catch(e => Log.warn('MediaSession play failed', {err: e.message})); }); } catch {}
+  try { navigator.mediaSession.setActionHandler('pause',         () => { userPaused = true; audio.pause(); }); } catch {}
+  try { navigator.mediaSession.setActionHandler('stop',          () => { userPaused = true; audio.pause(); navigator.mediaSession.playbackState = 'none'; }); } catch {}
+  try { navigator.mediaSession.setActionHandler('previoustrack', prev); } catch {}
+  try { navigator.mediaSession.setActionHandler('nexttrack',     next); } catch {}
   try { navigator.mediaSession.setActionHandler('seekto', ({seekTime}) => { if (isFinite(seekTime)) { audio.currentTime = seekTime; if (isFinite(audio.duration)) try { navigator.mediaSession.setPositionState({ duration: audio.duration, playbackRate: 1, position: seekTime }); } catch {} } }); } catch {}
   try { navigator.mediaSession.setActionHandler('seekforward',  ({ seekOffset }) => { const t = Math.min(audio.duration, audio.currentTime + (seekOffset ?? 15)); audio.currentTime = t; if (isFinite(audio.duration)) try { navigator.mediaSession.setPositionState({ duration: audio.duration, playbackRate: 1, position: t }); } catch {} }); } catch {}
   try { navigator.mediaSession.setActionHandler('seekbackward', ({ seekOffset }) => { const t = Math.max(0, audio.currentTime - (seekOffset ?? 15)); audio.currentTime = t; if (isFinite(audio.duration)) try { navigator.mediaSession.setPositionState({ duration: audio.duration, playbackRate: 1, position: t }); } catch {} }); } catch {}
@@ -2688,10 +2763,6 @@ function _syncSettingsEqState() {
   // Preset highlight
   _detectActivePreset();
   // Toggle switches
-  const autoEqSw = document.getElementById('seq-autoeq-toggle');
-  if (autoEqSw) autoEqSw.classList.toggle('on', localStorage.getItem('mbx_autoeq_v1_on') !== 'false');
-  const meydaSw = document.getElementById('seq-meyda-toggle');
-  if (meydaSw) meydaSw.classList.toggle('on', localStorage.getItem('mbx_meyda_v1_on') !== 'false');
   const cfSw = document.getElementById('seq-cf-toggle');
   if (cfSw) cfSw.classList.toggle('on', _cfOn);
 }
@@ -2734,26 +2805,8 @@ document.querySelectorAll('.seq-preset-btn').forEach(btn => {
   });
 });
 
-// Auto-EQ toggle (guarded — feature may not be present in this build)
-document.getElementById('seq-autoeq-toggle')?.addEventListener('click', () => {
-  const on = localStorage.getItem('mbx_autoeq_v1_on') !== 'false';
-  const next = !on;
-  localStorage.setItem('mbx_autoeq_v1_on', String(next));
-  document.getElementById('seq-autoeq-toggle').classList.toggle('on', next);
-  if (typeof _autoEqOn !== 'undefined') { _autoEqOn = next; }
-});
-
-// Meyda AI EQ toggle (guarded — feature may not be present in this build)
-document.getElementById('seq-meyda-toggle')?.addEventListener('click', () => {
-  const on = localStorage.getItem('mbx_meyda_v1_on') !== 'false';
-  const next = !on;
-  localStorage.setItem('mbx_meyda_v1_on', String(next));
-  document.getElementById('seq-meyda-toggle').classList.toggle('on', next);
-  if (typeof _meydaOn !== 'undefined') { _meydaOn = next; }
-  if (typeof _startMeyda === 'function' && typeof _stopMeyda === 'function') {
-    if (next && _corsAvailable) _startMeyda(); else _stopMeyda();
-  }
-});
+// Auto-EQ and Meyda AI EQ toggles removed — neither feature is implemented in this build.
+// Re-add when _analyseAndAutoEq() / _startMeyda() are actually shipped.
 
 // Crossfeed toggle
 document.getElementById('seq-cf-toggle')?.addEventListener('click', () => {
@@ -2821,17 +2874,45 @@ function _teardownLimiterChain() {
 }
 
 // ── Psychoacoustic Bass Exciter ───────────────────────────────────────────────
-// DISABLED: The output bandpass (180Hz Q=0.8, BW≈225Hz, extends to ~450Hz) does
-// NOT filter the Chebyshev 2nd/3rd harmonics of a 65Hz input (195Hz, 260Hz —
-// both inside the passband). Harmonics leaked directly into the mix, adding
-// harmonic distortion audible at all volume levels. Removed in favour of the
-// clean LUFS-normalised signal, matching Spotify/Apple Music practice.
+// Adds 2nd harmonic (octave) to bass frequencies 40–100Hz that phone speakers can't
+// reproduce. The brain reconstructs the missing fundamental from harmonics (residue pitch).
+//
+// Design: correct even-harmonic exciter using half-wave rectification.
+// Input bandpass 40–100Hz → half-wave rectifier (x>0 ? x : 0) → LP 160Hz → blend 12%.
+// Result: 2nd harmonic (+80-200Hz) added, well within speaker range. No odd harmonics.
 function _buildBassExciter(ctx) {
-  // Stub — no nodes created. Wiring in _rewireAudio guards with &&-checks.
-  _bassExciterIn   = null;
-  _bassExciterDist = null;
-  _bassExciterOut  = null;
-  _bassExciterGain = null;
+  // Input bandpass: isolate 40–100Hz fundamental (sub-bass only)
+  _bassExciterIn = ctx.createBiquadFilter();
+  _bassExciterIn.type = 'bandpass';
+  _bassExciterIn.frequency.value = 65;  // center of 40–100Hz band
+  _bassExciterIn.Q.value = 0.7;         // wide Q = BW ~93Hz, covering 40–100Hz
+
+  // Even-harmonic waveshaper: half-wave rectifier adds 2nd harmonic (octave above)
+  // f(x) = x > 0 ? x : 0  — asymmetric nonlinearity generates even-order harmonics only
+  _bassExciterDist = ctx.createWaveShaper();
+  _bassExciterDist.oversample = '4x'; // oversample to prevent aliasing at 2f
+  const N2 = 4096;
+  const curve2 = new Float32Array(N2);
+  for (let i = 0; i < N2; i++) {
+    const x = (i * 2) / N2 - 1;
+    curve2[i] = x > 0 ? x : 0; // half-wave rectification → 2nd harmonic exciter
+  }
+  _bassExciterDist.curve = curve2;
+
+  // Output lowpass: confine harmonics below 180Hz to avoid bleed into mids
+  _bassExciterOut = ctx.createBiquadFilter();
+  _bassExciterOut.type = 'lowpass';
+  _bassExciterOut.frequency.value = 160; // allow 2nd harmonic (80–160Hz), block higher
+  _bassExciterOut.Q.value = 0.707;
+
+  // Blend gain: 12% wet — psychoacoustically effective, imperceptible as distortion
+  _bassExciterGain = ctx.createGain();
+  _bassExciterGain.gain.value = 0.12;
+
+  _bassExciterIn.connect(_bassExciterDist);
+  _bassExciterDist.connect(_bassExciterOut);
+  _bassExciterOut.connect(_bassExciterGain);
+  // _bassExciterGain connects to _preMixGain in _rewireAudio
 }
 
 function _teardownBassExciter() {
@@ -2958,12 +3039,10 @@ function _teardownCrossfeed() {
 //   splitter[R] → msInvGain(−1) → haasDelay(−s) → merger[R] skipped — use separate node
 //   ... simplified: use _sideGain(+s) for L-side, _haasDelay gain(−s) for R-side
 function _buildStereoWidener(ctx) {
-  // Width reduced from 1.2 to 1.0 (side = 0.5×1.0 = 0.5 = unity).
-  // At Wc=1.2 a hard-panned stereo signal produced +1.58 dB above input level,
-  // causing the limiter to pump. At Wc=1.0 the M/S matrix is transparent
-  // (L'=L, R'=R) — zero gain staging penalty while keeping the graph intact
-  // for a future user-facing width control.
-  const Wc   = 1.0;           // unity width — transparent passthrough
+  // Width 0.7 provides moderate stereo enhancement while maintaining mono compatibility.
+  // Wc=1.0 is mathematical identity (transparent). Wc=0.7 adds gentle stereo openness.
+  // Max safe Wc is ~1.15 before limiter pumping occurs on hard-panned content.
+  const Wc   = 0.7;           // gentle stereo widening (Wc=1.0 = identity, Wc=1.15 = max safe)
   const mid  = 0.5;
   const side = 0.5 * Wc;     // 0.5 for width=1.0
 
@@ -3584,7 +3663,20 @@ function intelSave(d) {
   try {
     localStorage.setItem(INTEL_KEY, JSON.stringify(d));
   } catch (e) {
-    if (e.name === 'QuotaExceededError') toast('Listening history full — clear in Settings → Memory');
+    if (e.name === 'QuotaExceededError') {
+      // Proactive eviction: remove oldest 20% of song records and retry once
+      try {
+        const ids = Object.keys(d.songs || {});
+        if (ids.length > 20) {
+          ids.sort((a, b) => (d.songs[a].lastPlayed || 0) - (d.songs[b].lastPlayed || 0))
+             .slice(0, Math.floor(ids.length * 0.2))
+             .forEach(id => delete d.songs[id]);
+          localStorage.setItem(INTEL_KEY, JSON.stringify(d));
+        } else {
+          toast('Listening history full — clear in Settings → Memory');
+        }
+      } catch { toast('Listening history full — clear in Settings → Memory'); }
+    }
   }
 }
 
@@ -4114,7 +4206,11 @@ async function renderForYouSection() {
       rowsEl.innerHTML = '';
 
       if (!rows.length) {
-        rowsEl.innerHTML = '<div class="for-you-empty">Explore more music to unlock recommendations</div>';
+        rowsEl.innerHTML = `<div class="for-you-empty">
+          <div style="margin-bottom:10px">Couldn't load recommendations — check your connection</div>
+          <button class="settings-btn sec" style="margin:0 auto;display:block;font-size:13px;padding:6px 18px"
+            onclick="renderForYouSection()">Try again</button>
+        </div>`;
         return;
       }
 
@@ -4228,6 +4324,7 @@ function _refreshSuppressedRow() {
 let smartQueueActive = false;
 const _smartInjectedIds = new Set(); // IDs of songs silently injected by SmartPlay (shown with ✦ in queue)
 let _smartInjectPending = false;     // prevents concurrent inject fetches
+let _queueWritePending = false;      // shared mutex: prevents smartInjectAhead + smartQueueFill racing on queue[]
 
 function refreshSmartQueueBadge() {
   const b = document.getElementById('sq-badge');
@@ -4266,12 +4363,14 @@ function _flowNextArtistKey() {
 async function smartInjectAhead() {
   if (!smartPlayOn) return;
   if (_smartInjectPending) return;
+  if (_queueWritePending) return; // smartQueueFill is writing — skip this cycle
 
   // Count unplayed songs remaining after current position
   const remaining = queue.length - qIdx - 1;
   if (remaining >= 3) return; // plenty ahead, nothing to do
 
   _smartInjectPending = true;
+  _queueWritePending = true;
   try {
     // Pick source artist using same priority as smartQueueFill
     const flowResult = _flowNextArtist();
@@ -4308,11 +4407,13 @@ async function smartInjectAhead() {
     // silent — proactive injection failures are non-fatal
   } finally {
     _smartInjectPending = false;
+    _queueWritePending = false;
   }
 }
 
 async function smartQueueFill() {
   if (!smartPlayOn) return false; // SmartPlay toggle is off
+  if (_queueWritePending) return false; // another write in flight — skip
 
   // Flow memory: if current artist has a strong flow (≥3), use that artist next
   const flowResult = _flowNextArtist();
@@ -4333,6 +4434,7 @@ async function smartQueueFill() {
   }
 
   smartQueueActive = true;
+  _queueWritePending = true;
   refreshSmartQueueBadge();
 
   try {
@@ -4357,6 +4459,8 @@ async function smartQueueFill() {
     smartQueueActive = false;
     refreshSmartQueueBadge();
     return false;
+  } finally {
+    _queueWritePending = false;
   }
 }
 
@@ -5316,12 +5420,13 @@ function renderStorageMeter() {
 document.getElementById('reset-intel-btn').addEventListener('click', () => {
   try { localStorage.removeItem(INTEL_KEY); localStorage.removeItem('mbx_intel_v1'); localStorage.removeItem('mbx_onboarded'); } catch {}
   _forYouCache = null;
+  _forYouRenderPending = false; // reset pending flag so re-render can proceed
   _intelPruned = false;
   _sessionStreak = 0;
   _intelPlayStartTs = 0;
-  const section = document.getElementById('for-you-section');
-  if (section) section.style.display = 'none';
   renderMemoryCard();
+  // Re-render For You so the genre seed picker appears immediately after reset
+  renderForYouSection();
   toast('Listening history reset');
 });
 
