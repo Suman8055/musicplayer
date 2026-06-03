@@ -1035,7 +1035,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.48';
+const APP_VERSION = '4.1.49';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 400;
@@ -1581,6 +1581,8 @@ window.addEventListener('pageshow', (e) => {
       _iosPaused = false;
       audio.play().catch(() => {});
     }
+    // Re-register MediaSession action handlers — WebKit may discard them after bfcache restore
+    if (nowSong) updateMediaSession().catch(() => {});
   })();
 });
 // pagehide: last chance to commit MediaSession state before iOS suspends the page
@@ -1605,6 +1607,8 @@ document.addEventListener('resume', () => {
       _iosPaused = false;
       audio.play().catch(e => Log.warn('Resume play() failed', { err: e.message }));
     }
+    // Re-register MediaSession action handlers after freeze/resume cycle
+    if (nowSong) updateMediaSession().catch(() => {});
   })();
 });
 
@@ -2087,6 +2091,7 @@ async function play(song, newQueue, idx) {
   } catch (e) {
     toast('Stream unavailable — try another song');
     playing = false;
+    if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'none';
     Log.error('Playback failed', { name: song.name, err: e.message });
   } finally {
     loadingUrl = false;
@@ -2171,7 +2176,7 @@ function next() {
       if (repeatMode === 1) { createShuffledQueue(); ni = shuffledQueue[shufflePos]; }
       else {
         // Queue exhausted in shuffle — try smart fill
-        smartQueueFill().then(filled => { if (!filled) { playing = false; refreshPlayBtns(); } });
+        smartQueueFill().then(filled => { if (!filled) { playing = false; refreshPlayBtns(); if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'none'; } });
         return;
       }
     } else {
@@ -2184,7 +2189,7 @@ function next() {
       if (repeatMode === 1) ni = 0;
       else {
         // Queue exhausted — try smart fill
-        smartQueueFill().then(filled => { if (!filled) { playing = false; refreshPlayBtns(); } });
+        smartQueueFill().then(filled => { if (!filled) { playing = false; refreshPlayBtns(); if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'none'; } });
         return;
       }
     }
@@ -2243,6 +2248,7 @@ audio.addEventListener('pause', () => {
   refreshPlayBtns();
   if (!userPaused && nowSong && !loadingUrl) {
     _iosPaused = true;
+    if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
     Log.warn('OS interrupted playback', { ctx: _audioCtx?.state, docHidden: document.hidden, song: nowSong?.name });
     setTimeout(async () => {
       if (_iosPaused && !userPaused && nowSong) {
@@ -2251,6 +2257,7 @@ audio.addEventListener('pause', () => {
         }
         try {
           await audio.play();
+          if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
           Log.info('Fight-back play() succeeded');
         } catch (e) {
           Log.warn('Fight-back play() failed (attempt 1)', { err: e.message, ctx: _audioCtx?.state });
@@ -2258,7 +2265,9 @@ audio.addEventListener('pause', () => {
           setTimeout(async () => {
             if (_iosPaused && !userPaused && nowSong && audio.paused) {
               if (_audioCtx?.state === 'suspended') { try { await _audioCtx.resume(); } catch {} }
-              audio.play().catch(e => Log.warn('Fight-back play() failed (attempt 2)', { err: e.message, ctx: _audioCtx?.state }));
+              audio.play()
+                .then(() => { if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing'; })
+                .catch(e => Log.warn('Fight-back play() failed (attempt 2)', { err: e.message, ctx: _audioCtx?.state }));
             }
           }, 500);
         }
@@ -2296,6 +2305,7 @@ audio.addEventListener('error', () => {
     Log.error('Audio error', { name: nowSong?.name, code: audio.error?.code, type: MEDIA_ERR[audio.error?.code] });
     toast('Could not play this song');
     playing = false;
+    if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'none';
     setNPLoading(false);
     refreshPlayBtns();
   }
@@ -2513,6 +2523,7 @@ async function _fetchArtDataUrl(url) {
 async function updateMediaSession() {
   if (!('mediaSession' in navigator) || !nowSong) return;
   if ('audioSession' in navigator) navigator.audioSession.type = 'playback';
+  _posStateTs = 0;
 
   // Set text metadata immediately — speaker shows title/artist without waiting for art
   navigator.mediaSession.metadata = new MediaMetadata({
@@ -2524,9 +2535,12 @@ async function updateMediaSession() {
   navigator.mediaSession.playbackState = audio.paused ? 'paused' : 'playing';
   navigator.mediaSession.setActionHandler('play',          async () => { userPaused = false; if (_audioCtx?.state === 'suspended') await _audioCtx.resume().catch(() => {}); audio.play().catch(e => Log.warn('MediaSession play failed', {err: e.message})); });
   navigator.mediaSession.setActionHandler('pause',         () => { userPaused = true; audio.pause(); });
+  navigator.mediaSession.setActionHandler('stop',          () => { userPaused = true; audio.pause(); navigator.mediaSession.playbackState = 'none'; });
   navigator.mediaSession.setActionHandler('previoustrack', prev);
   navigator.mediaSession.setActionHandler('nexttrack',     next);
-  try { navigator.mediaSession.setActionHandler('seekto', ({seekTime}) => { if (isFinite(seekTime)) audio.currentTime = seekTime; }); } catch {}
+  try { navigator.mediaSession.setActionHandler('seekto', ({seekTime}) => { if (isFinite(seekTime)) { audio.currentTime = seekTime; if (isFinite(audio.duration)) try { navigator.mediaSession.setPositionState({ duration: audio.duration, playbackRate: 1, position: seekTime }); } catch {} } }); } catch {}
+  try { navigator.mediaSession.setActionHandler('seekforward',  ({ seekOffset }) => { const t = Math.min(audio.duration, audio.currentTime + (seekOffset ?? 15)); audio.currentTime = t; if (isFinite(audio.duration)) try { navigator.mediaSession.setPositionState({ duration: audio.duration, playbackRate: 1, position: t }); } catch {} }); } catch {}
+  try { navigator.mediaSession.setActionHandler('seekbackward', ({ seekOffset }) => { const t = Math.max(0, audio.currentTime - (seekOffset ?? 15)); audio.currentTime = t; if (isFinite(audio.duration)) try { navigator.mediaSession.setPositionState({ duration: audio.duration, playbackRate: 1, position: t }); } catch {} }); } catch {}
 
   const img = nowSong.image || '';
   if (!img) return;
@@ -2544,11 +2558,9 @@ async function updateMediaSession() {
       { src: dataUrl, sizes: '512x512', type: 'image/jpeg' },
     ];
   } else {
-    // Fallback: raw CDN URLs — CarPlay/AirPlay fetch these fine; Bluetooth/Tesla will not
-    navigator.mediaSession.metadata.artwork = [
-      { src: img.replace(/\d+x\d+/, '150x150'), sizes: '150x150', type: 'image/jpeg' },
-      { src: img.replace(/\d+x\d+/, '500x500'), sizes: '500x500', type: 'image/jpeg' },
-    ];
+    // data: URL fetch failed — leave artwork empty rather than setting CDN URLs that
+    // Apple Watch, Bluetooth AVRCP, and Tesla fetch outside the browser process (always 403).
+    navigator.mediaSession.metadata.artwork = [];
   }
 }
 
