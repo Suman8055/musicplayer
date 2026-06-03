@@ -1045,7 +1045,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.51';
+const APP_VERSION = '4.1.52';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 400;
@@ -4650,7 +4650,7 @@ function buildDiscover() {
   if (intelTotalPlays() > 0) renderForYouSection();
 }
 
-const ALLOWED_LANGUAGES = new Set(['english', 'hindi', 'telugu', 'tamil', 'punjabi']);
+const ALLOWED_LANGUAGES = new Set(['english', 'hindi', 'telugu', 'tamil', 'punjabi', 'bengali', 'kannada', 'malayalam']);
 function filterByLanguage(songs) {
   return songs.filter(s => ALLOWED_LANGUAGES.has((s.language || '').toLowerCase().trim()));
 }
@@ -4830,7 +4830,7 @@ async function loadBrowseCharts() {
   const playlistsWrap = document.getElementById('browse-playlists-row');
 
   try {
-    const resp = await saavnFetch(`${SIGMA_API}/modules?language=hindi,english,punjabi,tamil,telugu`);
+    const resp = await saavnFetch(`${SIGMA_API}/modules?language=hindi,english,punjabi,tamil,telugu,bengali,kannada,malayalam`);
     const data = await resp.json();
     if (data.status !== 'SUCCESS') throw new Error('API error');
     const md = data.data;
