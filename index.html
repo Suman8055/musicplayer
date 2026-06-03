@@ -1008,7 +1008,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.42';
+const APP_VERSION = '4.1.43';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 400;
@@ -3479,7 +3479,7 @@ function renderSearchResults(result) {
         </div>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="color:var(--fg3);flex-shrink:0;margin-right:4px"><polyline points="9 18 15 12 9 6"/></svg>
       `;
-      row.addEventListener('click', () => openBrowseDetail(pl.id, 'playlist', pl.name, ''));
+      row.addEventListener('click', () => openBrowseDetail(pl.id, 'playlist', pl.name, '', pl.language || ''));
       if (i >= previewCap) {
         row.style.display = 'none';
         hiddenPlaylistNodes.push(row);
@@ -4524,7 +4524,7 @@ function renderLangItems(albumItems, playlistItems, albumsEl, playlistEl) {
   playlistItems.forEach(pl => {
     playlistEl.appendChild(createContentCard(
       pl.title, pl.subtitle || '', bestImg(pl.image),
-      () => openBrowseDetail(pl.id, 'playlist', pl.title)
+      () => openBrowseDetail(pl.id, 'playlist', pl.title, '', pl.language || '')
     ));
   });
 }
@@ -4614,7 +4614,7 @@ function buildHeroCard(id, type, title, imgUrl, sub) {
   document.getElementById('hero-card-inner').addEventListener('click', () => openBrowseDetail(id, type, title));
 }
 
-async function openBrowseDetail(id, type, title, songIds) {
+async function openBrowseDetail(id, type, title, songIds, lang) {
   document.getElementById('browse-detail-title').textContent = title;
   document.getElementById('browse-detail-sub').textContent   = '';
   document.getElementById('browse-detail-songs').innerHTML   = '<div class="loading-wrap"><div class="spinner"></div></div>';
@@ -4655,7 +4655,7 @@ async function openBrowseDetail(id, type, title, songIds) {
       const item = data?.data;
       if (!item) throw new Error('Not found');
       songs = (item.songs || []).map(normSigmaSong);
-      const playlistLang = (item.language || '').toLowerCase().trim();
+      const playlistLang = (lang || item.language || '').toLowerCase().trim();
       // Fallback: some JioSaavn editorial playlists return empty songs from /playlists.
       // Extract the most meaningful search keyword from the playlist title:
       //   "Let's Play - {Artist}"  → search by artist name
@@ -4673,10 +4673,12 @@ async function openBrowseDetail(id, type, title, songIds) {
             const tokens = cleaned.split(/\s+/).filter(Boolean);
             searchQuery = tokens.slice(0, 2).join(' ') || title;
           }
-          const sr = await saavnFetch(`${SIGMA_API}/search/songs?query=${encodeURIComponent(searchQuery)}&limit=50`);
+          // Prepend language to query so JioSaavn search stays language-matched
+          const langQuery = playlistLang ? `${playlistLang} ${searchQuery}` : searchQuery;
+          const sr = await saavnFetch(`${SIGMA_API}/search/songs?query=${encodeURIComponent(langQuery)}&limit=50`);
           const sd = await sr.json();
           let fallbackSongs = (sd?.data?.results || []).map(normSigmaSong);
-          // Keep only songs matching the playlist's language to prevent cross-language contamination
+          // Post-filter by language as a second guard
           if (playlistLang && fallbackSongs.some(s => s.language.toLowerCase() === playlistLang)) {
             fallbackSongs = fallbackSongs.filter(s => s.language.toLowerCase() === playlistLang);
           }
