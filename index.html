@@ -558,17 +558,44 @@ body::after{
         <div id="weekly-recap-body" style="font-size:13px;color:var(--fg2);line-height:1.8"></div>
       </div>
 
-      <!-- Language pills -->
-      <div class="lang-pills" id="lang-pills"></div>
-
-      <!-- Trending India -->
+      <!-- Trending Songs -->
       <div class="disc-hd">
-        <span class="disc-hd-title">🔥 Trending India</span>
+        <span class="disc-hd-title">🔥 Trending</span>
+      </div>
+      <div class="scroll-fade-wrap"><div class="h-scroll" id="browse-trending-row">
+        <div style="padding:20px;color:var(--fg2);font-size:14px">Loading…</div>
+      </div></div>
+
+      <!-- New Releases -->
+      <div class="disc-hd" style="margin-top:8px">
+        <span class="disc-hd-title">🆕 New Releases</span>
+      </div>
+      <div class="scroll-fade-wrap"><div class="h-scroll" id="browse-newreleases-row">
+        <div style="padding:20px;color:var(--fg2);font-size:14px">Loading…</div>
+      </div></div>
+
+      <!-- Featured Playlists -->
+      <div class="disc-hd" style="margin-top:8px">
+        <span class="disc-hd-title">🎧 Featured Playlists</span>
+      </div>
+      <div class="scroll-fade-wrap"><div class="h-scroll" id="browse-playlists-row">
+        <div style="padding:20px;color:var(--fg2);font-size:14px">Loading…</div>
+      </div></div>
+
+      <!-- Top Charts -->
+      <div class="disc-hd" style="margin-top:8px">
+        <span class="disc-hd-title">📊 Top Charts</span>
         <span id="trending-slot-label" style="font-size:11px;opacity:.45;font-weight:400"></span>
       </div>
       <div class="chart-list" id="browse-charts-row">
         <div style="padding:16px;color:var(--fg2);font-size:14px">Loading…</div>
       </div>
+
+      <!-- Language pills -->
+      <div class="disc-hd" style="margin-top:8px">
+        <span class="disc-hd-title">🌐 By Language</span>
+      </div>
+      <div class="lang-pills" id="lang-pills"></div>
 
       <!-- Language content — shown when pill tapped -->
       <div id="lang-content" style="display:none">
@@ -1008,7 +1035,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.43';
+const APP_VERSION = '4.1.44';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 400;
@@ -4549,10 +4576,17 @@ async function loadBrowseLang(lang, label) {
   playlistEl.innerHTML = '';
 
   try {
-    const resp = await saavnFetch(`${SIGMA_API}/modules?language=${encodeURIComponent(lang)}`);
-    const data = await resp.json();
-    if (data.status !== 'SUCCESS') throw new Error('API error');
-    const md = data.data;
+    // Reuse the already-fetched modules data if the lang matches the global fetch
+    let md;
+    const multiLang = 'hindi,english,punjabi,tamil,telugu';
+    if (_modulesCache && multiLang.includes(lang)) {
+      md = _modulesCache;
+    } else {
+      const resp = await saavnFetch(`${SIGMA_API}/modules?language=${encodeURIComponent(lang)}`);
+      const data = await resp.json();
+      if (data.status !== 'SUCCESS') throw new Error('API error');
+      md = data.data;
+    }
 
     const albumItems    = (md.albums    || []).slice(0, 15);
     const playlistItems = (md.playlists || []).slice(0, 15);
@@ -4568,17 +4602,66 @@ async function loadBrowseLang(lang, label) {
   }
 }
 
+let _modulesCache = null; // full modules data, shared with loadBrowseLang
+
 async function loadBrowseCharts() {
-  const wrap = document.getElementById('browse-charts-row');
-  wrap.innerHTML = '<div class="loading-wrap" style="padding:20px 0"><div class="spinner"></div></div>';
+  const chartsWrap    = document.getElementById('browse-charts-row');
+  const trendingWrap  = document.getElementById('browse-trending-row');
+  const releasesWrap  = document.getElementById('browse-newreleases-row');
+  const playlistsWrap = document.getElementById('browse-playlists-row');
+
   try {
     const resp = await saavnFetch(`${SIGMA_API}/modules?language=hindi,english,punjabi,tamil,telugu`);
     const data = await resp.json();
     if (data.status !== 'SUCCESS') throw new Error('API error');
-    const charts = data.data.charts || [];
-    wrap.innerHTML = '';
-    charts.slice(0, 10).forEach((chart, i) => {
-      wrap.appendChild(createChartRow(
+    const md = data.data;
+    _modulesCache = md; // share with loadBrowseLang
+
+    // ── Trending songs/albums row ──────────────────────────────────────────────
+    const trending = (md.trending?.songs || md.trending || []).slice(0, 15);
+    trendingWrap.innerHTML = '';
+    trending.forEach(item => {
+      const isSong = item.type === 'song';
+      const sub = isSong
+        ? (typeof item.primaryArtists === 'string' ? item.primaryArtists : (item.primaryArtists || []).map(a => a.name).join(', '))
+        : (item.year || item.language || '');
+      trendingWrap.appendChild(createContentCard(
+        item.name || item.title, sub, bestImg(item.image),
+        isSong
+          ? () => { const s = normSigmaSong(item); play(s, [s], 0); }
+          : () => openBrowseDetail(item.id, item.type === 'album' ? 'album' : 'playlist', item.name || item.title)
+      ));
+    });
+    if (!trending.length) trendingWrap.innerHTML = '<div style="padding:16px;color:var(--fg2);font-size:14px">Nothing here yet</div>';
+
+    // ── New Releases (albums) ──────────────────────────────────────────────────
+    const albums = (md.albums || []).slice(0, 15);
+    releasesWrap.innerHTML = '';
+    albums.forEach(item => {
+      const artists = (item.primaryArtists?.length ? item.primaryArtists : item.artists || []).map(a => a.name).slice(0, 2).join(', ');
+      releasesWrap.appendChild(createContentCard(
+        item.name, artists || item.year || '', bestImg(item.image),
+        () => openBrowseDetail(item.id, 'album', item.name)
+      ));
+    });
+    if (!albums.length) releasesWrap.innerHTML = '<div style="padding:16px;color:var(--fg2);font-size:14px">Nothing here yet</div>';
+
+    // ── Featured Playlists ─────────────────────────────────────────────────────
+    const playlists = (md.playlists || []).slice(0, 15);
+    playlistsWrap.innerHTML = '';
+    playlists.forEach(pl => {
+      playlistsWrap.appendChild(createContentCard(
+        pl.title, pl.subtitle || '', bestImg(pl.image),
+        () => openBrowseDetail(pl.id, 'playlist', pl.title, '', pl.language || '')
+      ));
+    });
+    if (!playlists.length) playlistsWrap.innerHTML = '<div style="padding:16px;color:var(--fg2);font-size:14px">Nothing here yet</div>';
+
+    // ── Top Charts list ────────────────────────────────────────────────────────
+    const charts = (md.charts || []).slice(0, 10);
+    chartsWrap.innerHTML = '';
+    charts.forEach((chart, i) => {
+      chartsWrap.appendChild(createChartRow(
         i + 1,
         chart.title,
         chart.language || chart.subtitle || '',
@@ -4586,12 +4669,17 @@ async function loadBrowseCharts() {
         () => openBrowseDetail(chart.id, 'playlist', chart.title)
       ));
     });
-    // Build hero from first chart
+
+    // ── Hero from first chart ──────────────────────────────────────────────────
     const hero = charts[0];
     if (hero) buildHeroCard(hero.id, 'playlist', hero.title, bestImg(hero.image, '500x500'), hero.subtitle || 'Top India Chart');
   } catch (err) {
     Log.warn('Browse charts failed', { err: err.message });
-    wrap.innerHTML = '<div style="padding:16px;color:var(--fg2);font-size:14px">Could not load</div>';
+    const errMsg = '<div style="padding:16px;color:var(--fg2);font-size:14px">Could not load</div>';
+    chartsWrap.innerHTML = errMsg;
+    trendingWrap.innerHTML = errMsg;
+    releasesWrap.innerHTML = errMsg;
+    playlistsWrap.innerHTML = errMsg;
     document.getElementById('disc-hero').innerHTML = '';
   }
 }
