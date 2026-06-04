@@ -2,7 +2,13 @@
   import { onMount } from 'svelte';
   import * as audioEngine from '$lib/audioEngine.js';
   import { extractAndApplyAccent } from '$lib/colorEngine.js';
-  import { gateToken, isUnlocked } from '$lib/stores/gate.js';
+  import { gateToken } from '$lib/stores/gate.js';
+  import { onEnded } from '$lib/playback.js';
+  import { Log } from '$lib/logger.js';
+  import { APP_VERSION } from '$lib/api.js';
+  import { intelPrune } from '$lib/smartPlay.js';
+  import { idbGetAll } from '$lib/idb.js';
+  import { downloadedIds } from '$lib/stores/library.js';
   import {
     playing, userPaused, nowSong, seekProgress, currentTime, duration,
     loadingUrl, offlineBlobUrl, seeking, setAudioElement, getAudioElement
@@ -44,6 +50,15 @@
       }
     });
 
+    // Init logger and prune intel
+    Log.init(APP_VERSION);
+    intelPrune();
+
+    // Hydrate downloaded IDs from IDB (metadata only — no blobs)
+    idbGetAll().then(records => {
+      downloadedIds.set(new Set(records.map(r => r.id)));
+    }).catch(() => {});
+
     // Expose debug hook in dev
     window._mbxAudio = audioEngine.getDebugInfo;
 
@@ -81,7 +96,7 @@
 
     audioEl.addEventListener('ended', () => {
       playing.set(false);
-      // next() will be called by playback store subscriber — imported in Sprint 2
+      onEnded();
     });
 
     audioEl.addEventListener('error', (e) => {

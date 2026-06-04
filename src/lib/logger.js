@@ -1,0 +1,68 @@
+// Logger — extracted from index.html
+const LOG_KEY  = 'mbx_logs';
+const LOG_MAX  = 400;
+const GH_REPO  = 'Suman8055/musicplayer';
+const GH_LOG_PATH = 'logs/musicplayer-log.json';
+const GH_CFG_KEY  = 'mbx_ghcfg';
+
+export const Log = {
+  _store: [],
+  init(version) {
+    try { this._store = JSON.parse(localStorage.getItem(LOG_KEY) || '[]'); } catch { this._store = []; }
+    this.info('App started', { version });
+  },
+  _write(level, msg, data) {
+    const entry = { ts: new Date().toISOString(), level, msg, data: data || null };
+    this._store.push(entry);
+    if (this._store.length > LOG_MAX) this._store.shift();
+    try { localStorage.setItem(LOG_KEY, JSON.stringify(this._store)); } catch {}
+    const fn = (level === 'ERROR' || level === 'CRITICAL') ? 'error' : 'log';
+    console[fn](`[MB:${level}]`, msg, ...(data ? [data] : []));
+  },
+  info(msg, data)     { this._write('INFO', msg, data); },
+  warn(msg, data)     { this._write('WARN', msg, data); },
+  error(msg, data)    { this._write('ERROR', msg, data); },
+  critical(msg, data) { this._write('CRITICAL', msg, data); },
+  all()               { return [...this._store]; },
+  clear()             { this._store = []; try { localStorage.removeItem(LOG_KEY); } catch {} },
+  count()             { return this._store.length; },
+};
+
+export function getGhCfg() {
+  try { return JSON.parse(localStorage.getItem(GH_CFG_KEY) || '{}'); } catch { return {}; }
+}
+export function saveGhCfg(cfg) {
+  try { localStorage.setItem(GH_CFG_KEY, JSON.stringify(cfg)); } catch {}
+}
+
+export async function uploadLogsToGithub(silent = false, toastFn) {
+  const cfg = getGhCfg();
+  if (!cfg.pat) { if (!silent) toastFn?.('No GitHub token — save one in Settings'); return; }
+  const logs = Log.all();
+  if (!logs.length) { if (!silent) toastFn?.('No logs to upload'); return; }
+  try {
+    let sha;
+    const getR = await fetch(
+      `https://api.github.com/repos/${GH_REPO}/contents/${GH_LOG_PATH}`,
+      { headers: { Authorization: `Bearer ${cfg.pat}`, Accept: 'application/vnd.github+json' } }
+    ).catch(() => null);
+    if (getR?.ok) { const j = await getR.json(); sha = j.sha; }
+    const payload = { uploadedAt: new Date().toISOString(), device: navigator.userAgent.slice(0, 200), entries: logs };
+    const content = btoa(unescape(encodeURIComponent(JSON.stringify(payload, null, 2))));
+    const body = { message: `logs: ${new Date().toISOString().slice(0, 16)} (${logs.length} entries)`, content, ...(sha ? { sha } : {}) };
+    const putR = await fetch(`https://api.github.com/repos/${GH_REPO}/contents/${GH_LOG_PATH}`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${cfg.pat}`, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (!putR.ok) throw new Error('HTTP ' + putR.status);
+    cfg.lastUpload = new Date().toISOString();
+    cfg.lastStatus = `OK — ${logs.length} entries`;
+    saveGhCfg(cfg);
+    if (!silent) toastFn?.('Logs uploaded to GitHub');
+  } catch (e) {
+    cfg.lastStatus = 'Failed: ' + e.message;
+    saveGhCfg(cfg);
+    if (!silent) toastFn?.('Upload failed: ' + e.message);
+  }
+}
