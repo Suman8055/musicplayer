@@ -1042,7 +1042,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.54';
+const APP_VERSION = '4.1.55';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 400;
@@ -5612,7 +5612,9 @@ if ('serviceWorker' in navigator) {
   // bypassing HTTP cache — the single most important fix for stale-SW problems on iOS.
   // No ?v= query string: a changing URL creates a new registration instead of updating
   // the existing one, which breaks the waiting→activate lifecycle on iOS Safari.
-  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(reg => {
+  // Append build version to sw.js URL so Safari's HTTP cache never serves a stale copy.
+  // GitHub Pages sets max-age=600; this busts that for sw.js on every new version.
+  navigator.serviceWorker.register('sw.js?v=' + APP_VERSION, { updateViaCache: 'none' }).then(reg => {
     // If a new SW is already waiting (page was open during last deploy), activate it now
     if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
 
