@@ -1042,7 +1042,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.55';
+const APP_VERSION = '4.1.56';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 400;
@@ -3255,7 +3255,8 @@ document.getElementById('tabbar').addEventListener('click', e => {
   if (tab === 'library')  renderPlaylists();
   if (tab === 'settings') { renderSettings(); _startLogRefresh(); }
   else { _stopLogRefresh(); }
-  if (tab === 'browse' && !browseChartsLoaded) { browseChartsLoaded = true; loadBrowseCharts(); loadBrowseLang(LANG_TILES[0].lang, LANG_TILES[0].label); }
+  if (tab !== 'browse') activeBrowseLang = ''; // leaving Browse clears lang context so Search/Library don't inherit it
+  if (tab === 'browse' && !browseChartsLoaded) { browseChartsLoaded = true; loadBrowseCharts(); activeBrowseLang = LANG_TILES[0].lang; loadBrowseLang(LANG_TILES[0].lang, LANG_TILES[0].label); }
   if (tab === 'browse') { _startTimeContextRefresh(); renderForYouSection(); renderWeeklyRecap(); }
   else { _stopTimeContextRefresh(); }
 });
@@ -4618,6 +4619,7 @@ const langCache = new Map();      // lang → { albums, playlists } DOM fragment
 const searchCache = new Map();    // query → { songs, albums, playlists }
 let searchSeq = 0;                // increments on each search to discard stale results
 let activeFilter = 'all';         // current filter chip: all | songs | albums | playlists
+let activeBrowseLang = '';        // set when user taps a language pill; '' = no pill selected
 
 function buildDiscover() {
   const pills = document.getElementById('lang-pills');
@@ -4630,6 +4632,7 @@ function buildDiscover() {
       btn.classList.add('active');
       const content = document.getElementById('lang-content');
       content.style.display = 'block';
+      activeBrowseLang = lang;
       loadBrowseLang(lang, label);
       content.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
@@ -4644,6 +4647,37 @@ function buildDiscover() {
 const ALLOWED_LANGUAGES = new Set(['english', 'hindi', 'telugu', 'tamil', 'punjabi', 'bengali', 'kannada', 'malayalam']);
 function filterByLanguage(songs) {
   return songs.filter(s => ALLOWED_LANGUAGES.has((s.language || '').toLowerCase().trim()));
+}
+
+// Returns dominant Unicode script in a string: 'telugu'|'tamil'|'hindi'|'latin'|null
+// Latin result alone is ambiguous — "Naatu Naatu" is Telugu but Latin-spelled.
+function detectScript(name) {
+  if (!name) return null;
+  let telugu = 0, tamil = 0, devanagari = 0, latin = 0;
+  for (const ch of name) {
+    const cp = ch.codePointAt(0);
+    if (cp >= 0x0C00 && cp <= 0x0C7F) { telugu++;      continue; }
+    if (cp >= 0x0B80 && cp <= 0x0BFF) { tamil++;       continue; }
+    if (cp >= 0x0900 && cp <= 0x097F) { devanagari++;  continue; }
+    if ((cp >= 0x0041 && cp <= 0x005A) || (cp >= 0x0061 && cp <= 0x007A) || (cp >= 0x00C0 && cp <= 0x024F)) { latin++; continue; }
+  }
+  const max = Math.max(telugu, tamil, devanagari, latin);
+  if (max === 0)          return null;
+  if (telugu === max)     return 'telugu';
+  if (tamil === max)      return 'tamil';
+  if (devanagari === max) return 'hindi';
+  return 'latin'; // ambiguous — caller must not assume English
+}
+
+// Classify a song's language reliably.
+// Rule 1: trust JioSaavn's language tag when non-empty — it's ground truth even for Latin-titled songs.
+// Rule 2: null/empty tag → fall back to script detection; Latin script → null (unknown, not English).
+function classifyLanguage(song) {
+  const lang = (song?.language ?? '').trim().toLowerCase();
+  if (lang) return lang;
+  const script = detectScript(song?.name ?? '');
+  if (script === 'latin') return null; // ambiguous — exclude rather than misclassify
+  return script; // 'telugu' | 'tamil' | 'hindi' | null
 }
 
 // Parse artists from primaryArtists (songs) or artists (albums) — both can be arrays or empty
@@ -4669,6 +4703,7 @@ function normSigmaSong(s) {
     artist:   artistStr,
     artistId: pa[0]?.id || '',
     language: s.language || '',
+    _lang:    classifyLanguage(s),
     album:    s.album?.name || (typeof s.album === 'string' ? s.album : '') || '',
     image:    bestImg(s.image, '150x150'),
     duration: parseInt(s.duration || 0),
@@ -4717,7 +4752,7 @@ function _renderGlobalSections(md, lang) {
       decodeHtml(item.name || item.title || ''), sub, bestImg(item.image),
       isSong
         ? () => { const s = normSigmaSong(item); play(s, [s], 0); }
-        : () => openBrowseDetail(item.id, 'album', decodeHtml(item.name || item.title || ''))
+        : () => openBrowseDetail(item.id, 'album', decodeHtml(item.name || item.title || ''), '', lang)
     ));
   });
   if (!trending.length) trendingWrap.innerHTML = '<div style="padding:16px;color:var(--fg2);font-size:14px">Nothing here yet</div>';
@@ -4735,7 +4770,7 @@ function _renderGlobalSections(md, lang) {
     const artists = _parseArtists(item);
     releasesWrap.appendChild(createContentCard(
       decodeHtml(item.name || ''), artists || '', bestImg(item.image),
-      () => openBrowseDetail(item.id, 'album', decodeHtml(item.name || ''))
+      () => openBrowseDetail(item.id, 'album', decodeHtml(item.name || ''), '', lang)
     ));
   });
   if (!newAlbums.length) releasesWrap.innerHTML = '<div style="padding:16px;color:var(--fg2);font-size:14px">Nothing here yet</div>';
@@ -4792,7 +4827,7 @@ async function loadBrowseLang(lang, label) {
     _renderGlobalSections(cachedMd, lang);
     _updateHeroForLang(cachedMd, lang);
     renderLangItems(cachedMd.albums || [], songsEl);
-    _renderLangCharts(cachedMd.charts || [], chartsEl);
+    _renderLangCharts(cachedMd.charts || [], chartsEl, lang);
     return;
   }
 
@@ -4807,7 +4842,7 @@ async function loadBrowseLang(lang, label) {
     _renderGlobalSections(md, lang);
     _updateHeroForLang(md, lang);
     renderLangItems(md.albums || [], songsEl);
-    _renderLangCharts(md.charts || [], chartsEl);
+    _renderLangCharts(md.charts || [], chartsEl, lang);
 
     if (langCache.size >= 8) langCache.delete(langCache.keys().next().value);
     langCache.set(lang, { md });
@@ -4825,10 +4860,10 @@ async function loadBrowseLang(lang, label) {
 // TASK 2c: Update hero card to show a language-appropriate chart
 function _updateHeroForLang(md, lang) {
   const hero = (md.charts || [])[0];
-  if (hero) buildHeroCard(hero.id, 'playlist', hero.title || '', bestImg(hero.image, '500x500'), hero.subtitle || lang + ' Chart');
+  if (hero) buildHeroCard(hero.id, 'playlist', hero.title || '', bestImg(hero.image, '500x500'), hero.subtitle || lang + ' Chart', lang);
 }
 
-function _renderLangCharts(charts, chartsEl) {
+function _renderLangCharts(charts, chartsEl, lang) {
   if (!chartsEl) return;
   chartsEl.innerHTML = '';
   charts.slice(0, 8).forEach((chart, i) => {
@@ -4836,7 +4871,7 @@ function _renderLangCharts(charts, chartsEl) {
     chartsEl.appendChild(createChartRow(
       i + 1, title, chart.subtitle || chart.language || '',
       bestImg(chart.image, '150x150'),
-      () => openBrowseDetail(chart.id, 'playlist', title)
+      () => openBrowseDetail(chart.id, 'playlist', title, '', lang || chart.language || '')
     ));
   });
   if (!charts.length) chartsEl.innerHTML = '<div style="padding:16px;color:var(--fg2);font-size:14px">Nothing here yet</div>';
@@ -4888,7 +4923,7 @@ async function loadBrowseCharts() {
   }
 }
 
-function buildHeroCard(id, type, title, imgUrl, sub) {
+function buildHeroCard(id, type, title, imgUrl, sub, lang) {
   const heroEl = document.getElementById('disc-hero');
   heroEl.innerHTML = `
     <div class="hero-card" id="hero-card-inner">
@@ -4903,7 +4938,7 @@ function buildHeroCard(id, type, title, imgUrl, sub) {
         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
       </button>
     </div>`;
-  document.getElementById('hero-card-inner').addEventListener('click', () => openBrowseDetail(id, type, title));
+  document.getElementById('hero-card-inner').addEventListener('click', () => openBrowseDetail(id, type, title, '', lang || ''));
 }
 
 async function openBrowseDetail(id, type, title, songIds, lang) {
@@ -4984,8 +5019,13 @@ async function openBrowseDetail(id, type, title, songIds, lang) {
       return !(n.includes('sample trailer') || (n.includes('sample') && s.duration > 0 && s.duration <= 30));
     });
 
-    // Restrict to allowed languages (english, hindi, telugu, tamil, punjabi)
-    songs = filterByLanguage(songs);
+    // Strict language filter: if user is in a language tab, restrict to exactly that language.
+    // If no pill is active (Charts tab / global context), fall back to the 8-lang whitelist.
+    if (activeBrowseLang) {
+      songs = songs.filter(s => s._lang === activeBrowseLang);
+    } else {
+      songs = filterByLanguage(songs);
+    }
 
     document.getElementById('browse-detail-sub').textContent = `${songs.length} songs`;
     cacheSongs(songs);
