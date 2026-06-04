@@ -14,6 +14,17 @@
     loadingUrl, offlineBlobUrl, seeking, setAudioElement, getAudioElement
   } from '$lib/stores/playback.js';
   import { toast, airPlayDspWarn, isOnline } from '$lib/stores/ui.js';
+  import PasscodeGate from '$lib/components/gate/PasscodeGate.svelte';
+  import NetworkBanner from '$lib/components/layout/NetworkBanner.svelte';
+  import StagingBanner from '$lib/components/layout/StagingBanner.svelte';
+  import MiniPlayer from '$lib/components/player/MiniPlayer.svelte';
+  import NowPlaying from '$lib/components/player/NowPlaying.svelte';
+  import EQPanel from '$lib/components/player/EQPanel.svelte';
+  import SmartQueueBadge from '$lib/components/player/SmartQueueBadge.svelte';
+  import TabBar from '$lib/components/tabs/TabBar.svelte';
+  import Toast from '$lib/components/shared/Toast.svelte';
+  import ActionSheet from '$lib/components/shared/ActionSheet.svelte';
+  import PromptModal from '$lib/components/shared/PromptModal.svelte';
   import '../app.css';
 
   // ── Audio element bindings — NEVER re-mount these ─────────────────────────
@@ -202,11 +213,23 @@
   style="display:none"
 ></audio>
 
+<NetworkBanner />
+<StagingBanner />
+
 {#if unlocked}
-  <slot />
-{:else}
-  <!-- PasscodeGate will be imported in Sprint 3 -->
-  <div id="gate-placeholder" style="display:flex;align-items:center;justify-content:center;height:100vh;background:#000814;color:#fff;font-family:system-ui">
-    <p>Loading...</p>
+  <div id="app">
+    <div id="content">
+      <slot />
+    </div>
+    <SmartQueueBadge />
+    <MiniPlayer />
+    <TabBar />
   </div>
+  <NowPlaying />
+  <EQPanel />
+  <Toast />
+  <ActionSheet />
+  <PromptModal />
+{:else}
+  <PasscodeGate />
 {/if}

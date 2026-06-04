@@ -73,6 +73,23 @@ a { color: inherit; text-decoration: none; }
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
 
+/* App shell */
+#app {
+  position: fixed; inset: 0;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+#content {
+  flex: 1; overflow-y: auto; overflow-x: hidden;
+  padding-top: calc(env(safe-area-inset-top) + var(--env-banner-h, 0px));
+  padding-bottom: calc(var(--tab-h) + var(--mini-h));
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Tab panes — use CSS visibility to preserve state across tab switches */
+.tab-pane { display: none; }
+.tab-pane.active { display: block; }
+
 /* Utility */
 .hidden { display: none !important; }
 .empty-wrap { display:flex; align-items:center; justify-content:center; height:160px; color:var(--fg3); font-size:0.9rem; }
