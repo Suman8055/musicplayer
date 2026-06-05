@@ -1042,7 +1042,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.57';
+const APP_VERSION = '4.1.58';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 400;
@@ -4536,7 +4536,7 @@ async function saavnFetch(url) {
 }
 
 function bestImg(images, quality = '150x150') {
-  if (!Array.isArray(images)) return '';
+  if (!Array.isArray(images)) return typeof images === 'string' ? images : '';
   const img = images.find(i => i.quality === quality) || images[1] || images[0];
   return img?.link || img?.url || '';
 }
@@ -4717,7 +4717,7 @@ function renderLangItems(albumItems, songsEl) {
   if (!songsEl) return;
   // TASK 5: Don't re-filter by language — the API call was already language-scoped.
   // filterByLanguage would silently drop songs where language field is null/missing.
-  const songs = albumItems.filter(it => it.type === 'song').map(normSigmaSong);
+  const songs = albumItems.filter(it => it.type === 'song').map(normSigmaSong).slice(0, 15);
   songsEl.innerHTML = '';
   songs.forEach((s, pos) => {
     songsEl.appendChild(createContentCard(
@@ -4762,7 +4762,7 @@ function _renderGlobalSections(md, lang) {
   let newAlbums   = allNew.filter(it => it.type === 'album');
   if (newAlbums.length < 4 && trendAlbums.length) {
     const supplement = trendAlbums.filter(a => !newAlbums.find(x => x.id === a.id));
-    newAlbums = [...newAlbums, ...supplement].slice(0, 8);
+    newAlbums = [...newAlbums, ...supplement].slice(0, 15);
   }
   newAlbums = newAlbums.slice(0, 15);
   releasesWrap.innerHTML = '';
@@ -4826,7 +4826,7 @@ async function loadBrowseLang(lang, label) {
     // TASK 2b: Update global sections with language-specific data
     _renderGlobalSections(cachedMd, lang);
     _updateHeroForLang(cachedMd, lang);
-    renderLangItems(cachedMd.albums || [], songsEl);
+    renderLangItems(cachedMd.trending?.songs || [], songsEl);
     _renderLangCharts(cachedMd.charts || [], chartsEl, lang);
     return;
   }
@@ -4841,7 +4841,7 @@ async function loadBrowseLang(lang, label) {
     // TASK 2b: Update global sections with language-specific data
     _renderGlobalSections(md, lang);
     _updateHeroForLang(md, lang);
-    renderLangItems(md.albums || [], songsEl);
+    renderLangItems(md.trending?.songs || [], songsEl);
     _renderLangCharts(md.charts || [], chartsEl, lang);
 
     if (langCache.size >= 8) langCache.delete(langCache.keys().next().value);
