@@ -1042,7 +1042,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.56';
+const APP_VERSION = '4.1.57';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 400;
@@ -3256,7 +3256,7 @@ document.getElementById('tabbar').addEventListener('click', e => {
   if (tab === 'settings') { renderSettings(); _startLogRefresh(); }
   else { _stopLogRefresh(); }
   if (tab !== 'browse') activeBrowseLang = ''; // leaving Browse clears lang context so Search/Library don't inherit it
-  if (tab === 'browse' && !browseChartsLoaded) { browseChartsLoaded = true; loadBrowseCharts(); activeBrowseLang = LANG_TILES[0].lang; loadBrowseLang(LANG_TILES[0].lang, LANG_TILES[0].label); }
+  if (tab === 'browse' && !browseChartsLoaded) { browseChartsLoaded = true; loadBrowseCharts(); loadBrowseLang(LANG_TILES[0].lang, LANG_TILES[0].label); }
   if (tab === 'browse') { _startTimeContextRefresh(); renderForYouSection(); renderWeeklyRecap(); }
   else { _stopTimeContextRefresh(); }
 });
@@ -4894,7 +4894,7 @@ async function loadBrowseCharts() {
     _modulesCache = md;
 
     // ── Render Trending, New Releases, Featured Playlists via shared helper ────
-    _renderGlobalSections(md, 'hindi,english,punjabi,tamil,telugu');
+    _renderGlobalSections(md, '');
 
     // ── Top Charts list ────────────────────────────────────────────────────────
     const charts = (md.charts || []).slice(0, 10);
@@ -4905,13 +4905,13 @@ async function loadBrowseCharts() {
         chart.title,
         chart.language || chart.subtitle || '',
         bestImg(chart.image, '150x150'),
-        () => openBrowseDetail(chart.id, 'playlist', chart.title)
+        () => openBrowseDetail(chart.id, 'playlist', chart.title, '', chart.language || '')
       ));
     });
 
     // ── Hero from first chart ──────────────────────────────────────────────────
     const hero = charts[0];
-    if (hero) buildHeroCard(hero.id, 'playlist', hero.title, bestImg(hero.image, '500x500'), hero.subtitle || 'Top India Chart');
+    if (hero) buildHeroCard(hero.id, 'playlist', hero.title, bestImg(hero.image, '500x500'), hero.subtitle || 'Top India Chart', hero.language || '');
   } catch (err) {
     Log.warn('Browse charts failed', { err: err.message });
     const errMsg = '<div style="padding:16px;color:var(--fg2);font-size:14px">Could not load</div>';
@@ -4990,21 +4990,33 @@ async function openBrowseDetail(id, type, title, songIds, lang) {
       if (!songs.length && title) {
         try {
           const letsPlayMatch = title.match(/^let['']s play\s*[-–]\s*(.+)/i);
+          // Strip language suffix from chart titles e.g. "Most Searched Songs - English" → "Most Searched Songs"
+          const langSuffix = new RegExp(`\\s*[-–]\\s*${playlistLang}\\s*$`, 'i');
+          const cleanTitle = title.replace(langSuffix, '').trim();
           let searchQuery;
           if (letsPlayMatch) {
             searchQuery = letsPlayMatch[1].trim();
           } else {
             // Strip generic filler words that don't help search (keep genre/activity terms like "workout")
-            const filler = /\b(mix|remix|finds|cheer|hits|top|best|ultimate|playlist|edition|vol|volume|music|songs|tracks|ft|feat|for|the|a|an|of|and|&|with|by|from)\b/gi;
-            const cleaned = title.replace(filler, ' ').replace(/\s{2,}/g, ' ').trim();
+            const filler = /\b(mix|remix|finds|cheer|hits|top|best|ultimate|playlist|edition|vol|volume|music|tracks|ft|feat|for|the|a|an|of|and|&|with|by|from)\b/gi;
+            const cleaned = cleanTitle.replace(filler, ' ').replace(/\s{2,}/g, ' ').trim();
             const tokens = cleaned.split(/\s+/).filter(Boolean);
-            searchQuery = tokens.slice(0, 2).join(' ') || title;
+            // Use full clean title if stripping leaves fewer than 2 meaningful tokens
+            searchQuery = tokens.length >= 2 ? tokens.slice(0, 3).join(' ') : cleanTitle;
           }
           // Prepend language to query so JioSaavn search stays language-matched
           const langQuery = playlistLang ? `${playlistLang} ${searchQuery}` : searchQuery;
           const sr = await saavnFetch(`${SIGMA_API}/search/songs?query=${encodeURIComponent(langQuery)}&limit=50`);
           const sd = await sr.json();
           songs = (sd?.data?.results || []).map(normSigmaSong);
+          // Last-resort: if title-based search also returns nothing (broken JioSaavn editorial playlist),
+          // fall back to a generic top-songs search for the playlist language.
+          if (!songs.length && playlistLang) {
+            const fallbackQuery = `${playlistLang} hits songs`;
+            const sr2 = await saavnFetch(`${SIGMA_API}/search/songs?query=${encodeURIComponent(fallbackQuery)}&limit=50`);
+            const sd2 = await sr2.json();
+            songs = (sd2?.data?.results || []).map(normSigmaSong);
+          }
         } catch {}
       }
     } else if (type === 'artist') {
@@ -5019,10 +5031,15 @@ async function openBrowseDetail(id, type, title, songIds, lang) {
       return !(n.includes('sample trailer') || (n.includes('sample') && s.duration > 0 && s.duration <= 30));
     });
 
-    // Strict language filter: if user is in a language tab, restrict to exactly that language.
-    // If no pill is active (Charts tab / global context), fall back to the 8-lang whitelist.
+    // Language filter: if user is in a language tab, prefer songs matching that language.
+    // Latin-transliterated songs (e.g. "Kal Ho Naa Ho") have _lang===null even when truly Hindi —
+    // fall back to accepting null-_lang songs rather than showing an empty list.
+    // If no pill is active (global context / Charts), use the 8-lang whitelist.
     if (activeBrowseLang) {
-      songs = songs.filter(s => s._lang === activeBrowseLang);
+      const strict = songs.filter(s => s._lang === activeBrowseLang);
+      songs = strict.length
+        ? strict
+        : songs.filter(s => s._lang === null || s._lang === activeBrowseLang);
     } else {
       songs = filterByLanguage(songs);
     }
