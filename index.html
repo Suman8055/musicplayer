@@ -1042,7 +1042,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.58';
+const APP_VERSION = '4.1.59';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 400;
@@ -4735,12 +4735,12 @@ function _fmtCount(n) {
   return String(n);
 }
 
-function _renderGlobalSections(md, lang) {
-  const trendingWrap  = document.getElementById('browse-trending-row');
-  const releasesWrap  = document.getElementById('browse-newreleases-row');
-  const playlistsWrap = document.getElementById('browse-playlists-row');
+// Renders Trending Today from mixed multi-language global data — never overwritten by pill taps.
+function _renderTrendingSection(md) {
+  const trendingWrap = document.getElementById('browse-trending-row');
+  const tTitle = document.getElementById('global-trending-title');
+  if (tTitle) tTitle.textContent = '🔥 Trending Today';
 
-  // Trending — songs + albums combined, up to 15
   const trendSongs  = (md.trending?.songs || (Array.isArray(md.trending) ? md.trending : []));
   const trendAlbums = (md.trending?.albums || []);
   const trending    = [...trendSongs, ...trendAlbums].slice(0, 15);
@@ -4752,14 +4752,21 @@ function _renderGlobalSections(md, lang) {
       decodeHtml(item.name || item.title || ''), sub, bestImg(item.image),
       isSong
         ? () => { const s = normSigmaSong(item); play(s, [s], 0); }
-        : () => openBrowseDetail(item.id, 'album', decodeHtml(item.name || item.title || ''), '', lang)
+        : () => openBrowseDetail(item.id, 'album', decodeHtml(item.name || item.title || ''), '', item.language || '')
     ));
   });
   if (!trending.length) trendingWrap.innerHTML = '<div style="padding:16px;color:var(--fg2);font-size:14px">Nothing here yet</div>';
+}
 
-  // New Releases — albums only; TASK 5: pad sparse languages with trending albums
-  const allNew    = (md.albums || []).slice(0, 20);
-  let newAlbums   = allNew.filter(it => it.type === 'album');
+// Renders New Releases + Featured Playlists for the active language pill.
+function _renderLangSections(md, lang) {
+  const releasesWrap  = document.getElementById('browse-newreleases-row');
+  const playlistsWrap = document.getElementById('browse-playlists-row');
+
+  // New Releases — albums only; pad sparse languages with trending albums
+  const trendAlbums = (md.trending?.albums || []);
+  const allNew      = (md.albums || []).slice(0, 20);
+  let newAlbums     = allNew.filter(it => it.type === 'album');
   if (newAlbums.length < 4 && trendAlbums.length) {
     const supplement = trendAlbums.filter(a => !newAlbums.find(x => x.id === a.id));
     newAlbums = [...newAlbums, ...supplement].slice(0, 15);
@@ -4775,7 +4782,7 @@ function _renderGlobalSections(md, lang) {
   });
   if (!newAlbums.length) releasesWrap.innerHTML = '<div style="padding:16px;color:var(--fg2);font-size:14px">Nothing here yet</div>';
 
-  // Featured Playlists — TASK 4: unified subtitle logic (custom subtitle > follower count)
+  // Featured Playlists
   const playlists = (md.playlists || []).slice(0, 15);
   playlistsWrap.innerHTML = '';
   playlists.forEach(pl => {
@@ -4791,6 +4798,12 @@ function _renderGlobalSections(md, lang) {
   if (!playlists.length) playlistsWrap.innerHTML = '<div style="padding:16px;color:var(--fg2);font-size:14px">Nothing here yet</div>';
 }
 
+// Renders all three global sections on initial Browse load (no pill active).
+function _renderGlobalSections(md, lang) {
+  _renderTrendingSection(md);
+  _renderLangSections(md, lang);
+}
+
 async function loadBrowseLang(lang, label) {
   const spinner = '<div class="loading-wrap" style="padding:20px 0"><div class="spinner"></div></div>';
   const langContent = document.getElementById('lang-content');
@@ -4803,28 +4816,24 @@ async function loadBrowseLang(lang, label) {
   if (songsEl)  songsEl.innerHTML  = spinner;
   if (chartsEl) chartsEl.innerHTML = spinner;
 
-  // TASK 2d: Update global section titles to reflect active language
+  // Update New Releases and Playlists titles for the active language pill
+  // (Trending Today title stays "🔥 Trending Today" — managed by _renderTrendingSection)
   const lbl = label || lang;
-  const tTitle = document.getElementById('global-trending-title');
   const rTitle = document.getElementById('global-releases-title');
   const pTitle = document.getElementById('global-playlists-title');
-  if (tTitle) tTitle.textContent = '🔥 ' + lbl + ' Trending';
   if (rTitle) rTitle.textContent = '🆕 ' + lbl + ' New Releases';
   if (pTitle) pTitle.textContent = '🎧 ' + lbl + ' Playlists';
 
-  // Show spinners in global sections while language data loads
-  const trendingWrap  = document.getElementById('browse-trending-row');
+  // Show spinners only in the sections that will update (not Trending)
   const releasesWrap  = document.getElementById('browse-newreleases-row');
   const playlistsWrap = document.getElementById('browse-playlists-row');
-  trendingWrap.innerHTML  = spinner;
   releasesWrap.innerHTML  = spinner;
   playlistsWrap.innerHTML = spinner;
 
   // Serve from cache
   if (langCache.has(lang)) {
     const { md: cachedMd } = langCache.get(lang);
-    // TASK 2b: Update global sections with language-specific data
-    _renderGlobalSections(cachedMd, lang);
+    _renderLangSections(cachedMd, lang);
     _updateHeroForLang(cachedMd, lang);
     renderLangItems(cachedMd.trending?.songs || [], songsEl);
     _renderLangCharts(cachedMd.charts || [], chartsEl, lang);
@@ -4838,8 +4847,7 @@ async function loadBrowseLang(lang, label) {
     const md = data.data;
     if (!md) throw new Error('API returned null data');
 
-    // TASK 2b: Update global sections with language-specific data
-    _renderGlobalSections(md, lang);
+    _renderLangSections(md, lang);
     _updateHeroForLang(md, lang);
     renderLangItems(md.trending?.songs || [], songsEl);
     _renderLangCharts(md.charts || [], chartsEl, lang);
