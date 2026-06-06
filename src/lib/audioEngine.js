@@ -28,8 +28,12 @@ const AC = (typeof window !== 'undefined')
 // ── LUFS normalization constants ──────────────────────────────────────────────
 const NORM_VOLUME       = 1.0;
 const LUFS_TARGET       = -16;
-const LUFS_MAX_BOOST_DB =  3;
-const LUFS_MAX_CUT_DB   = 12;
+const LUFS_MAX_BOOST_DB =  2;
+const LUFS_MAX_CUT_DB   =  6;
+const LUFS_KEY          = 'mbx_lufs_v1_on';
+let   _lufsOn           = typeof localStorage !== 'undefined'
+                            ? localStorage.getItem(LUFS_KEY) !== 'false'
+                            : true;
 const _lufsCache        = new Map();
 let   _lufsAnalyser     = null;
 let   _lufsKw1          = null;
@@ -207,9 +211,10 @@ function _gainFromLufs(measuredLufs) {
 
 // Call from setTimeout(..., 3000) after audio.play() — NEVER in gesture chain
 export async function measureAndApplyLufs(song) {
+  if (!_lufsOn) return;
   if (!_audioCtx || !_lufsAnalyser || !_gainNode) return;
   if (_lufsCache.has(song.id)) {
-    _gainNode.gain.setTargetAtTime(_lufsCache.get(song.id), _audioCtx.currentTime, 2.0);
+    _gainNode.gain.setTargetAtTime(_lufsCache.get(song.id), _audioCtx.currentTime, 3.0);
     return;
   }
   const WARMUP = 8;
@@ -238,11 +243,20 @@ export async function measureAndApplyLufs(song) {
   const gain = _gainFromLufs(measuredLufs);
   _lufsCache.set(song.id, gain);
   if (_lufsCache.size > 50) _lufsCache.delete(_lufsCache.keys().next().value);
-  _gainNode.gain.setTargetAtTime(gain, _audioCtx.currentTime, 2.0);
+  _gainNode.gain.setTargetAtTime(gain, _audioCtx.currentTime, 3.0);
   if (_callbacks.onLog) _callbacks.onLog('info', 'LUFS norm', {
     name: song.name, lufs: measuredLufs.toFixed(1), gainDb: (20 * Math.log10(gain)).toFixed(1)
   });
 }
+
+export function setLufsOn(on) {
+  _lufsOn = on;
+  localStorage.setItem(LUFS_KEY, String(on));
+  if (!on && _gainNode && _audioCtx) {
+    _gainNode.gain.setTargetAtTime(1.0, _audioCtx.currentTime, 0.5);
+  }
+}
+export function getLufsOn() { return _lufsOn; }
 
 // ── Playback hooks (called by audio event listeners in +layout.svelte) ────────
 export function onPlaybackStarted()  { startBgKeepAlive(); }

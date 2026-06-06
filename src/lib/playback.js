@@ -248,15 +248,67 @@ async function preloadNext(audio) {
   } catch {}
 }
 
-function _updateMediaSession(song) {
+// Fetch artwork and encode as a data: URL (512×512 JPEG).
+// Raw CDN URLs are rejected by Tesla/Bluetooth AVRCP firmware (403 outside browser).
+// data: URLs embed the bytes directly — the OS passes them over AVRCP without HTTP.
+async function _fetchArtDataUrl(url) {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return await new Promise(resolve => {
+      const img = new Image();
+      const objUrl = URL.createObjectURL(blob);
+      img.onload = () => {
+        const SIZE = 512;
+        const cv = document.createElement('canvas');
+        cv.width = SIZE; cv.height = SIZE;
+        cv.getContext('2d').drawImage(img, 0, 0, SIZE, SIZE);
+        URL.revokeObjectURL(objUrl);
+        resolve(cv.toDataURL('image/jpeg', 0.85));
+      };
+      img.onerror = () => { URL.revokeObjectURL(objUrl); resolve(null); };
+      img.src = objUrl;
+    });
+  } catch { return null; }
+}
+
+let _msAbortCtrl = null;
+
+async function _updateMediaSession(song) {
   if (!('mediaSession' in navigator) || !song) return;
+
+  // Cancel any in-flight artwork fetch from a previous song
+  if (_msAbortCtrl) { _msAbortCtrl.abort(); _msAbortCtrl = null; }
+
+  // Set title/artist/album immediately so lock screen shows something right away
   try {
     navigator.mediaSession.metadata = new MediaMetadata({
       title:  song.name   || 'Unknown',
       artist: song.artist || '',
       album:  song.album  || '',
-      artwork: song.image ? [{ src: song.image, sizes: '512x512', type: 'image/jpeg' }] : [],
+      artwork: [],
     });
     navigator.mediaSession.playbackState = 'playing';
+  } catch {}
+
+  if (!song.image) return;
+
+  // Snapshot song id — if the song changes while fetching, discard the result
+  const songId = song.id;
+  _msAbortCtrl = new AbortController();
+  const imgUrl = song.image.replace(/\d+x\d+/, '500x500');
+  const dataUrl = await _fetchArtDataUrl(imgUrl);
+  _msAbortCtrl = null;
+
+  // Bail if song changed during the async fetch
+  if (!dataUrl || get(nowSong)?.id !== songId) return;
+  try {
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title:  song.name   || 'Unknown',
+      artist: song.artist || '',
+      album:  song.album  || '',
+      artwork: [{ src: dataUrl, sizes: '512x512', type: 'image/jpeg' }],
+    });
   } catch {}
 }

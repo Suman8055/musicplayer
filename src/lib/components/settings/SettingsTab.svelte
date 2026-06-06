@@ -13,6 +13,13 @@
   $: eqOn   = $eqState?.on     ?? true;
   $: preset = $eqState?.preset ?? 'Custom';
 
+  let lufsOn = audioEngine.getLufsOn();
+  function toggleLufs() {
+    lufsOn = !lufsOn;
+    audioEngine.setLufsOn(lufsOn);
+    toast(lufsOn ? 'Volume normalisation on' : 'Volume normalisation off');
+  }
+
   let ghPat = getGhCfg().pat || '';
   let logFilter = 'ALL';
   $: logs = Log.all().filter(l => logFilter === 'ALL' || l.level === logFilter).slice(-100).reverse();
@@ -82,6 +89,20 @@
           </div>
         {/each}
       </div>
+    </div>
+  </div>
+
+  <!-- Playback -->
+  <div class="settings-section">
+    <div class="section-label">PLAYBACK</div>
+    <div class="settings-row">
+      <div>
+        <div style="font-size:14px">Volume Normalisation</div>
+        <div style="font-size:11px;color:var(--fg3);margin-top:2px">Keeps all songs at the same loudness level</div>
+      </div>
+      <button class="toggle-btn" class:on={lufsOn} on:click={toggleLufs} aria-label="Toggle volume normalisation">
+        <span class="toggle-knob"></span>
+      </button>
     </div>
   </div>
 
@@ -197,6 +218,11 @@
   .seq-band-slider { -webkit-appearance: slider-vertical; appearance: auto; width: 20px; flex: 1; accent-color: var(--accent); }
   .seq-band-slider:disabled { opacity: .3; }
   .seq-band-label { font-size: 8px; color: var(--fg3); }
+  /* Toggle switch */
+  .toggle-btn { position: relative; width: 44px; height: 26px; border-radius: 13px; background: var(--bg3); flex-shrink: 0; transition: background .2s; }
+  .toggle-btn.on { background: var(--accent); }
+  .toggle-knob { position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: transform .2s; display: block; }
+  .toggle-btn.on .toggle-knob { transform: translateX(18px); }
   /* Log viewer */
   .log-view { max-height: 260px; overflow-y: auto; background: var(--bg3); border-radius: var(--radius); padding: 8px; }
   .log-entry { font-size: 11px; font-family: monospace; padding: 2px 0; display: flex; gap: 6px; }
