@@ -166,8 +166,9 @@
     transform: translateY(100%);
     transition: transform var(--np-dur) cubic-bezier(.32,.72,0,1);
     will-change: transform;
+    pointer-events: none;
   }
-  #np.open { transform: translateY(0); }
+  #np.open { transform: translateY(0); pointer-events: auto; }
   #np-bg {
     position: absolute; inset: 0;
     background-size: cover; background-position: center;

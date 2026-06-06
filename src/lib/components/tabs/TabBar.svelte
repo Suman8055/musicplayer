@@ -47,6 +47,7 @@
     flex: 1; display: flex; flex-direction: column; align-items: center;
     justify-content: center; gap: 3px; padding: 8px 4px;
     color: var(--fg3); transition: color .15s;
+    touch-action: manipulation;
   }
   .tab-btn.on { color: var(--accent); }
   .tab-btn svg { width: 22px; height: 22px; }
