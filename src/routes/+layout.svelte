@@ -3,7 +3,7 @@
   import * as audioEngine from '$lib/audioEngine.js';
   import { extractAndApplyAccent } from '$lib/colorEngine.js';
   import { gateToken } from '$lib/stores/gate.js';
-  import { onEnded } from '$lib/playback.js';
+  import { onEnded, next, prev } from '$lib/playback.js';
   import { Log } from '$lib/logger.js';
   import { APP_VERSION } from '$lib/api.js';
   import { intelPrune } from '$lib/smartPlay.js';
@@ -99,6 +99,11 @@
       currentTime.set(t);
       duration.set(d);
       if (!$seeking && d > 0) seekProgress.set(t / d);
+      if ('mediaSession' in navigator && d > 0 && isFinite(t) && isFinite(d)) {
+        try {
+          navigator.mediaSession.setPositionState({ duration: d, playbackRate: 1.0, position: Math.min(t, d) });
+        } catch {}
+      }
     });
 
     audioEl.addEventListener('loadedmetadata', () => {
@@ -127,11 +132,11 @@
     // ── MediaSession action handlers (registered once, never re-registered) ──
     if ('mediaSession' in navigator) {
       navigator.mediaSession.setActionHandler('play',         () => { try { audioEl.play(); } catch {} });
-      navigator.mediaSession.setActionHandler('pause',        () => { audioEl.pause(); userPaused.set(true); audioEngine.onUserPaused(); });
-      navigator.mediaSession.setActionHandler('stop',         () => { audioEl.pause(); userPaused.set(true); audioEngine.onUserPaused(); });
-      navigator.mediaSession.setActionHandler('nexttrack',    () => { /* next() from playback store — Sprint 2 */ });
-      navigator.mediaSession.setActionHandler('previoustrack',() => { /* prev() from playback store — Sprint 2 */ });
-      navigator.mediaSession.setActionHandler('seekto',       (d) => { if (d.seekTime != null) audioEl.currentTime = d.seekTime; });
+      navigator.mediaSession.setActionHandler('pause',        () => { try { audioEl.pause(); userPaused.set(true); audioEngine.onUserPaused(); } catch {} });
+      navigator.mediaSession.setActionHandler('stop',         () => { try { audioEl.pause(); userPaused.set(true); audioEngine.onUserPaused(); } catch {} });
+      navigator.mediaSession.setActionHandler('nexttrack',    () => { try { next(); } catch (e) { console.warn('[MediaSession] nexttrack error', e); } });
+      navigator.mediaSession.setActionHandler('previoustrack',() => { try { prev(); } catch (e) { console.warn('[MediaSession] previoustrack error', e); } });
+      navigator.mediaSession.setActionHandler('seekto',       (d) => { try { if (d.seekTime != null) audioEl.currentTime = d.seekTime; } catch {} });
     }
 
     // ── Visibility / page lifecycle ──────────────────────────────────────────

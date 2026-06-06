@@ -217,6 +217,7 @@ export async function measureAndApplyLufs(song) {
     _gainNode.gain.setTargetAtTime(_lufsCache.get(song.id), _audioCtx.currentTime, 3.0);
     return;
   }
+  _gainNode.gain.cancelScheduledValues(_audioCtx.currentTime);
   const WARMUP = 8;
   const FRAMES = 28;
   const ABS_GATE_RMS = Math.pow(10, (-70 - 0.691) / 20);
@@ -391,7 +392,7 @@ function _buildLimiterChain(ctx) {
   _limiterCompressor.threshold.value = -3;
   _limiterCompressor.knee.value      =  3;
   _limiterCompressor.ratio.value     = 10;
-  _limiterCompressor.attack.value    = 0.0001;
+  _limiterCompressor.attack.value    = 0.003;
   _limiterCompressor.release.value   = 0.2;
   _limiterWaveshaper = ctx.createWaveShaper();
   _limiterWaveshaper.oversample = '4x';
@@ -440,7 +441,7 @@ function _buildBassExciter(ctx) {
   // FIX: DC-blocking HPF after half-wave rectifier — prevents DC offset in mix bus
   _bassExciterDcHpf = ctx.createBiquadFilter();
   _bassExciterDcHpf.type = 'highpass';
-  _bassExciterDcHpf.frequency.value = 5;
+  _bassExciterDcHpf.frequency.value = 20;
   _bassExciterDcHpf.Q.value = 0.707;
   _bassExciterGain = ctx.createGain();
   _bassExciterGain.gain.value = 0.12;
@@ -563,6 +564,7 @@ function _rewireAudio() {
   if (!_audioCtx || _rewiring) return;
   _rewiring = true;
   try {
+    _gainNode.gain.setValueAtTime(0, _audioCtx.currentTime);
     _teardownLimiterChain();
     _teardownBassExciter();
     _teardownEqChain();
@@ -599,6 +601,7 @@ function _rewireAudio() {
     }
     _airShelf.connect(_limiterCompressor);
     _limiterWaveshaper.connect(_audioCtx.destination);
+    _gainNode.gain.setTargetAtTime(1.0, _audioCtx.currentTime, 0.015);
   } finally {
     _rewiring = false;
   }
