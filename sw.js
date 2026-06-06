@@ -6,7 +6,7 @@
 //   3. Network-first for API calls (streaming URLs must be fresh)
 
 const BASE  = self.registration.scope.replace(/\/$/, '');
-const CACHE = 'mbx-sk-v5.0.0-2e992e3';
+const CACHE = 'mbx-sk-v5.0.0-ae8f3ab';
 
 // Shell files — updated after build when hashed _app filenames are known
 const SHELL = [
@@ -17,11 +17,11 @@ const SHELL = [
   BASE + '/icon-192.png',
   BASE + '/icon-512.png',
   BASE + '/apple-touch-icon.png',
-  BASE + '/_app/immutable/entry/start.CO2KEsjA.js',
-  BASE + '/_app/immutable/chunks/Cqjbb4iy.js',
+  BASE + '/_app/immutable/entry/start.D5wXk4u6.js',
+  BASE + '/_app/immutable/chunks/B75kSiVG.js',
   BASE + '/_app/immutable/chunks/BSw_KR7x.js',
   BASE + '/_app/immutable/chunks/DOD7t3Di.js',
-  BASE + '/_app/immutable/entry/app.BNzUNcMM.js',
+  BASE + '/_app/immutable/entry/app.B_PePciJ.js',
   BASE + '/_app/immutable/chunks/CmsKOCeN.js',
   BASE + '/_app/immutable/chunks/-In5gsl0.js',
   BASE + '/_app/immutable/nodes/0.BDzDIFbf.js',
