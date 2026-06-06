@@ -1055,7 +1055,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.63';
+const APP_VERSION = '4.1.64';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 400;
@@ -1366,6 +1366,7 @@ let _bassExciterIn   = null;
 let _bassExciterDist = null;
 let _bassExciterOut  = null;
 let _bassExciterGain = null;
+let _bassExciterHpf  = null; // 20Hz HPF removes DC offset leaked by half-wave rectifier
 // 10-band parametric EQ matching Apple Music bands (post-preMixGain, pre-widener)
 const EQ_BANDS = [
   { freq:   32, type: 'lowshelf',  label: '32' },
@@ -2104,6 +2105,10 @@ async function play(song, newQueue, idx) {
   if (loadingUrl && nowSong?.id === song.id) return; // block double-tap on same song
   audioPreload.src = '';  // cancel any in-progress preload
 
+  // Flush IIR biquad filter state from the previous song — stale state bleeds into the first
+  // 50ms of the new song as a thump/click. Must run before the gesture chain (pure JS, <1ms).
+  if (_audioCtx) _rewireAudio();
+
   if (newQueue !== undefined) {
     queue = newQueue;
     qIdx  = idx;
@@ -2137,12 +2142,18 @@ async function play(song, newQueue, idx) {
       audio.crossOrigin = null;       // blob:// URLs are same-origin; crossOrigin must be null
       _ensureAudioCtx();
       await _resumeAudioCtx();
+      // Reset gain to baseline — previous song's LUFS correction must not bleed into this song's
+      // first 3s. cancelScheduledValues stops any in-flight setTargetAtTime ramp.
+      if (_gainNode && _audioCtx) {
+        _gainNode.gain.cancelScheduledValues(_audioCtx.currentTime);
+        _gainNode.gain.setTargetAtTime(NORM_VOLUME, _audioCtx.currentTime, 0.1);
+      }
       audio.src = offlineBlobUrl;
       await audio.play().catch(e => Log.warn('Offline play failed', { err: e.message }));
       if (nowSong?.id !== song.id) return;
       playing = true;
       Log.info('Playback (offline)', { name: song.name });
-      setTimeout(() => { if (nowSong?.id === song.id) { _measureAndApplyLufs(song); } }, 3000);
+      setTimeout(() => { if (nowSong?.id === song.id) { _measureAndApplyLufs(song); } }, 500);
 
     } else {
       // ── Network stream path ────────────────────────────────────────────────
@@ -2160,6 +2171,12 @@ async function play(song, newQueue, idx) {
       audio.crossOrigin = 'anonymous'; // required for Web Audio routing on network streams
       _ensureAudioCtx();
       await _resumeAudioCtx();
+      // Reset gain to baseline — previous song's LUFS correction must not bleed into this song's
+      // first 3s. cancelScheduledValues stops any in-flight setTargetAtTime ramp.
+      if (_gainNode && _audioCtx) {
+        _gainNode.gain.cancelScheduledValues(_audioCtx.currentTime);
+        _gainNode.gain.setTargetAtTime(NORM_VOLUME, _audioCtx.currentTime, 0.1);
+      }
       if (offlineBlobUrl) { URL.revokeObjectURL(offlineBlobUrl); offlineBlobUrl = null; }
       audio.src = stream.url;
       await audio.play().catch(e => Log.warn('Play failed', { err: e.message }));
@@ -2168,7 +2185,7 @@ async function play(song, newQueue, idx) {
       playing = true;
       _intelPlayStartTs = Date.now();
       // Kick off spectral analysis + Meyda after play is confirmed stable
-      setTimeout(() => { if (nowSong?.id === song.id) { _measureAndApplyLufs(song); } }, 3000);
+      setTimeout(() => { if (nowSong?.id === song.id) { _measureAndApplyLufs(song); } }, 500);
     }
     setTimeout(preloadNext, 1500);
   } catch (e) {
@@ -2873,24 +2890,36 @@ function _buildLimiterChain(ctx) {
   // bass exciter and widener overload removed so −3 dBFS is now a safe catch-all ceiling
   _limiterCompressor.knee.value      =  3;   // soft knee: gradual onset, inaudible transition into limiting
   _limiterCompressor.ratio.value     = 10;   // iOS-safe max (ratio>10 unreliable on iOS 17/18)
-  _limiterCompressor.attack.value    = 0.0001; // 100µs — catches transients before waveshaper (Apple/Spotify spec)
+  _limiterCompressor.attack.value    = 0.003;  // 3ms — Spotify spec minimum; 100µs < render quantum (2.67ms at 48kHz CarPlay) → per-quantum GR steps = zipper noise
   _limiterCompressor.release.value   = 0.2;  // 200ms — slow release prevents pumping on sustained loud content
 
   _limiterWaveshaper = ctx.createWaveShaper();
   _limiterWaveshaper.oversample = '4x'; // catches inter-sample peaks via upsampling
   const N = 65536;
   const curve = new Float32Array(N);
-  const CEIL = 0.794; // −2 dBTP = 10^(−2/20) — 1 dB additional margin; tanh onset below limiter floor
+  const CEIL     = 0.794;        // −2 dBTP ceiling
+  const BLEND_LO = CEIL - 0.05; // 0.744 — cubic Hermite blend window start
+  const BLEND_HI = CEIL + 0.05; // 0.844 — blend window end
+  // Cubic Hermite blend avoids the first-derivative discontinuity at CEIL where slope
+  // jumps from 1.0 (linear) to ~2.0 (tanh onset). That slope step produces HF artifacts
+  // audible on CarPlay's full-range DAC. Smoothstep interpolates continuously across the knee.
   for (let i = 0; i < N; i++) {
-    const x = (i * 2) / N - 1;
-    const a = Math.abs(x);
-    if (a <= CEIL) {
-      curve[i] = x;
+    const x    = (i * 2) / N - 1;
+    const a    = Math.abs(x);
+    const sign = x < 0 ? -1 : 1;
+    let out;
+    if (a <= BLEND_LO) {
+      out = a; // pure linear
+    } else if (a >= BLEND_HI) {
+      out = CEIL + (1 - CEIL) * Math.tanh((a - CEIL) / (1 - CEIL) * 2); // pure tanh
     } else {
-      const sign = x < 0 ? -1 : 1;
-      // Wide tanh transition — audibly transparent, not a hard clip
-      curve[i] = sign * (CEIL + (1 - CEIL) * Math.tanh((a - CEIL) / (1 - CEIL) * 2));
+      const t   = (a - BLEND_LO) / (BLEND_HI - BLEND_LO); // 0→1 across blend window
+      const h   = t * t * (3 - 2 * t);                     // smoothstep (C1 at both ends)
+      const lin = a;
+      const sat = CEIL + (1 - CEIL) * Math.tanh((a - CEIL) / (1 - CEIL) * 2);
+      out = lin * (1 - h) + sat * h;
     }
+    curve[i] = sign * out;
   }
   _limiterWaveshaper.curve = curve;
   _limiterCompressor.connect(_limiterWaveshaper);
@@ -2937,17 +2966,25 @@ function _buildBassExciter(ctx) {
   _bassExciterGain = ctx.createGain();
   _bassExciterGain.gain.value = 0.12;
 
+  // DC-blocking HPF: half-wave rectifier leaks DC (A/π per cycle). Car DACs are DC-coupled;
+  // without this, the DC offset biases the limiter's RMS detector and causes crackling on CarPlay.
+  _bassExciterHpf = ctx.createBiquadFilter();
+  _bassExciterHpf.type = 'highpass';
+  _bassExciterHpf.frequency.value = 20;
+  _bassExciterHpf.Q.value = 0.707;
+
   _bassExciterIn.connect(_bassExciterDist);
   _bassExciterDist.connect(_bassExciterOut);
-  _bassExciterOut.connect(_bassExciterGain);
+  _bassExciterOut.connect(_bassExciterHpf);
+  _bassExciterHpf.connect(_bassExciterGain);
   // _bassExciterGain connects to _preMixGain in _rewireAudio
 }
 
 function _teardownBassExciter() {
-  [_bassExciterGain, _bassExciterOut, _bassExciterDist, _bassExciterIn, _preMixGain, _eqHeadroomGain].forEach(n => {
+  [_bassExciterGain, _bassExciterHpf, _bassExciterOut, _bassExciterDist, _bassExciterIn, _preMixGain, _eqHeadroomGain].forEach(n => {
     if (n) { try { n.disconnect(); } catch {} }
   });
-  _bassExciterIn = _bassExciterDist = _bassExciterOut = _bassExciterGain = _preMixGain = _eqHeadroomGain = null;
+  _bassExciterIn = _bassExciterDist = _bassExciterOut = _bassExciterHpf = _bassExciterGain = _preMixGain = _eqHeadroomGain = null;
 }
 
 // ── 10-Band Parametric EQ (Apple Music band layout) ──────────────────────────
@@ -2971,10 +3008,11 @@ function _teardownEqChain() {
 
 function _computeEqHeadroomGain() {
   // Apple Music half-boost pre-compensation: attenuate by half the largest active EQ boost.
-  // For r_and_b (+7 dB max): applies −3.5 dB trim → post-EQ peak drops from −9 to −12.5 dBFS.
-  // When EQ off: maxBoostDb = 0, gain = 1.0 (transparent).
-  const maxBoostDb = _eqOn ? Math.max(0, ..._eqGains) : 0;
-  const gain = Math.pow(10, -(maxBoostDb / 2) / 20);
+  // Also accounts for worst-case LUFS over-unity boost (LUFS_MAX_BOOST_DB = +2 dB).
+  // Without this, a quiet song (+2 dB LUFS boost) through r&b EQ (+7 dB) = +5.5 dBFS at limiter input.
+  const maxEqBoostDb  = _eqOn ? Math.max(0, ..._eqGains) : 0;
+  const totalBoostDb  = maxEqBoostDb + LUFS_MAX_BOOST_DB; // worst-case combined boost
+  const gain = Math.pow(10, -(totalBoostDb / 2) / 20);
   if (_eqHeadroomGain) _eqHeadroomGain.gain.value = gain;
 }
 
@@ -3125,6 +3163,10 @@ function _rewireAudio() {
   if (!_audioCtx) return;
   if (_rewiring) return;
   _rewiring = true;
+  // Mute during teardown/rebuild to prevent unclipped signal escaping to CarPlay during the
+  // ~5ms gap between _gainNode.disconnect() and the new limiter connecting to destination.
+  const prevGain = _gainNode?.gain.value ?? NORM_VOLUME;
+  if (_gainNode && _audioCtx) _gainNode.gain.setValueAtTime(0, _audioCtx.currentTime);
   try {
     _teardownLimiterChain();
     _teardownBassExciter();
@@ -3164,6 +3206,11 @@ function _rewireAudio() {
     }
     _airShelf.connect(_limiterCompressor);
     _limiterWaveshaper.connect(_audioCtx.destination);
+    // Restore gain with a 5ms fade-in after the new chain is fully wired
+    if (_gainNode && _audioCtx) {
+      _gainNode.gain.setValueAtTime(0, _audioCtx.currentTime);
+      _gainNode.gain.setTargetAtTime(prevGain, _audioCtx.currentTime + 0.005, 0.01);
+    }
   } finally {
     _rewiring = false;
   }
