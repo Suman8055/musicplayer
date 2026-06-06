@@ -26,6 +26,16 @@ export const envBannerH = writable('0px');
 // Update available — set when a newer SW is waiting { waiting: ServiceWorker, newVersion: string }
 export const updateAvailable = writable(null);
 
+// Elder View — large bold text mode
+function _loadElder() { try { return localStorage.getItem('mbx_elder') === '1'; } catch { return false; } }
+export const elderView = writable(_loadElder());
+elderView.subscribe(v => {
+  try { localStorage.setItem('mbx_elder', v ? '1' : '0'); } catch {}
+  if (typeof document !== 'undefined') {
+    document.body.classList.toggle('elder-view', v);
+  }
+});
+
 // Toast helper
 let _toastTimer = null;
 export function toast(msg, duration = 2800) {

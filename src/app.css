@@ -93,3 +93,32 @@ a { color: inherit; text-decoration: none; }
 /* Utility */
 .hidden { display: none !important; }
 .empty-wrap { display:flex; align-items:center; justify-content:center; height:160px; color:var(--fg3); font-size:0.9rem; }
+
+/* Elder View — larger, bolder text throughout the app */
+body.elder-view {
+  --elder-scale: 1.22;
+}
+body.elder-view #content,
+body.elder-view #mini,
+body.elder-view #tab-bar {
+  font-size: calc(1em * var(--elder-scale));
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+body.elder-view .song-title,
+body.elder-view .song-artist,
+body.elder-view .card-name,
+body.elder-view .tab-label,
+body.elder-view .section-label,
+body.elder-view .settings-row,
+body.elder-view .tab-header,
+body.elder-view .np-title,
+body.elder-view .np-artist {
+  font-size: calc(1em * var(--elder-scale)) !important;
+  font-weight: 700 !important;
+}
+body.elder-view .tab-label { font-size: 13px !important; font-weight: 700 !important; }
+body.elder-view #mini-title { font-size: 16px !important; font-weight: 700 !important; }
+body.elder-view #mini-artist { font-size: 13px !important; font-weight: 600 !important; }
+body.elder-view .np-title { font-size: 24px !important; }
+body.elder-view .np-artist { font-size: 17px !important; }

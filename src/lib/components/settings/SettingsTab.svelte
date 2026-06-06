@@ -1,5 +1,5 @@
 <script>
-  import { activeTab, toast, updateAvailable } from '$lib/stores/ui.js';
+  import { activeTab, toast, updateAvailable, elderView } from '$lib/stores/ui.js';
   import { eqState } from '$lib/stores/eq.js';
   import * as audioEngine from '$lib/audioEngine.js';
   import { EQ_BANDS, EQ_PRESETS } from '$lib/audioEngine.js';
@@ -117,6 +117,20 @@
     </div>
   </div>
 
+  <!-- Accessibility -->
+  <div class="settings-section">
+    <div class="section-label">ACCESSIBILITY</div>
+    <div class="settings-row">
+      <div>
+        <div style="font-size:14px">👴 Elder View</div>
+        <div style="font-size:11px;color:var(--fg3);margin-top:2px">Larger text & bolder fonts for easy reading</div>
+      </div>
+      <button class="toggle-btn" class:on={$elderView} on:click={() => elderView.update(v => !v)} aria-label="Toggle Elder View">
+        <span class="toggle-knob"></span>
+      </button>
+    </div>
+  </div>
+
   <!-- About -->
   <div class="settings-section">
     <div class="section-label">ABOUT</div>
@@ -129,14 +143,18 @@
         {#if $updateAvailable}
           <div style="font-size:11px;color:rgb(99,210,255);margin-top:2px">{parseVersion($updateAvailable.newVersion)} is ready to install</div>
         {:else}
-          <div style="font-size:11px;color:var(--fg3);margin-top:2px">You're on the latest version</div>
+          <div style="font-size:11px;color:var(--fg3);margin-top:2px">v{APP_VERSION} — You're up to date</div>
         {/if}
       </div>
-      {#if $updateAvailable}
-        <button class="settings-btn update-ready" on:click={applyUpdate}>Update</button>
-      {:else}
-        <span class="settings-val" style="font-size:12px">Up to date ✓</span>
-      {/if}
+      <button
+        class="settings-btn"
+        class:update-ready={$updateAvailable}
+        class:update-current={!$updateAvailable}
+        on:click={$updateAvailable ? applyUpdate : null}
+        disabled={!$updateAvailable}
+      >
+        {$updateAvailable ? 'Install Update' : 'Up to date ✓'}
+      </button>
     </div>
     <div class="settings-row">
       <span>Environment</span>
@@ -230,6 +248,7 @@
   .settings-btn.sec { background: var(--bg3); color: var(--fg); }
   .settings-btn.danger { background: rgba(239,68,68,.15); color: #ef4444; }
   .settings-btn.update-ready { background: rgb(99,210,255); color: #000; }
+  .settings-btn.update-current { background: var(--bg3); color: var(--fg3); cursor: default; opacity: 0.7; }
   .settings-input { width: 100%; background: var(--bg3); border: 1px solid rgba(255,255,255,.12); border-radius: var(--radius); padding: 10px 12px; color: var(--fg); font-size: 14px; margin-top: 4px; }
   .settings-note { font-size: 11px; color: var(--fg3); margin-top: 4px; }
   .settings-select { background: var(--bg3); color: var(--fg); border: 1px solid rgba(255,255,255,.12); border-radius: var(--radius); padding: 6px 10px; font-size: 13px; flex: 1; }

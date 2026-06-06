@@ -35,16 +35,19 @@ export function saveGhCfg(cfg) {
   try { localStorage.setItem(GH_CFG_KEY, JSON.stringify(cfg)); } catch {}
 }
 
+const _BUILT_IN_TOKEN = import.meta.env.VITE_GH_LOG_TOKEN || '';
+
 export async function uploadLogsToGithub(silent = false, toastFn) {
   const cfg = getGhCfg();
-  if (!cfg.pat) { if (!silent) toastFn?.('No GitHub token — save one in Settings'); return; }
+  const pat = cfg.pat || _BUILT_IN_TOKEN;
+  if (!pat) { if (!silent) toastFn?.('No GitHub token — save one in Settings'); return; }
   const logs = Log.all();
   if (!logs.length) { if (!silent) toastFn?.('No logs to upload'); return; }
   try {
     let sha;
     const getR = await fetch(
       `https://api.github.com/repos/${GH_REPO}/contents/${GH_LOG_PATH}`,
-      { headers: { Authorization: `Bearer ${cfg.pat}`, Accept: 'application/vnd.github+json' } }
+      { headers: { Authorization: `Bearer ${pat}`, Accept: 'application/vnd.github+json' } }
     ).catch(() => null);
     if (getR?.ok) { const j = await getR.json(); sha = j.sha; }
     const payload = { uploadedAt: new Date().toISOString(), device: navigator.userAgent.slice(0, 200), entries: logs };

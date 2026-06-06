@@ -13,7 +13,7 @@
     playing, userPaused, nowSong, seekProgress, currentTime, duration,
     loadingUrl, offlineBlobUrl, seeking, setAudioElement, getAudioElement
   } from '$lib/stores/playback.js';
-  import { toast, airPlayDspWarn, isOnline, updateAvailable } from '$lib/stores/ui.js';
+  import { toast, airPlayDspWarn, isOnline, updateAvailable, elderView } from '$lib/stores/ui.js';
   import PasscodeGate from '$lib/components/gate/PasscodeGate.svelte';
   import NetworkBanner from '$lib/components/layout/NetworkBanner.svelte';
   import StagingBanner from '$lib/components/layout/StagingBanner.svelte';
@@ -65,6 +65,9 @@
     // Init logger and prune intel
     Log.init(APP_VERSION);
     intelPrune();
+
+    // Apply elder view if saved from previous session
+    if ($elderView) document.body.classList.add('elder-view');
 
     // Smart update — only notify when SW version is genuinely newer than current
     window.addEventListener('sw-update-ready', e => {
