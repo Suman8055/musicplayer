@@ -35,11 +35,9 @@ export function saveGhCfg(cfg) {
   try { localStorage.setItem(GH_CFG_KEY, JSON.stringify(cfg)); } catch {}
 }
 
-const _BUILT_IN_TOKEN = import.meta.env.VITE_GH_LOG_TOKEN || '';
-
 export async function uploadLogsToGithub(silent = false, toastFn) {
   const cfg = getGhCfg();
-  const pat = cfg.pat || _BUILT_IN_TOKEN;
+  const pat = cfg.pat;
   if (!pat) { if (!silent) toastFn?.('No GitHub token — save one in Settings'); return; }
   const logs = Log.all();
   if (!logs.length) { if (!silent) toastFn?.('No logs to upload'); return; }
