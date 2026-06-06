@@ -6,7 +6,7 @@
 //   3. Network-first for API calls (streaming URLs must be fresh)
 
 const BASE  = self.registration.scope.replace(/\/$/, '');
-const CACHE = 'mbx-sk-v5.0.11';
+const CACHE = 'mbx-sk-v5.0.13';
 
 // Shell files — updated after build when hashed _app filenames are known
 const SHELL = [
@@ -35,6 +35,9 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('message', e => {
   if (e.data?.type === 'SKIP_WAITING') self.skipWaiting();
+  if (e.data?.type === 'GET_VERSION') {
+    e.source?.postMessage({ type: 'SW_VERSION', version: CACHE });
+  }
 });
 
 self.addEventListener('fetch', e => {

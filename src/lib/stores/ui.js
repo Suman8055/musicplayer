@@ -23,6 +23,9 @@ export const promptData = writable({ title: '', value: '', onOk: null });
 // env banner height (CSS var --env-banner-h)
 export const envBannerH = writable('0px');
 
+// Update available — set when a newer SW is waiting { waiting: ServiceWorker, newVersion: string }
+export const updateAvailable = writable(null);
+
 // Toast helper
 let _toastTimer = null;
 export function toast(msg, duration = 2800) {

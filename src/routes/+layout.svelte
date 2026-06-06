@@ -13,7 +13,7 @@
     playing, userPaused, nowSong, seekProgress, currentTime, duration,
     loadingUrl, offlineBlobUrl, seeking, setAudioElement, getAudioElement
   } from '$lib/stores/playback.js';
-  import { toast, airPlayDspWarn, isOnline } from '$lib/stores/ui.js';
+  import { toast, airPlayDspWarn, isOnline, updateAvailable } from '$lib/stores/ui.js';
   import PasscodeGate from '$lib/components/gate/PasscodeGate.svelte';
   import NetworkBanner from '$lib/components/layout/NetworkBanner.svelte';
   import StagingBanner from '$lib/components/layout/StagingBanner.svelte';
@@ -25,6 +25,7 @@
   import Toast from '$lib/components/shared/Toast.svelte';
   import ActionSheet from '$lib/components/shared/ActionSheet.svelte';
   import PromptModal from '$lib/components/shared/PromptModal.svelte';
+  import UpdateBanner from '$lib/components/layout/UpdateBanner.svelte';
   import '../app.css';
 
   // ── Audio element bindings — NEVER re-mount these ─────────────────────────
@@ -64,6 +65,14 @@
     // Init logger and prune intel
     Log.init(APP_VERSION);
     intelPrune();
+
+    // Smart update — only notify when SW version is genuinely newer than current
+    window.addEventListener('sw-update-ready', e => {
+      const { waiting, newVersion } = e.detail;
+      if (newVersion && newVersion !== ('mbx-sk-' + APP_VERSION) && newVersion > ('mbx-sk-' + APP_VERSION)) {
+        updateAvailable.set({ waiting, newVersion });
+      }
+    });
 
     // Hydrate downloaded IDs from IDB (metadata only — no blobs)
     idbGetAll().then(records => {
@@ -232,6 +241,7 @@
   </div>
   <NowPlaying />
   <EQPanel />
+  <UpdateBanner />
   <Toast />
   <ActionSheet />
   <PromptModal />

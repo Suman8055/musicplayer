@@ -1,5 +1,5 @@
 <script>
-  import { activeTab, toast } from '$lib/stores/ui.js';
+  import { activeTab, toast, updateAvailable } from '$lib/stores/ui.js';
   import { eqState } from '$lib/stores/eq.js';
   import * as audioEngine from '$lib/audioEngine.js';
   import { EQ_BANDS, EQ_PRESETS } from '$lib/audioEngine.js';
@@ -53,6 +53,17 @@
 
   const PRESET_LABELS = { flat:'Flat', bass:'Bass', vocal:'Vocal', treble:'Treble', vshape:'V-Shape', bollywood:'Bollywood', punjabi:'Punjabi', r_and_b:'R&B' };
   const DISPLAY_PRESETS = ['flat', 'bass', 'vocal', 'treble', 'vshape', 'bollywood', 'punjabi', 'r_and_b'];
+
+  function parseVersion(cacheKey) {
+    const m = cacheKey?.match(/mbx-sk-(v[\d.]+)/);
+    return m ? m[1] : cacheKey;
+  }
+
+  function applyUpdate() {
+    const u = $updateAvailable;
+    if (!u?.waiting) return;
+    u.waiting.postMessage({ type: 'SKIP_WAITING' });
+  }
 </script>
 
 <div class="tab-pane" class:active={$activeTab === 'settings'} id="tab-settings">
@@ -111,6 +122,21 @@
     <div class="section-label">ABOUT</div>
     <div class="settings-row">
       <span>Version</span><span class="settings-val">v{APP_VERSION}</span>
+    </div>
+    <div class="settings-row">
+      <div>
+        <div style="font-size:14px">App Update</div>
+        {#if $updateAvailable}
+          <div style="font-size:11px;color:rgb(99,210,255);margin-top:2px">{parseVersion($updateAvailable.newVersion)} is ready to install</div>
+        {:else}
+          <div style="font-size:11px;color:var(--fg3);margin-top:2px">You're on the latest version</div>
+        {/if}
+      </div>
+      {#if $updateAvailable}
+        <button class="settings-btn update-ready" on:click={applyUpdate}>Update</button>
+      {:else}
+        <span class="settings-val" style="font-size:12px">Up to date ✓</span>
+      {/if}
     </div>
     <div class="settings-row">
       <span>Environment</span>
@@ -203,6 +229,7 @@
   .settings-btn { padding: 8px 16px; border-radius: var(--radius); background: var(--accent); color: #fff; font-size: 13px; font-weight: 600; margin: 4px 0; }
   .settings-btn.sec { background: var(--bg3); color: var(--fg); }
   .settings-btn.danger { background: rgba(239,68,68,.15); color: #ef4444; }
+  .settings-btn.update-ready { background: rgb(99,210,255); color: #000; }
   .settings-input { width: 100%; background: var(--bg3); border: 1px solid rgba(255,255,255,.12); border-radius: var(--radius); padding: 10px 12px; color: var(--fg); font-size: 14px; margin-top: 4px; }
   .settings-note { font-size: 11px; color: var(--fg3); margin-top: 4px; }
   .settings-select { background: var(--bg3); color: var(--fg); border: 1px solid rgba(255,255,255,.12); border-radius: var(--radius); padding: 6px 10px; font-size: 13px; flex: 1; }

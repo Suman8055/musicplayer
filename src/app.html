@@ -27,14 +27,33 @@
         navigator.serviceWorker.register('%sveltekit.assets%/sw.js', {
           updateViaCache: 'none'
         }).then(reg => {
-          if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+          // Ask the waiting/installing SW for its version, then notify the app
+          function notifyIfNewer(sw) {
+            if (!sw) return;
+            const mc = new MessageChannel();
+            mc.port1.onmessage = e => {
+              if (e.data?.type === 'SW_VERSION') {
+                window.dispatchEvent(new CustomEvent('sw-update-ready', {
+                  detail: { waiting: sw, newVersion: e.data.version }
+                }));
+              }
+            };
+            sw.postMessage({ type: 'GET_VERSION' }, [mc.port2]);
+          }
+
+          // Already waiting on page load (e.g. user had the tab open during a deploy)
+          if (reg.waiting) notifyIfNewer(reg.waiting);
+
           reg.addEventListener('updatefound', () => {
             const sw = reg.installing;
-            sw && sw.addEventListener('statechange', () => {
+            if (!sw) return;
+            sw.addEventListener('statechange', () => {
               if (sw.state === 'installed' && navigator.serviceWorker.controller)
-                sw.postMessage({ type: 'SKIP_WAITING' });
+                notifyIfNewer(sw);
             });
           });
+
+          // When the new SW takes control, reload to load fresh assets
           navigator.serviceWorker.addEventListener('controllerchange', () =>
             setTimeout(() => location.reload(), 400));
         }).catch(() => {});
