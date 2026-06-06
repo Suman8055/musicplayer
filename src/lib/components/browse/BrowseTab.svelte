@@ -87,7 +87,7 @@
             {#each row.songs as song, i}
               <!-- svelte-ignore a11y-click-events-have-key-events -->
               <div class="content-card" on:click={() => playSong(song, row.songs, i)}>
-                <img src={song.image} alt="" class="card-img" loading="lazy" />
+                <img src={bestImg(song.image, '150x150')} alt="" class="card-img" loading="lazy" />
                 <div class="card-name">{song.name}</div>
                 <div class="card-sub">{song.artist}</div>
               </div>
@@ -105,7 +105,7 @@
           {#each trending as song, i}
             <!-- svelte-ignore a11y-click-events-have-key-events -->
             <div class="content-card" on:click={() => playSong(song, trending, i)}>
-              <img src={song.image || bestImg(song.image, '150x150')} alt="" class="card-img" loading="lazy" />
+              <img src={bestImg(song.image, '150x150')} alt="" class="card-img" loading="lazy" />
               <div class="card-name">{song.name}</div>
               <div class="card-sub">{song.artist}</div>
             </div>
