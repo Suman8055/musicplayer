@@ -161,9 +161,9 @@ export function ensureAudioCtx() {
     _lufsKw2.type = 'highpass';
     _lufsKw2.frequency.value = 38.135;
     _lufsKw2.Q.value = 0.5;
-    // FIX: fftSize 19200 = 400ms at 48kHz (BS.1770-4 spec), was 4096 = 85ms
+    // 16384 = nearest valid power-of-2 to 400ms at 48kHz (341ms); 19200 is not a power of 2 and throws DOMException
     _lufsAnalyser = _audioCtx.createAnalyser();
-    _lufsAnalyser.fftSize = 19200;
+    _lufsAnalyser.fftSize = 16384;
     _lufsAnalyser.smoothingTimeConstant = 0.0;
     _gainNode.connect(_lufsKw1);
     _lufsKw1.connect(_lufsKw2);
@@ -221,7 +221,7 @@ export async function measureAndApplyLufs(song) {
   const FRAMES = 28;
   const ABS_GATE_RMS = Math.pow(10, (-70 - 0.691) / 20);
   let sumSq = 0, frameCount = 0;
-  // fftSize is 19200 → 400ms buffer per BS.1770-4
+  // fftSize is 16384 → 341ms buffer per BS.1770-4 (nearest valid power-of-2 to 400ms)
   const buf = new Float32Array(_lufsAnalyser.fftSize);
   for (let f = 0; f < WARMUP + FRAMES; f++) {
     await new Promise(r => setTimeout(r, 250));
