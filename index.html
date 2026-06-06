@@ -696,6 +696,19 @@ body::after{
         </div>
       </div>
 
+      <div class="settings-section">Playback</div>
+      <div class="settings-card">
+        <div class="settings-row">
+          <div class="settings-label">Volume Normalisation<small>Keeps all songs at the same loudness level</small></div>
+          <label style="position:relative;display:inline-block;width:44px;height:26px;flex-shrink:0">
+            <input type="checkbox" id="lufs-toggle" style="opacity:0;width:0;height:0;position:absolute">
+            <span id="lufs-toggle-track" style="position:absolute;inset:0;border-radius:13px;background:var(--bg3);cursor:pointer;transition:background .2s">
+              <span id="lufs-toggle-thumb" style="position:absolute;left:3px;top:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:transform .2s;display:block"></span>
+            </span>
+          </label>
+        </div>
+      </div>
+
       <div class="settings-section">About</div>
       <div class="settings-card">
         <div class="settings-row"><div class="settings-label">Version</div><div class="settings-value" id="cfg-version"></div></div>
@@ -1042,7 +1055,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.60';
+const APP_VERSION = '4.1.61';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 400;
@@ -1276,8 +1289,10 @@ const NORM_VOLUME = 1.0; // baseline — per-track gain managed by _measureAndAp
 
 // LUFS normalization constants — target −16 LUFS (Apple Music standard, safe for all content)
 const LUFS_TARGET       = -16;   // dBFS integrated target (−16 = safe at system volume 100%)
-const LUFS_MAX_BOOST_DB =   3;   // cap boost at +3 dB — prevents quiet tracks from blasting
-const LUFS_MAX_CUT_DB   =  12;   // allow up to −12 dB cut for hot masters (brick-wall pop)
+const LUFS_MAX_BOOST_DB =   2;   // cap boost at +2 dB — gentle lift for quiet tracks
+const LUFS_MAX_CUT_DB   =   6;   // allow up to −6 dB cut for hot masters (avoids drastic drops)
+const LUFS_KEY          = 'mbx_lufs_v1_on';
+let   _lufsOn           = localStorage.getItem(LUFS_KEY) !== 'false'; // default ON
 const _lufsCache        = new Map(); // songId → linear gain value
 let   _lufsAnalyser     = null;      // AnalyserNode tapping K-weighted signal
 let   _lufsKw1          = null;      // K-weighting stage 1: highshelf +4dB @ 1681.974Hz (ITU-R BS.1770-4)
@@ -1289,11 +1304,12 @@ function _gainFromLufs(measuredLufs) {
 }
 
 async function _measureAndApplyLufs(song) {
+  if (!_lufsOn) return;
   if (!_audioCtx || !_lufsAnalyser || !_gainNode) return;
   if (_lufsCache.has(song.id)) {
     const cached = _lufsCache.get(song.id);
-    // τ=2.0 — 6s ramp: inaudible transition, no "volume jump" sensation
-    _gainNode.gain.setTargetAtTime(cached, _audioCtx.currentTime, 2.0);
+    // τ=3.0 — ~9s ramp: imperceptibly gradual, no "volume jump" sensation
+    _gainNode.gain.setTargetAtTime(cached, _audioCtx.currentTime, 3.0);
     return;
   }
   const WARMUP = 8;  // skip first 2s — avoids measuring quiet intros as the song level
@@ -1323,8 +1339,8 @@ async function _measureAndApplyLufs(song) {
   const gain = _gainFromLufs(measuredLufs);
   _lufsCache.set(song.id, gain);
   if (_lufsCache.size > 50) _lufsCache.delete(_lufsCache.keys().next().value); // LRU evict
-  // τ=2.0 — slow 6s ramp; correction is imperceptible, never a sudden volume jump
-  _gainNode.gain.setTargetAtTime(gain, _audioCtx.currentTime, 2.0);
+  // τ=3.0 — ~9s ramp; correction is imperceptible, never a sudden volume jump
+  _gainNode.gain.setTargetAtTime(gain, _audioCtx.currentTime, 3.0);
   Log.info('LUFS norm', { name: song.name, lufs: measuredLufs.toFixed(1), gainDb: (20*Math.log10(gain)).toFixed(1) });
 }
 // ── End LUFS ──────────────────────────────────────────────────────────────────
@@ -2814,6 +2830,18 @@ document.getElementById('seq-cf-toggle')?.addEventListener('click', () => {
   localStorage.setItem(CF_KEY, String(_cfOn));
   document.getElementById('seq-cf-toggle').classList.toggle('on', _cfOn);
   _rewireAudio();
+});
+
+// Volume Normalisation toggle
+document.getElementById('lufs-toggle-track')?.addEventListener('click', () => {
+  _lufsOn = !_lufsOn;
+  localStorage.setItem(LUFS_KEY, String(_lufsOn));
+  _renderLufsToggle();
+  if (!_lufsOn && _gainNode && _audioCtx) {
+    // Restore flat gain immediately so no normalisation correction lingers
+    _gainNode.gain.setTargetAtTime(1.0, _audioCtx.currentTime, 0.5);
+  }
+  toast(_lufsOn ? 'Volume normalisation on' : 'Volume normalisation off');
 });
 
 // NowPlaying EQ button → go to Settings tab and scroll to EQ
@@ -5487,10 +5515,21 @@ function renderSettings() {
   const toggle = document.getElementById('gh-auto-toggle');
   if (toggle) toggle.checked = !!cfg.autoUpload;
   _renderEnvToggle();
+  _renderLufsToggle();
   renderGhStatus();
   renderLogs(document.getElementById('log-filter').value);
   renderStorageMeter();
   renderMemoryCard();
+}
+
+function _renderLufsToggle() {
+  const track = document.getElementById('lufs-toggle-track');
+  const thumb = document.getElementById('lufs-toggle-thumb');
+  const input = document.getElementById('lufs-toggle');
+  if (!track) return;
+  track.style.background = _lufsOn ? 'var(--accent)' : 'var(--bg3)';
+  thumb.style.transform  = _lufsOn ? 'translateX(18px)' : 'translateX(0)';
+  if (input) input.checked = _lufsOn;
 }
 
 function renderStorageMeter() {
