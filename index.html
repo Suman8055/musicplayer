@@ -189,8 +189,8 @@ body::after{
 .tab-btn.on .tab-label{font-weight:700}
 
 /* Now Playing */
-#np{position:fixed;top:0;left:0;right:0;bottom:var(--tab-h);z-index:100;transform:translateY(100%);transition:transform .42s cubic-bezier(.32,.72,0,1);display:flex;flex-direction:column;overflow:hidden;background:var(--np-tint);transition:transform .42s cubic-bezier(.32,.72,0,1),background .7s ease}
-#np.open{transform:translateY(0)}
+#np{position:fixed;top:0;left:0;right:0;bottom:var(--tab-h);z-index:100;transform:translateY(100%);transition:transform .42s cubic-bezier(.32,.72,0,1);display:flex;flex-direction:column;overflow:hidden;background:var(--np-tint);transition:transform .42s cubic-bezier(.32,.72,0,1),background .7s ease;pointer-events:none}
+#np.open{transform:translateY(0);pointer-events:auto}
 #np-bg{position:absolute;inset:0;background-size:cover;background-position:center;filter:blur(60px) brightness(.28) saturate(3);transform:scale(1.5);pointer-events:none;transition:opacity .6s ease}
 #np-inner{position:relative;flex:1;display:flex;flex-direction:column;padding-top:var(--safe-top);padding-bottom:calc(var(--safe-bot)+8px);overflow:hidden}
 #np-handle{width:36px;height:4px;background:rgba(255,255,255,.25);border-radius:2px;margin:12px auto 4px;cursor:pointer}
@@ -1055,7 +1055,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.61';
+const APP_VERSION = '4.1.62';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 400;
