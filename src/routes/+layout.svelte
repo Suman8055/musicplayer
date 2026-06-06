@@ -20,6 +20,7 @@
   import MiniPlayer from '$lib/components/player/MiniPlayer.svelte';
   import NowPlaying from '$lib/components/player/NowPlaying.svelte';
   import EQPanel from '$lib/components/player/EQPanel.svelte';
+  import QueuePanel from '$lib/components/player/QueuePanel.svelte';
   import SmartQueueBadge from '$lib/components/player/SmartQueueBadge.svelte';
   import TabBar from '$lib/components/tabs/TabBar.svelte';
   import Toast from '$lib/components/shared/Toast.svelte';
@@ -244,6 +245,7 @@
   </div>
   <NowPlaying />
   <EQPanel />
+  <QueuePanel />
   <UpdateBanner />
   <Toast />
   <ActionSheet />

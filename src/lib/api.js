@@ -3,7 +3,7 @@
 import { decodeHtml, bestImg } from './utils.js';
 import { Log } from './logger.js';
 
-export const APP_VERSION = '5.1.0';
+export const APP_VERSION = '5.2.0';
 export const STORE_KEY   = 'mbx_v2';
 export const ENV_KEY     = 'mbx_env';
 export const DES_KEY     = '38346591';
@@ -181,6 +181,49 @@ export async function searchPlaylists(q, limit = 15) {
 
 export async function fetchArtistSongs(artistName, limit = 30) {
   return searchSongs(artistName, limit);
+}
+
+export async function fetchArtistTopSongs(artistId, limit = 20) {
+  try {
+    const r = await apiFetch(`${SIGMA_API}/artists/${encodeURIComponent(artistId)}/songs?page=0&n=${limit}&sortBy=popularity`, { timeout: 8000, retries: 1 });
+    const data = await r.json();
+    if (data.status === 'SUCCESS') return (data.data?.songs || data.data?.results || []).map(normSigmaSong);
+  } catch (e) { Log.warn('fetchArtistTopSongs failed', { artistId, err: e.message }); }
+  return [];
+}
+
+export async function fetchArtistAlbums(artistId, limit = 10) {
+  try {
+    const r = await apiFetch(`${SIGMA_API}/artists/${encodeURIComponent(artistId)}/albums?page=0&n=${limit}&sortBy=popularity`, { timeout: 8000, retries: 1 });
+    const data = await r.json();
+    if (data.status === 'SUCCESS') {
+      return (data.data?.albums || data.data?.results || []).map(al => ({
+        id:       al.id,
+        name:     decodeHtml(al.name || al.title || ''),
+        subtitle: decodeHtml(al.description || al.year || ''),
+        image:    bestImg(al.image, '150x150'),
+        type:     'album',
+      }));
+    }
+  } catch (e) { Log.warn('fetchArtistAlbums failed', { artistId, err: e.message }); }
+  return [];
+}
+
+export async function fetchArtistMeta(artistId) {
+  try {
+    const r = await apiFetch(`${SIGMA_API}/artists/${encodeURIComponent(artistId)}`, { timeout: 8000, retries: 1 });
+    const data = await r.json();
+    if (data.status === 'SUCCESS') {
+      const a = data.data;
+      return {
+        name:      decodeHtml(a.name || ''),
+        image:     bestImg(a.image, '500x500'),
+        bio:       a.bio ? decodeHtml(Array.isArray(a.bio) ? a.bio.map(b => b.text).join(' ') : String(a.bio)) : '',
+        followers: a.followerCount || a.fans || '',
+      };
+    }
+  } catch (e) { Log.warn('fetchArtistMeta failed', { artistId, err: e.message }); }
+  return null;
 }
 
 // ── Stream URL ────────────────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { searchSongs, searchAlbums, searchArtists, searchPlaylists, fetchAlbumSongs, fetchPlaylistSongs, filterByLanguage } from '$lib/api.js';
+  import { searchSongs, searchAlbums, searchArtists, searchPlaylists, fetchAlbumSongs, fetchPlaylistSongs, fetchArtistTopSongs, fetchArtistAlbums, fetchArtistMeta, filterByLanguage } from '$lib/api.js';
   import { play } from '$lib/playback.js';
   import { cacheSongs, bestImg } from '$lib/utils.js';
   import { activeTab, showSheet, toast } from '$lib/stores/ui.js';
@@ -15,20 +15,58 @@
   let detailTitle = '';
   let detailSongs = [];
   let detailLoading = false;
+  let detailType = '';
+  let artistMeta = null;
+  let artistAlbums = [];
 
   async function openDetail(id, type, title) {
     detailTitle = title;
     detailSongs = [];
+    artistMeta = null;
+    artistAlbums = [];
+    detailType = type;
     detailOpen = true;
     detailLoading = true;
     try {
-      let songs = [];
-      if (type === 'album')         songs = await fetchAlbumSongs(id);
-      else if (type === 'playlist') songs = await fetchPlaylistSongs(id);
-      else if (type === 'artist')   songs = await searchSongs(title, 30);
-      detailSongs = filterByLanguage(songs);
-      cacheSongs(detailSongs);
+      if (type === 'album') {
+        const songs = await fetchAlbumSongs(id);
+        detailSongs = filterByLanguage(songs);
+        cacheSongs(detailSongs);
+      } else if (type === 'playlist') {
+        const songs = await fetchPlaylistSongs(id);
+        detailSongs = filterByLanguage(songs);
+        cacheSongs(detailSongs);
+      } else if (type === 'artist') {
+        const [meta, songs, albums] = await Promise.allSettled([
+          fetchArtistMeta(id),
+          fetchArtistTopSongs(id, 20),
+          fetchArtistAlbums(id, 10),
+        ]);
+        artistMeta = meta.status === 'fulfilled' ? meta.value : null;
+        const rawSongs = songs.status === 'fulfilled' ? songs.value : [];
+        detailSongs = rawSongs.length ? rawSongs : await searchSongs(title, 20);
+        artistAlbums = albums.status === 'fulfilled' ? albums.value : [];
+        cacheSongs(detailSongs);
+      }
     } finally { detailLoading = false; }
+  }
+
+  // Sub-detail for artist's album
+  let subDetailOpen = false;
+  let subDetailTitle = '';
+  let subDetailSongs = [];
+  let subDetailLoading = false;
+
+  async function openAlbumFromArtist(albumId, albumName) {
+    subDetailTitle = albumName;
+    subDetailSongs = [];
+    subDetailOpen = true;
+    subDetailLoading = true;
+    try {
+      const songs = await fetchAlbumSongs(albumId);
+      subDetailSongs = songs;
+      cacheSongs(songs);
+    } finally { subDetailLoading = false; }
   }
 
   function addToPlaylist(song) {
@@ -193,16 +231,69 @@
   <div id="search-detail" class:open={detailOpen}>
     <div class="detail-hdr">
       <button class="back-btn" on:click={() => detailOpen = false}>‹ Search</button>
-      <div class="detail-title">{detailTitle}</div>
+      <div class="detail-title">{detailType !== 'artist' ? detailTitle : ''}</div>
       <div></div>
     </div>
     {#if detailLoading}
       <div class="empty-wrap"><div class="spinner"></div></div>
+    {:else if detailType === 'artist'}
+      <!-- Artist hero -->
+      {#if artistMeta?.image}
+        <div class="artist-hero">
+          <img class="artist-hero-img" src={artistMeta.image} alt={artistMeta.name} />
+          <div class="artist-hero-overlay">
+            <div class="artist-hero-name">{artistMeta.name}</div>
+            {#if artistMeta.followers}<div class="artist-followers">{artistMeta.followers} followers</div>{/if}
+          </div>
+        </div>
+      {:else}
+        <div class="artist-hero-text">{detailTitle}</div>
+      {/if}
+      <!-- Top Songs -->
+      {#if detailSongs.length}
+        <div class="detail-section-title">Top Songs</div>
+        {#each detailSongs as song, i}
+          <SongRow {song} onPlay={() => play(song, detailSongs, i)} onMore={(s) => onMore(s)} />
+        {/each}
+      {/if}
+      <!-- Albums -->
+      {#if artistAlbums.length}
+        <div class="detail-section-title">Albums</div>
+        <div class="h-scroll" style="padding: 0 16px 16px; gap: 10px;">
+          {#each artistAlbums as album}
+            <!-- svelte-ignore a11y-click-events-have-key-events -->
+            <div class="content-card" on:click={() => openAlbumFromArtist(album.id, album.name)}>
+              <img src={album.image} alt="" class="card-img" loading="lazy" />
+              <div class="card-name">{album.name}</div>
+              <div class="card-sub">{album.subtitle}</div>
+            </div>
+          {/each}
+        </div>
+      {/if}
+      {#if !detailSongs.length && !artistAlbums.length}
+        <div class="empty-wrap">No content found</div>
+      {/if}
     {:else if !detailSongs.length}
       <div class="empty-wrap">No songs found</div>
     {:else}
       {#each detailSongs as song, i}
         <SongRow {song} onPlay={() => play(song, detailSongs, i)} onMore={(s) => onMore(s)} />
+      {/each}
+    {/if}
+  </div>
+
+  <!-- Sub-detail: album from artist view -->
+  <div id="search-subdetail" class:open={subDetailOpen}>
+    <div class="detail-hdr">
+      <button class="back-btn" on:click={() => subDetailOpen = false}>‹ {detailTitle}</button>
+      <div class="detail-title">{subDetailTitle}</div>
+      <div></div>
+    </div>
+    {#if subDetailLoading}
+      <div class="empty-wrap"><div class="spinner"></div></div>
+    {:else}
+      {#each subDetailSongs as song, i}
+        <SongRow {song} onPlay={() => play(song, subDetailSongs, i)} onMore={(s) => onMore(s)} />
       {/each}
     {/if}
   </div>
@@ -234,8 +325,28 @@
     transition: transform .32s cubic-bezier(.32,.72,0,1);
   }
   #search-detail.open { transform: translateX(0); }
+  #search-subdetail {
+    position: fixed; inset: 0; z-index: 55;
+    background: var(--bg); overflow-y: auto;
+    transform: translateX(100%);
+    transition: transform .32s cubic-bezier(.32,.72,0,1);
+  }
+  #search-subdetail.open { transform: translateX(0); }
   .detail-hdr { display: flex; align-items: center; justify-content: space-between; padding: 16px 16px 8px; padding-top: calc(16px + env(safe-area-inset-top)); }
   .back-btn { font-size: 15px; color: var(--accent); }
   .detail-title { font-size: 16px; font-weight: 700; text-align: center; flex: 1; }
   .empty-wrap { display: flex; align-items: center; justify-content: center; padding: 60px 16px; color: var(--fg3); font-size: 14px; }
+  .detail-section-title { font-size: 13px; font-weight: 600; color: var(--fg3); padding: 12px 16px 4px; text-transform: uppercase; letter-spacing: .05em; }
+  .artist-hero { position: relative; width: 100%; aspect-ratio: 1; max-height: 260px; overflow: hidden; }
+  .artist-hero-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .artist-hero-overlay { position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,.85) 0%, transparent 50%); display: flex; flex-direction: column; justify-content: flex-end; padding: 16px; }
+  .artist-hero-name { font-size: 26px; font-weight: 800; color: #fff; }
+  .artist-followers { font-size: 13px; color: rgba(255,255,255,.6); }
+  .artist-hero-text { font-size: 26px; font-weight: 800; padding: 20px 16px 8px; }
+  .h-scroll { display: flex; overflow-x: auto; }
+  .h-scroll::-webkit-scrollbar { display: none; }
+  .content-card { flex-shrink: 0; width: 120px; cursor: pointer; }
+  .card-img { width: 120px; height: 120px; border-radius: 10px; object-fit: cover; display: block; }
+  .card-name { font-size: 12px; font-weight: 600; margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card-sub { font-size: 11px; color: var(--fg3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 </style>

@@ -2,7 +2,7 @@
   import { activeTab, showSheet, toast, openPrompt } from '$lib/stores/ui.js';
   import { playlists, liked, downloadedIds } from '$lib/stores/library.js';
   import { play } from '$lib/playback.js';
-  import { idbGetAll, removeDownload } from '$lib/idb.js';
+  import { idbGetAll, removeDownload, downloadSong } from '$lib/idb.js';
   import { apiStream } from '$lib/api.js';
   import { get } from 'svelte/store';
   import SongRow from '$lib/components/shared/SongRow.svelte';
@@ -32,7 +32,10 @@
       { label: 'Remove from Library', danger: true, action: () => {
         if (source === 'liked') { liked.update(arr => arr.filter(s => s.id !== song.id)); toast('Removed'); }
       }},
-      { label: $downloadedIds.has(song.id) ? 'Remove Download' : 'Download', action: () => {} },
+      { label: $downloadedIds.has(song.id) ? 'Remove Download' : 'Download', action: () => {
+        if ($downloadedIds.has(song.id)) removeDownload(song, toast, null).catch(() => {});
+        else downloadSong(song, toast, apiStream).catch(() => {});
+      }},
     ]);
   }
 </script>

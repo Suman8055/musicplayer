@@ -1,7 +1,7 @@
 <script>
   import { nowSong, playing, loadingUrl, seekProgress, currentTime, duration, seeking, shuffleOn, repeatMode, userPaused, getAudioElement } from '$lib/stores/playback.js';
-  import { npOpen, eqSheetOpen, airPlayDspWarn, showSheet, toast } from '$lib/stores/ui.js';
-  import { whyChip, smartPlayOn } from '$lib/stores/smartplay.js';
+  import { npOpen, eqSheetOpen, queueOpen, airPlayDspWarn, showSheet, toast } from '$lib/stores/ui.js';
+  import { whyChip } from '$lib/stores/smartplay.js';
   import { liked, playlists, downloadedIds } from '$lib/stores/library.js';
   import { togglePlay, prev, next, seek } from '$lib/playback.js';
   import { intelTrackLike } from '$lib/smartPlay.js';
@@ -204,8 +204,8 @@
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>Lyrics
       </button>
       <!-- svelte-ignore a11y-click-events-have-key-events -->
-      <button class="np-foot" class:active={$smartPlayOn} id="np-smartplay-btn" on:click={() => smartPlayOn.update(v => !v)}>
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2zm-1 14.5v-9l7 4.5-7 4.5z"/></svg>Smart
+      <button class="np-foot" id="np-queue-btn" on:click={() => queueOpen.set(true)}>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="15" y2="18"/></svg>Queue
       </button>
       <!-- svelte-ignore a11y-click-events-have-key-events -->
       <button class="np-foot" id="np-dl-btn" on:click={() => $nowSong && onDownload($nowSong)}>
