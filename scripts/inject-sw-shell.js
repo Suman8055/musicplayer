@@ -1,17 +1,21 @@
 #!/usr/bin/env node
 // inject-sw-shell.js
-// Run after `vite build`. Reads build/index.html, extracts all /_app/immutable/ URLs,
-// and injects them into build/sw.js SHELL array so the SW caches the full app on install.
+// Run after `vite build`. Does three things:
+//   1. Injects /_app/immutable/ bundle URLs into build/sw.js SHELL array
+//   2. Rewrites __BASE_PATH__ tokens in build/404.html and build/manifest.json
+//   3. Ties SW CACHE key to git short-SHA for reliable cache busting
 
-import { readFileSync, writeFileSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join } from 'path';
+import { execSync } from 'child_process';
 
+const BASE_PATH = process.env.BASE_PATH || '/musicplayer';
 const BUILD = join(process.cwd(), 'build');
 const SW    = join(BUILD, 'sw.js');
 
+// ── 1. SW shell injection ─────────────────────────────────────────────────────
 const html = readFileSync(join(BUILD, 'index.html'), 'utf8');
 
-// Extract all /_app/immutable/... paths from href/src attributes and preload links
 const immutableRe = /\/_app\/immutable\/[^"'\s>]+/g;
 const found = [...new Set(html.match(immutableRe) || [])];
 
@@ -20,7 +24,6 @@ if (!found.length) {
   process.exit(1);
 }
 
-// Add the CSS bundle too (it's in a <link rel="stylesheet"> — same pattern)
 const shellEntries = [
   "  BASE + '/'",
   "  BASE + '/index.html'",
@@ -34,12 +37,40 @@ const shellEntries = [
 
 let sw = readFileSync(SW, 'utf8');
 
-// Replace the SHELL array content
 sw = sw.replace(
   /const SHELL = \[[\s\S]*?\];/,
   `const SHELL = [\n${shellEntries},\n];`
 );
 
+// ── 3. SW cache key: tie to git short-SHA ────────────────────────────────────
+let sha = 'local';
+try {
+  sha = execSync('git rev-parse --short HEAD', { stdio: ['pipe', 'pipe', 'ignore'] }).toString().trim();
+} catch {}
+
+const pkg = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8'));
+const cacheKey = `mbx-sk-v${pkg.version}-${sha}`;
+sw = sw.replace(/const CACHE = '[^']+';/, `const CACHE = '${cacheKey}';`);
+
 writeFileSync(SW, sw);
+console.log(`[inject-sw-shell] CACHE key: ${cacheKey}`);
 console.log(`[inject-sw-shell] Injected ${found.length} immutable bundle(s) into build/sw.js`);
 found.forEach(p => console.log(`  + ${p}`));
+
+// ── 2. Rewrite __BASE_PATH__ in 404.html and manifest.json ───────────────────
+const files404 = [join(BUILD, '404.html')];
+for (const f of files404) {
+  if (!existsSync(f)) continue;
+  const content = readFileSync(f, 'utf8').replace(/__BASE_PATH__/g, BASE_PATH);
+  writeFileSync(f, content);
+  console.log(`[inject-sw-shell] Patched ${f.replace(process.cwd(), '.')}`);
+}
+
+const manifestPath = join(BUILD, 'manifest.json');
+if (existsSync(manifestPath)) {
+  let manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+  manifest.start_url = BASE_PATH + '/';
+  manifest.scope     = BASE_PATH + '/';
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+  console.log(`[inject-sw-shell] Patched build/manifest.json (start_url + scope → ${BASE_PATH}/)`);
+}

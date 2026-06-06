@@ -11,7 +11,7 @@ const config = {
       strict: true
     }),
     paths: {
-      base: '/musicplayer'
+      base: process.env.BASE_PATH || '/musicplayer'
     },
     appDir: '_app',
     serviceWorker: {

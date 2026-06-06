@@ -63,10 +63,12 @@ export async function play(song, newQueue, idx) {
       offlineBlobUrl.set(blobUrl);
 
       // iOS gesture chain — NOTHING between resumeAudioCtx() and audio.play()
+      // resumeAudioCtx is fire-and-forget: awaiting it yields to the event loop,
+      // which terminates iOS Safari's user-gesture transient activation → NotAllowedError.
       audio.crossOrigin = null;
       audioEngine.ensureAudioCtx();
       if ('audioSession' in navigator) navigator.audioSession.type = 'playback';
-      await audioEngine.resumeAudioCtx();
+      audioEngine.resumeAudioCtx().catch(() => {});
       audio.src = blobUrl;
       await audio.play().catch(e => Log.warn('Offline play failed', { err: e.message }));
 
@@ -88,10 +90,12 @@ export async function play(song, newQueue, idx) {
       }
 
       // iOS gesture chain — NOTHING between resumeAudioCtx() and audio.play()
+      // resumeAudioCtx is fire-and-forget: awaiting it yields to the event loop,
+      // which terminates iOS Safari's user-gesture transient activation → NotAllowedError.
       audio.crossOrigin = 'anonymous';
       audioEngine.ensureAudioCtx();
       if ('audioSession' in navigator) navigator.audioSession.type = 'playback';
-      await audioEngine.resumeAudioCtx();
+      audioEngine.resumeAudioCtx().catch(() => {});
       const prev = get(offlineBlobUrl);
       if (prev) { try { URL.revokeObjectURL(prev); } catch {} offlineBlobUrl.set(null); }
       audio.src = stream.url;
@@ -127,7 +131,7 @@ export async function togglePlay() {
     audio.pause();
   } else {
     userPaused.set(false);
-    await audioEngine.resumeAudioCtx();
+    audioEngine.resumeAudioCtx().catch(() => {});
     if (audio.ended) audio.currentTime = 0;
     audio.play().catch(() => {});
   }
