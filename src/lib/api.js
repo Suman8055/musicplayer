@@ -278,6 +278,23 @@ export async function fetchCharts(language = 'hindi') {
   return [];
 }
 
+export async function fetchFeaturedPlaylists(language = 'hindi') {
+  try {
+    const r = await apiFetch(`${SIGMA_API}/featured-playlists?page=1&n=20&language=${encodeURIComponent(language)}`, { timeout: 8000, retries: 1 });
+    const data = await r.json();
+    if (data.status === 'SUCCESS') {
+      const list = Array.isArray(data.data) ? data.data : (data.data?.playlists || data.data?.results || []);
+      return list.map(pl => ({
+        id:       pl.id,
+        name:     decodeHtml(pl.name || pl.title || ''),
+        subtitle: pl.subtitle || (pl.songCount ? `${pl.songCount} songs` : ''),
+        image:    bestImg(pl.image, '150x150'),
+      }));
+    }
+  } catch (e) { Log.warn('fetchFeaturedPlaylists failed', { language, err: e.message }); }
+  return [];
+}
+
 // DES-ECB decrypt (for legacy stream URLs) — preserved verbatim
 export function desDecrypt(enc64, keyStr) {
   try {

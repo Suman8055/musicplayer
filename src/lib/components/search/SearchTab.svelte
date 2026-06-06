@@ -1,13 +1,51 @@
 <script>
   import { onMount } from 'svelte';
-  import { searchSongs, searchAlbums, searchArtists, searchPlaylists } from '$lib/api.js';
+  import { searchSongs, searchAlbums, searchArtists, searchPlaylists, fetchAlbumSongs, fetchPlaylistSongs, filterByLanguage } from '$lib/api.js';
   import { play } from '$lib/playback.js';
-  import { cacheSongs } from '$lib/utils.js';
+  import { cacheSongs, bestImg } from '$lib/utils.js';
   import { activeTab, showSheet, toast } from '$lib/stores/ui.js';
-  import { downloadedIds } from '$lib/stores/library.js';
-  import { idbGetAll, downloadSong, removeDownload } from '$lib/idb.js';
+  import { downloadedIds, playlists } from '$lib/stores/library.js';
+  import { downloadSong, removeDownload } from '$lib/idb.js';
   import { apiStream } from '$lib/api.js';
+  import { get } from 'svelte/store';
   import SongRow from '$lib/components/shared/SongRow.svelte';
+
+  // Detail slide-in (album / playlist / artist)
+  let detailOpen = false;
+  let detailTitle = '';
+  let detailSongs = [];
+  let detailLoading = false;
+
+  async function openDetail(id, type, title) {
+    detailTitle = title;
+    detailSongs = [];
+    detailOpen = true;
+    detailLoading = true;
+    try {
+      let songs = [];
+      if (type === 'album')         songs = await fetchAlbumSongs(id);
+      else if (type === 'playlist') songs = await fetchPlaylistSongs(id);
+      else if (type === 'artist')   songs = await searchSongs(title, 30);
+      detailSongs = filterByLanguage(songs);
+      cacheSongs(detailSongs);
+    } finally { detailLoading = false; }
+  }
+
+  function addToPlaylist(song) {
+    const pls = get(playlists);
+    if (!pls.length) { toast('No playlists — create one in Library'); return; }
+    showSheet(`Add "${song.name}" to…`, pls.map(pl => ({
+      label: pl.name,
+      action: () => {
+        playlists.update(arr => arr.map(p =>
+          p.id === pl.id
+            ? { ...p, songs: p.songs.some(s => s.id === song.id) ? p.songs : [...p.songs, song] }
+            : p
+        ));
+        toast(`Added to ${pl.name}`);
+      }
+    })));
+  }
 
   let query = '';
   let results = { songs: [], albums: [], artists: [], playlists: [] };
@@ -55,7 +93,7 @@
   function onMore(song) {
     const dl = $downloadedIds.has(song.id);
     showSheet(song.name, [
-      { label: 'Play Next',         action: () => {} },
+      { label: 'Add to Playlist', action: () => addToPlaylist(song) },
       { label: dl ? 'Remove Download' : 'Download', action: () => {
         if (dl) removeDownload(song, toast, null).catch(() => {});
         else    downloadSong(song, toast, apiStream).catch(() => {});
@@ -107,12 +145,14 @@
       {#if (filter === 'all' || filter === 'albums') && results.albums.length}
         <div class="section-title">Albums</div>
         {#each results.albums as album}
-          <div class="song-item">
+          <!-- svelte-ignore a11y-click-events-have-key-events -->
+          <div class="song-item" on:click={() => openDetail(album.id, 'album', album.name)}>
             <img class="song-art" src={album.image} alt="" style="border-radius:6px;width:44px;height:44px;object-fit:cover;flex-shrink:0"/>
             <div class="song-info" style="flex:1;min-width:0">
               <div class="song-title">{album.name}</div>
               <div class="song-meta">{album.subtitle}</div>
             </div>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--fg3);flex-shrink:0"><path d="M9 18l6-6-6-6"/></svg>
           </div>
         {/each}
       {/if}
@@ -120,12 +160,14 @@
       {#if (filter === 'all' || filter === 'artists') && results.artists.length}
         <div class="section-title">Artists</div>
         {#each results.artists as artist}
-          <div class="song-item">
+          <!-- svelte-ignore a11y-click-events-have-key-events -->
+          <div class="song-item" on:click={() => openDetail(artist.id, 'artist', artist.name)}>
             <img class="song-art" src={artist.image} alt="" style="border-radius:50%;width:44px;height:44px;object-fit:cover;flex-shrink:0"/>
             <div class="song-info" style="flex:1;min-width:0">
               <div class="song-title">{artist.name}</div>
               <div class="song-meta">{artist.subtitle}</div>
             </div>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--fg3);flex-shrink:0"><path d="M9 18l6-6-6-6"/></svg>
           </div>
         {/each}
       {/if}
@@ -133,15 +175,35 @@
       {#if (filter === 'all' || filter === 'playlists') && results.playlists.length}
         <div class="section-title">Playlists</div>
         {#each results.playlists as pl}
-          <div class="song-item">
+          <!-- svelte-ignore a11y-click-events-have-key-events -->
+          <div class="song-item" on:click={() => openDetail(pl.id, 'playlist', pl.name)}>
             <img class="song-art" src={pl.image} alt="" style="border-radius:6px;width:44px;height:44px;object-fit:cover;flex-shrink:0"/>
             <div class="song-info" style="flex:1;min-width:0">
               <div class="song-title">{pl.name}</div>
               <div class="song-meta">{pl.subtitle}</div>
             </div>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--fg3);flex-shrink:0"><path d="M9 18l6-6-6-6"/></svg>
           </div>
         {/each}
       {/if}
+    {/if}
+  </div>
+
+  <!-- Detail slide-in (album / playlist / artist) -->
+  <div id="search-detail" class:open={detailOpen}>
+    <div class="detail-hdr">
+      <button class="back-btn" on:click={() => detailOpen = false}>‹ Search</button>
+      <div class="detail-title">{detailTitle}</div>
+      <div></div>
+    </div>
+    {#if detailLoading}
+      <div class="empty-wrap"><div class="spinner"></div></div>
+    {:else if !detailSongs.length}
+      <div class="empty-wrap">No songs found</div>
+    {:else}
+      {#each detailSongs as song, i}
+        <SongRow {song} onPlay={() => play(song, detailSongs, i)} onMore={(s) => onMore(s)} />
+      {/each}
     {/if}
   </div>
 </div>
@@ -164,4 +226,16 @@
   .song-item:active { background: rgba(255,255,255,.05); }
   .song-title { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .song-meta { font-size: 12px; color: var(--fg3); }
+
+  #search-detail {
+    position: fixed; inset: 0; z-index: 50;
+    background: var(--bg); overflow-y: auto;
+    transform: translateX(100%);
+    transition: transform .32s cubic-bezier(.32,.72,0,1);
+  }
+  #search-detail.open { transform: translateX(0); }
+  .detail-hdr { display: flex; align-items: center; justify-content: space-between; padding: 16px 16px 8px; padding-top: calc(16px + env(safe-area-inset-top)); }
+  .back-btn { font-size: 15px; color: var(--accent); }
+  .detail-title { font-size: 16px; font-weight: 700; text-align: center; flex: 1; }
+  .empty-wrap { display: flex; align-items: center; justify-content: center; padding: 60px 16px; color: var(--fg3); font-size: 14px; }
 </style>

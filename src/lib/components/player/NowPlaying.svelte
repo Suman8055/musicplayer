@@ -2,11 +2,35 @@
   import { nowSong, playing, loadingUrl, seekProgress, currentTime, duration, seeking, shuffleOn, repeatMode, userPaused, getAudioElement } from '$lib/stores/playback.js';
   import { npOpen, eqSheetOpen, airPlayDspWarn, showSheet, toast } from '$lib/stores/ui.js';
   import { whyChip, smartPlayOn } from '$lib/stores/smartplay.js';
-  import { liked, playlists } from '$lib/stores/library.js';
+  import { liked, playlists, downloadedIds } from '$lib/stores/library.js';
   import { togglePlay, prev, next, seek } from '$lib/playback.js';
   import { intelTrackLike } from '$lib/smartPlay.js';
   import { fmt, esc } from '$lib/utils.js';
   import { get } from 'svelte/store';
+  import { downloadSong, removeDownload, idbGetAll } from '$lib/idb.js';
+  import { apiStream } from '$lib/api.js';
+
+  // Lyrics state
+  let lyricsOpen = false;
+  let lyricsText = '';
+  let lyricsLoading = false;
+
+  async function openLyrics() {
+    if (!$nowSong) return;
+    lyricsOpen = true;
+    if (lyricsText && _lyricsId === $nowSong.id) return;
+    _lyricsId = $nowSong.id;
+    lyricsText = '';
+    lyricsLoading = true;
+    try {
+      const { SIGMA_API, apiFetch } = await import('$lib/api.js');
+      const r = await apiFetch(`${SIGMA_API}/lyrics?id=${encodeURIComponent($nowSong.id)}`, { timeout: 6000, retries: 0 });
+      const data = await r.json();
+      lyricsText = data?.data?.lyrics || data?.lyrics || 'Lyrics not available';
+    } catch { lyricsText = 'Lyrics not available'; }
+    finally { lyricsLoading = false; }
+  }
+  let _lyricsId = null;
 
   let seekVal = 0;
   $: if (!$seeking) seekVal = Math.round($seekProgress * 1000);
@@ -35,11 +59,41 @@
   function cycleShuffle() { shuffleOn.update(v => !v); }
   function cycleRepeat()  { repeatMode.update(v => (v + 1) % 3); }
 
+  function addToPlaylist(song) {
+    const pls = get(playlists);
+    if (!pls.length) {
+      toast('No playlists — create one in Library');
+      return;
+    }
+    showSheet(`Add "${song.name}" to…`, pls.map(pl => ({
+      label: pl.name,
+      action: () => {
+        playlists.update(arr => arr.map(p =>
+          p.id === pl.id
+            ? { ...p, songs: p.songs.some(s => s.id === song.id) ? p.songs : [...p.songs, song] }
+            : p
+        ));
+        toast(`Added to ${pl.name}`);
+      }
+    })));
+  }
+
+  function onDownload(song) {
+    const dl = get(downloadedIds).has(song.id);
+    if (dl) {
+      removeDownload(song, toast, null).catch(() => {});
+    } else {
+      downloadSong(song, toast, apiStream).catch(() => {});
+    }
+  }
+
   function onMenuBtn() {
     if (!$nowSong) return;
+    const dl = get(downloadedIds).has($nowSong.id);
     showSheet($nowSong.name, [
-      { label: 'Add to Playlist', action: () => {} },
+      { label: 'Add to Playlist',                    action: () => addToPlaylist($nowSong) },
       { label: isLiked ? 'Remove from Liked' : 'Add to Liked', action: toggleLike },
+      { label: dl ? 'Remove Download' : 'Download',  action: () => onDownload($nowSong) },
     ]);
   }
 
@@ -141,15 +195,27 @@
     {/if}
 
     <div id="np-footer">
-      <button class="np-foot" id="np-add-pl-btn">
+      <!-- svelte-ignore a11y-click-events-have-key-events -->
+      <button class="np-foot" id="np-add-pl-btn" on:click={() => $nowSong && addToPlaylist($nowSong)}>
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Playlist
       </button>
-      <button class="np-foot" id="np-queue-btn">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/></svg>Queue
+      <!-- svelte-ignore a11y-click-events-have-key-events -->
+      <button class="np-foot" id="np-lyrics-btn" on:click={openLyrics}>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>Lyrics
       </button>
+      <!-- svelte-ignore a11y-click-events-have-key-events -->
       <button class="np-foot" class:active={$smartPlayOn} id="np-smartplay-btn" on:click={() => smartPlayOn.update(v => !v)}>
         <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2zm-1 14.5v-9l7 4.5-7 4.5z"/></svg>Smart
       </button>
+      <!-- svelte-ignore a11y-click-events-have-key-events -->
+      <button class="np-foot" id="np-dl-btn" on:click={() => $nowSong && onDownload($nowSong)}>
+        {#if $downloadedIds.has($nowSong?.id)}
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2zm-1 11.59L7.41 10 6 11.41l6 6 6-6L16.59 10 13 13.59V6h-2v7.59z"/></svg>Downloaded
+        {:else}
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download
+        {/if}
+      </button>
+      <!-- svelte-ignore a11y-click-events-have-key-events -->
       <button class="np-foot" id="np-eq-btn" on:click={() => eqSheetOpen.set(true)}>
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
           <line x1="4" y1="18" x2="4" y2="6"/><line x1="9" y1="18" x2="9" y2="10"/>
@@ -159,6 +225,25 @@
     </div>
   </div>
 </div>
+
+<!-- Lyrics slide-in (sits outside #np so it can overlay on top) -->
+{#if lyricsOpen}
+  <!-- svelte-ignore a11y-click-events-have-key-events -->
+  <div id="lyrics-panel" class:open={lyricsOpen}>
+    <div class="lyrics-hdr">
+      <button class="back-btn" on:click={() => lyricsOpen = false}>‹ Back</button>
+      <div class="lyrics-title">Lyrics</div>
+      <div></div>
+    </div>
+    <div class="lyrics-song-name">{$nowSong?.name || ''}</div>
+    <div class="lyrics-artist">{$nowSong?.artist || ''}</div>
+    {#if lyricsLoading}
+      <div class="lyrics-loading"><div class="spinner"></div></div>
+    {:else}
+      <div class="lyrics-body">{@html lyricsText.replace(/\n/g, '<br/>')}</div>
+    {/if}
+  </div>
+{/if}
 
 <style>
   #np {
@@ -239,9 +324,25 @@
   #np-footer { display: flex; justify-content: space-around; margin-top: 12px; }
   .np-foot {
     display: flex; flex-direction: column; align-items: center; gap: 4px;
-    font-size: 10px; color: var(--fg3); padding: 4px 8px;
+    font-size: 10px; color: var(--fg3); padding: 4px 6px;
     transition: color .15s;
   }
   .np-foot.active { color: var(--accent); }
   .np-foot:active { opacity: .7; }
+
+  /* Lyrics panel */
+  #lyrics-panel {
+    position: fixed; inset: 0; z-index: 90;
+    background: var(--bg); overflow-y: auto;
+    transform: translateY(100%);
+    transition: transform .32s cubic-bezier(.32,.72,0,1);
+  }
+  #lyrics-panel.open { transform: translateY(0); }
+  .lyrics-hdr { display: flex; align-items: center; justify-content: space-between; padding: 16px 16px 8px; padding-top: calc(16px + env(safe-area-inset-top)); }
+  .back-btn { font-size: 15px; color: var(--accent); }
+  .lyrics-title { font-size: 16px; font-weight: 700; flex: 1; text-align: center; }
+  .lyrics-song-name { font-size: 18px; font-weight: 700; padding: 8px 20px 2px; }
+  .lyrics-artist { font-size: 13px; color: var(--fg3); padding: 0 20px 16px; }
+  .lyrics-loading { display: flex; justify-content: center; padding: 40px; }
+  .lyrics-body { padding: 0 20px 40px; font-size: 15px; line-height: 1.8; color: var(--fg2); white-space: pre-wrap; }
 </style>

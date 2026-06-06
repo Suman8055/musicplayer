@@ -1,7 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { activeTab } from '$lib/stores/ui.js';
-  import { fetchModules, fetchAlbumSongs, fetchPlaylistSongs, fetchCharts, filterByLanguage, LANG_TILES } from '$lib/api.js';
+  import { fetchModules, fetchAlbumSongs, fetchPlaylistSongs, fetchCharts, fetchFeaturedPlaylists, filterByLanguage, LANG_TILES } from '$lib/api.js';
   import { buildForYouRows, intelTotalPlays, _timeGreeting } from '$lib/smartPlay.js';
   import { play } from '$lib/playback.js';
   import { cacheSongs, bestImg } from '$lib/utils.js';
@@ -11,6 +11,7 @@
   let modules = null;
   let forYouRows = [];
   let charts = [];
+  let featuredPlaylists = [];
   let loading = true;
 
   // Detail slide-in state
@@ -24,9 +25,10 @@
   async function loadBrowse() {
     loading = true;
     try {
-      [modules, charts, forYouRows] = await Promise.allSettled([
+      [modules, charts, featuredPlaylists, forYouRows] = await Promise.allSettled([
         fetchModules(activeLang),
         fetchCharts(activeLang),
+        fetchFeaturedPlaylists(activeLang),
         intelTotalPlays() >= 5 ? buildForYouRows() : Promise.resolve([]),
       ]).then(r => r.map(x => x.status === 'fulfilled' ? x.value : null));
     } finally { loading = false; }
@@ -173,6 +175,23 @@
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
         </div>
       {/each}
+    {/if}
+
+    <!-- Featured Playlists -->
+    {#if featuredPlaylists?.length}
+      <div class="section-title">Featured Playlists</div>
+      <div class="scroll-fade-wrap">
+        <div class="h-scroll">
+          {#each featuredPlaylists as pl}
+            <!-- svelte-ignore a11y-click-events-have-key-events -->
+            <div class="content-card" on:click={() => openDetail(pl.id, 'playlist', pl.name)}>
+              <img src={bestImg(pl.image, '150x150')} alt="" class="card-img" loading="lazy" />
+              <div class="card-name">{pl.name}</div>
+              <div class="card-sub">{pl.subtitle || ''}</div>
+            </div>
+          {/each}
+        </div>
+      </div>
     {/if}
   {/if}
 
