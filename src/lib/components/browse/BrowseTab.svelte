@@ -52,8 +52,19 @@
 
   function playSong(song, songs, idx) { play(song, songs, idx); }
 
-  $: trending = modules?.trending?.songs?.slice(0, 10) ?? [];
-  $: newReleases = modules?.albums?.slice(0, 10) ?? [];
+  // Trending songs — show all, no language filter (already scoped by activeLang query)
+  $: trendingSongs = (modules?.trending?.songs ?? []).map(normTrendingItem).filter(s => s.id);
+  // Trending albums — separate horizontal row
+  $: trendingAlbums = (modules?.trending?.albums ?? []).filter(a => a.type === 'album').slice(0, 10);
+  // New Releases — API mixes song+album types, keep only proper albums
+  $: newReleases = (modules?.albums ?? []).filter(a => a.type === 'album').slice(0, 15);
+
+  function normTrendingItem(s) {
+    const pa = s.primaryArtists;
+    const artist = Array.isArray(pa) ? pa.map(a => a.name).filter(Boolean).join(', ')
+                 : (typeof pa === 'string' ? pa : '');
+    return { id: s.id, name: s.name || '', artist, image: s.image, language: s.language || '', type: s.type };
+  }
 </script>
 
 <div class="tab-pane" class:active={$activeTab === 'browse'} id="tab-browse">
@@ -97,17 +108,34 @@
       {/each}
     {/if}
 
-    <!-- Trending -->
-    {#if trending.length}
-      <div class="section-title">Trending · {activeLang}</div>
+    <!-- Trending Today -->
+    {#if trendingSongs.length}
+      <div class="section-title">Trending Today · {activeLang}</div>
       <div class="scroll-fade-wrap">
         <div class="h-scroll">
-          {#each trending as song, i}
+          {#each trendingSongs as song, i}
             <!-- svelte-ignore a11y-click-events-have-key-events -->
-            <div class="content-card" on:click={() => playSong(song, trending, i)}>
+            <div class="content-card" on:click={() => playSong(song, trendingSongs, i)}>
               <img src={bestImg(song.image, '150x150')} alt="" class="card-img" loading="lazy" />
               <div class="card-name">{song.name}</div>
               <div class="card-sub">{song.artist}</div>
+            </div>
+          {/each}
+        </div>
+      </div>
+    {/if}
+
+    <!-- Trending Albums -->
+    {#if trendingAlbums.length}
+      <div class="section-title">Trending Albums</div>
+      <div class="scroll-fade-wrap">
+        <div class="h-scroll">
+          {#each trendingAlbums as album}
+            <!-- svelte-ignore a11y-click-events-have-key-events -->
+            <div class="content-card" on:click={() => openDetail(album.id, 'album', album.name || album.title)}>
+              <img src={bestImg(album.image, '150x150')} alt="" class="card-img" loading="lazy" />
+              <div class="card-name">{album.name || album.title}</div>
+              <div class="card-sub">{Array.isArray(album.primaryArtists) ? album.primaryArtists.map(a=>a.name).join(', ') : (album.subtitle || album.language || '')}</div>
             </div>
           {/each}
         </div>
@@ -124,7 +152,7 @@
             <div class="content-card" on:click={() => openDetail(album.id, 'album', album.name || album.title)}>
               <img src={bestImg(album.image, '150x150')} alt="" class="card-img" loading="lazy" />
               <div class="card-name">{album.name || album.title}</div>
-              <div class="card-sub">{Array.isArray(album.primaryArtists) ? album.primaryArtists.map(a=>a.name).join(', ') : (album.subtitle || '')}</div>
+              <div class="card-sub">{Array.isArray(album.primaryArtists) ? album.primaryArtists.map(a=>a.name).join(', ') : (album.subtitle || album.language || '')}</div>
             </div>
           {/each}
         </div>
@@ -133,8 +161,8 @@
 
     <!-- Charts -->
     {#if charts.length}
-      <div class="section-title">Charts</div>
-      {#each charts.slice(0, 5) as chart}
+      <div class="section-title">Charts · {charts.length} playlists</div>
+      {#each charts as chart}
         <!-- svelte-ignore a11y-click-events-have-key-events -->
         <div class="chart-row" on:click={() => openDetail(chart.id, 'playlist', chart.title || chart.name)}>
           <img src={bestImg(chart.image, '80x80')} alt="" class="chart-img" loading="lazy" />

@@ -94,11 +94,15 @@ export function filterByLanguage(songs, activeLang = '') {
 }
 
 function normSigmaSong(s) {
+  const pa = s.primaryArtists;
+  const artist = Array.isArray(pa)
+    ? pa.map(a => a.name || '').filter(Boolean).join(', ')
+    : decodeHtml(pa || s.artistMap?.primary?.[0]?.name || '');
   const song = {
     id:       s.id,
     name:     decodeHtml(s.name || ''),
-    artist:   decodeHtml(s.primaryArtists || ''),
-    album:    decodeHtml(s.album?.name || ''),
+    artist,
+    album:    decodeHtml(s.album?.name || s.album || ''),
     language: s.language || '',
     image:    bestImg(s.image, '150x150'),
     duration: parseInt(s.duration || 0),
