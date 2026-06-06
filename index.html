@@ -1055,7 +1055,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.64';
+const APP_VERSION = '4.1.65';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 400;
@@ -1305,6 +1305,10 @@ function _gainFromLufs(measuredLufs) {
 
 async function _measureAndApplyLufs(song) {
   if (!_lufsOn) return;
+  // CarPlay owns the audio session — _mediaSource is detached from _gainNode, so the LUFS
+  // analyser reads silence and any gain write to _gainNode is a no-op for the car output.
+  // Skip entirely to avoid stale _gainNode.gain values corrupting the next _setAirPlayMode snapshot.
+  if (_airPlayActive) return;
   if (!_audioCtx || !_lufsAnalyser || !_gainNode) return;
   if (_lufsCache.has(song.id)) {
     const cached = _lufsCache.get(song.id);
@@ -1533,12 +1537,15 @@ function _setAirPlayMode(active) {
   if (!_mediaSource) return;
   if (active) {
     try { _mediaSource.disconnect(); } catch {}
-    // With gainNode disconnected, restore direct volume control
+    // Cancel any in-flight LUFS setTargetAtTime ramp before snapshotting the value —
+    // a mid-ramp _gainNode.gain (e.g. 0.0 from the mute guard) would set audio.volume=0.
+    if (_gainNode && _audioCtx) _gainNode.gain.cancelScheduledValues(_audioCtx.currentTime);
     audio.volume = Math.min(1, _gainNode?.gain.value ?? 1);
     Log.info('AirPlay: Web Audio graph disconnected');
   } else {
     if (_audioCtx && _audioCtx.state !== 'closed') {
-      try { _mediaSource.connect(_gainNode); } catch {}
+      // Full rewire on CarPlay disconnect — rebuilds entire chain cleanly instead of bare connect
+      _rewireAudio();
       audio.volume = 1;
     }
     Log.info('AirPlay: Web Audio graph reconnected');
@@ -1569,6 +1576,9 @@ function _startBgKeepAlive() {
   _stopBgKeepAlive();
   _bgKeepAliveTimer = setInterval(async () => {
     if (!playing || userPaused || !_audioCtx) return;
+    // CarPlay owns the AVAudioSession — poking the Web AudioContext here causes session
+    // routing contention and produces a crackle/dropout on the car speakers every 10s.
+    if (_airPlayActive) return;
     // Resume AudioContext first — iOS suspends it when backgrounded
     if (_audioCtx.state === 'suspended') {
       try { await _audioCtx.resume(); } catch {}
@@ -3176,7 +3186,9 @@ function _rewireAudio() {
     _gainNode.disconnect();
     // Reconnect K-weighted LUFS measurement tap after gainNode disconnect
     if (_lufsKw1) { try { _gainNode.connect(_lufsKw1); } catch {} }
-    if (_mediaSource) _mediaSource.connect(_gainNode);
+    // Do NOT reconnect _mediaSource while CarPlay is active — iOS owns that audio session.
+    // Reconnecting here creates dual-path routing conflict → crackling/glitching on car speakers.
+    if (_mediaSource && !_airPlayActive) _mediaSource.connect(_gainNode);
 
     _buildBassExciter(_audioCtx);
     _buildEqChain(_audioCtx);
