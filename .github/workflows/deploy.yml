@@ -27,7 +27,7 @@ jobs:
       - name: Build
         run: npm run build
         env:
-          BASE_PATH: /musicplayer-staging
+          BASE_PATH: ${{ github.repository == 'Suman8055/musicplayer-staging' && '/musicplayer-staging' || '/musicplayer' }}
 
       - name: Deploy to gh-pages
         uses: peaceiris/actions-gh-pages@v4
