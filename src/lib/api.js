@@ -267,9 +267,9 @@ export async function fetchPlaylistSongs(playlistId) {
 
 export async function fetchCharts(language = 'hindi') {
   try {
-    const r = await apiFetch(`${SIGMA_API}/charts?language=${encodeURIComponent(language)}`, { timeout: 8000, retries: 1 });
-    const data = await r.json();
-    if (data.status === 'SUCCESS') return data.data || [];
+    // /charts endpoint does not exist on SIGMA — charts are inside /modules response
+    const modules = await fetchModules(language);
+    return modules?.charts || [];
   } catch (e) { Log.warn('fetchCharts failed', { language, err: e.message }); }
   return [];
 }
