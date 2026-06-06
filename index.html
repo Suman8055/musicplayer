@@ -1042,7 +1042,7 @@ async function _sha256(str) {
 })();
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
-const APP_VERSION = '4.1.59';
+const APP_VERSION = '4.1.60';
 const STORE_KEY   = 'mbx_v2';
 const LOG_KEY     = 'mbx_logs';
 const LOG_MAX     = 400;
@@ -2120,7 +2120,6 @@ async function play(song, newQueue, idx) {
       // audio.play() within the user-gesture stack with no async gap after src set.
       audio.crossOrigin = null;       // blob:// URLs are same-origin; crossOrigin must be null
       _ensureAudioCtx();
-      if ('audioSession' in navigator) navigator.audioSession.type = 'playback';
       await _resumeAudioCtx();
       audio.src = offlineBlobUrl;
       await audio.play().catch(e => Log.warn('Offline play failed', { err: e.message }));
@@ -2144,7 +2143,6 @@ async function play(song, newQueue, idx) {
       // before src). (WebKit bug #232076: blob URLs cause HTTP 416 range errors.)
       audio.crossOrigin = 'anonymous'; // required for Web Audio routing on network streams
       _ensureAudioCtx();
-      if ('audioSession' in navigator) navigator.audioSession.type = 'playback';
       await _resumeAudioCtx();
       if (offlineBlobUrl) { URL.revokeObjectURL(offlineBlobUrl); offlineBlobUrl = null; }
       audio.src = stream.url;
@@ -2338,7 +2336,7 @@ audio.addEventListener('pause', () => {
               if (_audioCtx?.state === 'suspended') { try { await _audioCtx.resume(); } catch {} }
               audio.play()
                 .then(() => { if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing'; })
-                .catch(e => Log.warn('Fight-back play() failed (attempt 2)', { err: e.message, ctx: _audioCtx?.state }));
+                .catch(e => { Log.warn('Fight-back play() failed (attempt 2)', { err: e.message, ctx: _audioCtx?.state }); if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused'; });
             }
           }, 500);
         }
@@ -2567,17 +2565,19 @@ function refreshPlayBtns() {
 //   Canvas resize to 128×128 keeps the base64 string small (~15 KB).
 //   CarPlay/AirPlay work fine with data: URLs too (Safari handles them natively).
 
-async function _fetchArtDataUrl(url) {
+async function _fetchArtDataUrl(url, signal) {
   // Returns a data: URL (base64 JPEG, 512×512) or null on failure.
-  // Uses a canvas to resize, which also side-steps CORS tainting issues.
+  // signal: AbortSignal — cancels fetch if song changes during artwork load.
   try {
-    const res = await fetch(url);
-    if (!res.ok) return null;
+    const res = await fetch(url, signal ? { signal } : {});
+    if (!res.ok || signal?.aborted) return null;
     const blob = await res.blob();
+    if (signal?.aborted) return null;
     return await new Promise(resolve => {
       const img = new Image();
       const objUrl = URL.createObjectURL(blob);
       img.onload = () => {
+        if (signal?.aborted) { URL.revokeObjectURL(objUrl); resolve(null); return; }
         const SIZE = 512;
         const cv = document.createElement('canvas');
         cv.width = SIZE; cv.height = SIZE;
@@ -2591,49 +2591,52 @@ async function _fetchArtDataUrl(url) {
   } catch { return null; }
 }
 
+let _artworkAbortController = null;
+
 async function updateMediaSession() {
   if (!('mediaSession' in navigator) || !nowSong) return;
-  if ('audioSession' in navigator) navigator.audioSession.type = 'playback';
   _posStateTs = 0;
 
-  // Set text metadata immediately — speaker shows title/artist without waiting for art
-  navigator.mediaSession.metadata = new MediaMetadata({
-    title:  nowSong.name   || '',
-    artist: nowSong.artist || '',
-    album:  nowSong.album  || '',
-    artwork: [],
-  });
-  navigator.mediaSession.playbackState = audio.paused ? 'paused' : 'playing';
-  // Wrap all action handler registration in try/catch — iOS 15.0 throws on some handlers
-  try { navigator.mediaSession.setActionHandler('play',          async () => { userPaused = false; if (_audioCtx?.state === 'suspended') await _audioCtx.resume().catch(() => {}); audio.play().catch(e => Log.warn('MediaSession play failed', {err: e.message})); }); } catch {}
+  // Cancel any in-flight artwork fetch from a previous call
+  if (_artworkAbortController) { _artworkAbortController.abort(); _artworkAbortController = null; }
+
+  // Register action handlers — must happen on every call (WebKit discards them after bfcache/freeze)
+  // Wrap all in try/catch — iOS 15.0 throws on some handlers
+  // Bug fix: play handler must be sync (not async) — CarPlay expects synchronous return
+  try { navigator.mediaSession.setActionHandler('play',          () => { userPaused = false; if (_audioCtx?.state === 'suspended') _audioCtx.resume().catch(() => {}); audio.play().catch(e => Log.warn('MediaSession play failed', {err: e.message})); }); } catch {}
   try { navigator.mediaSession.setActionHandler('pause',         () => { userPaused = true; audio.pause(); }); } catch {}
   try { navigator.mediaSession.setActionHandler('stop',          () => { userPaused = true; audio.pause(); navigator.mediaSession.playbackState = 'none'; }); } catch {}
   try { navigator.mediaSession.setActionHandler('previoustrack', prev); } catch {}
   try { navigator.mediaSession.setActionHandler('nexttrack',     next); } catch {}
+  // Bug fix: guard isFinite on duration before setPositionState — Infinity/NaN crashes CarPlay timeline
   try { navigator.mediaSession.setActionHandler('seekto', ({seekTime}) => { if (isFinite(seekTime)) { audio.currentTime = seekTime; if (isFinite(audio.duration)) try { navigator.mediaSession.setPositionState({ duration: audio.duration, playbackRate: 1, position: seekTime }); } catch {} } }); } catch {}
-  try { navigator.mediaSession.setActionHandler('seekforward',  ({ seekOffset }) => { const t = Math.min(audio.duration, audio.currentTime + (seekOffset ?? 15)); audio.currentTime = t; if (isFinite(audio.duration)) try { navigator.mediaSession.setPositionState({ duration: audio.duration, playbackRate: 1, position: t }); } catch {} }); } catch {}
+  try { navigator.mediaSession.setActionHandler('seekforward',  ({ seekOffset }) => { const t = Math.min(isFinite(audio.duration) ? audio.duration : audio.currentTime + 300, audio.currentTime + (seekOffset ?? 15)); audio.currentTime = t; if (isFinite(audio.duration)) try { navigator.mediaSession.setPositionState({ duration: audio.duration, playbackRate: 1, position: t }); } catch {} }); } catch {}
   try { navigator.mediaSession.setActionHandler('seekbackward', ({ seekOffset }) => { const t = Math.max(0, audio.currentTime - (seekOffset ?? 15)); audio.currentTime = t; if (isFinite(audio.duration)) try { navigator.mediaSession.setPositionState({ duration: audio.duration, playbackRate: 1, position: t }); } catch {} }); } catch {}
 
+  navigator.mediaSession.playbackState = (!userPaused && nowSong) ? 'playing' : 'paused';
+
   const img = nowSong.image || '';
-  if (!img) return;
-
-  // Fetch image and convert to self-contained data: URL via canvas
   const _mediaSessionSongId = nowSong.id;
-  const dataUrl = await _fetchArtDataUrl(img.replace(/\d+x\d+/, '500x500'));
 
-  // Only update if this song is still playing (user may have skipped during fetch)
-  if (!nowSong || nowSong.id !== _mediaSessionSongId) return;
+  // Fetch artwork asynchronously, then create a fresh MediaMetadata (not mutate) to ensure
+  // iOS/CarPlay reliably reflects the update. AbortController cancels stale fetches.
+  const ac = new AbortController();
+  _artworkAbortController = ac;
+  const dataUrl = img ? await _fetchArtDataUrl(img.replace(/\d+x\d+/, '500x500'), ac.signal) : null;
 
-  if (dataUrl) {
-    // data: URL — works for Bluetooth AVRCP, CarPlay, Tesla, lock screen, notification shade
-    navigator.mediaSession.metadata.artwork = [
-      { src: dataUrl, sizes: '512x512', type: 'image/jpeg' },
-    ];
-  } else {
-    // data: URL fetch failed — leave artwork empty rather than setting CDN URLs that
-    // Apple Watch, Bluetooth AVRCP, and Tesla fetch outside the browser process (always 403).
-    navigator.mediaSession.metadata.artwork = [];
-  }
+  // Abort check — song changed while we were fetching
+  if (ac.signal.aborted || !nowSong || nowSong.id !== _mediaSessionSongId) return;
+  _artworkAbortController = null;
+
+  // Always create a new MediaMetadata — iOS does not reliably propagate .artwork mutations
+  navigator.mediaSession.metadata = new MediaMetadata({
+    title:   nowSong.name   || '',
+    artist:  nowSong.artist || '',
+    album:   nowSong.album  || '',
+    // data: URL embeds bytes — works for AVRCP, CarPlay, Tesla, lock screen.
+    // Empty array on failure — better than CDN URLs that AVRCP fetches outside the browser (always 403).
+    artwork: dataUrl ? [{ src: dataUrl, sizes: '512x512', type: 'image/jpeg' }] : [],
+  });
 }
 
 // ── NOW PLAYING ────────────────────────────────────────────────────────────────
