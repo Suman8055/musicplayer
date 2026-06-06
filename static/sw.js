@@ -6,7 +6,7 @@
 //   3. Network-first for API calls (streaming URLs must be fresh)
 
 const BASE  = self.registration.scope.replace(/\/$/, '');
-const CACHE = 'mbx-sk-v5.0.2';
+const CACHE = 'mbx-sk-v5.0.3';
 
 // Shell files — updated after build when hashed _app filenames are known
 const SHELL = [
