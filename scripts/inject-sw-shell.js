@@ -48,8 +48,10 @@ try {
   sha = execSync('git rev-parse --short HEAD', { stdio: ['pipe', 'pipe', 'ignore'] }).toString().trim();
 } catch {}
 
-const pkg = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8'));
-const cacheKey = `mbx-sk-v${pkg.version}-${sha}`;
+const apiSrc = readFileSync(join(process.cwd(), 'src/lib/api.js'), 'utf8');
+const appVerMatch = apiSrc.match(/APP_VERSION\s*=\s*'([^']+)'/);
+const appVersion = appVerMatch ? appVerMatch[1] : JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8')).version;
+const cacheKey = `mbx-sk-v${appVersion}-${sha}`;
 sw = sw.replace(/const CACHE = '[^']+';/, `const CACHE = '${cacheKey}';`);
 
 writeFileSync(SW, sw);
