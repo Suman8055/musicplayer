@@ -89,6 +89,7 @@ export function classifyLanguage(song) {
 }
 
 export function filterByLanguage(songs, activeLang = '') {
+  if (activeLang === 'english') return songs.filter(s => s._lang === 'english' || s._lang === null);
   if (activeLang) return songs.filter(s => s._lang === activeLang);
   return songs.filter(s => s._lang && ALLOWED_LANGUAGES.has(s._lang));
 }
@@ -100,7 +101,7 @@ function normSigmaSong(s) {
     : decodeHtml(pa || s.artistMap?.primary?.[0]?.name || '');
   const song = {
     id:       s.id,
-    name:     decodeHtml(s.name || ''),
+    name:     decodeHtml(s.name || s.title || ''),
     artist,
     album:    decodeHtml(s.album?.name || s.album || ''),
     language: s.language || '',

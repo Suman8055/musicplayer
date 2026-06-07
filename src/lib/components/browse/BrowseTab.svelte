@@ -144,7 +144,7 @@
     const pa = s.primaryArtists;
     const artist = Array.isArray(pa) ? pa.map(a => a.name).filter(Boolean).join(', ')
                  : (typeof pa === 'string' ? pa : '');
-    return { id: s.id, name: s.name || '', artist, image: s.image, language: s.language || '', type: s.type };
+    return { id: s.id, name: s.name || s.title || '', artist, image: s.image, language: s.language || '', type: s.type };
   }
 </script>
 
