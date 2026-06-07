@@ -1,5 +1,5 @@
 {
-  "uploadedAt": "2026-06-07T04:49:37.953Z",
+  "uploadedAt": "2026-06-07T05:07:26.959Z",
   "device": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.5 Mobile/15E148 Safari/604.1",
   "entries": [
     {
@@ -244,6 +244,133 @@
       "data": {
         "name": "Chunnari Chunnari - Let’s Go! (From &quot;Hai Jawani Toh Ishq Hona Hai&quot;)",
         "artist": "Anu Malik, IP Singh, Sameer Anjaan, Akshay &amp; IP, Jonita Gandhi, Asees Kaur, Sudhir Yaduvanshi, Anuradha Sriram"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:06:09.008Z",
+      "level": "INFO",
+      "msg": "App started",
+      "data": {
+        "version": "5.2.10"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:06:09.009Z",
+      "level": "INFO",
+      "msg": "AirPlay initial state",
+      "data": {
+        "active": false,
+        "supported": true,
+        "probeReady": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:06:16.351Z",
+      "level": "WARN",
+      "msg": "fetchFeaturedPlaylists failed",
+      "data": {
+        "language": "hindi",
+        "err": "HTTP 404"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:06:18.432Z",
+      "level": "INFO",
+      "msg": "AudioContext created",
+      "data": {
+        "sampleRate": 48000
+      }
+    },
+    {
+      "ts": "2026-06-07T05:06:19.778Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Chand Mera Dil (Title Track)",
+        "artist": "Amitabh Bhattacharya, Sachin-Jigar, Faheem Abdullah"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:06:29.353Z",
+      "level": "INFO",
+      "msg": "LUFS norm",
+      "data": {
+        "name": "Chand Mera Dil (Title Track)",
+        "lufs": "-29.4",
+        "gainDb": "2.0"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:06:44.801Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Teen Baan Ke Dhari",
+        "artist": "Chotu Singh Rawna"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:06:46.777Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Sitaare (From &quot;Ikkis&quot;)",
+        "artist": "Amitabh Bhattacharya, Arijit Singh, Sachin-Jigar"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:06:48.415Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Udi Udi",
+        "artist": "Sarkar, Hruday, Aneesh"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:06:50.682Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Chunnari Chunnari - Let’s Go! (From &quot;Hai Jawani Toh Ishq Hona Hai&quot;)",
+        "artist": "Anu Malik, IP Singh, Sameer Anjaan, Akshay &amp; IP, Jonita Gandhi, Asees Kaur, Sudhir Yaduvanshi, Anuradha Sriram"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:07:00.244Z",
+      "level": "INFO",
+      "msg": "LUFS norm",
+      "data": {
+        "name": "Chunnari Chunnari - Let’s Go! (From &quot;Hai Jawani Toh Ishq Hona Hai&quot;)",
+        "lufs": "-14.4",
+        "gainDb": "-1.6"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:07:13.948Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Chand Mera Dil (Title Track)",
+        "artist": "Amitabh Bhattacharya, Sachin-Jigar, Faheem Abdullah"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:07:13.948Z",
+      "level": "INFO",
+      "msg": "MediaSession: fetching artwork",
+      "data": {
+        "songId": "glW6y4jX",
+        "url": "https://c.saavncdn.com/549/Chand-Mera-Dil-Hindi-2026-20260518102642-500x500.jpg"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:07:14.057Z",
+      "level": "INFO",
+      "msg": "MediaSession: artwork set",
+      "data": {
+        "songId": "glW6y4jX",
+        "bytes": 97159
       }
     }
   ]
