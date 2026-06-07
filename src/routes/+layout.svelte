@@ -58,8 +58,8 @@
         airPlayDspWarn.set(active);
       },
       onLog: (level, msg, data) => {
-        if (level === 'warn') console.warn('[Engine]', msg, data ?? '');
-        else console.info('[Engine]', msg, data ?? '');
+        if (level === 'warn') { Log.warn(msg, data ?? null); console.warn('[Engine]', msg, data ?? ''); }
+        else { Log.info(msg, data ?? null); console.info('[Engine]', msg, data ?? ''); }
       }
     });
 
@@ -142,6 +142,14 @@
 
     audioEl.addEventListener('webkitplaybacktargetavailabilitychanged', (e) => {
       // airplay button visibility — handled in NowPlaying component
+    });
+
+    // Log initial AirPlay state — catches the case where AirPlay was already
+    // active before the app loaded (event would never fire in that case)
+    const initialAirPlay = audioEl.webkitCurrentPlaybackTargetIsWireless === true;
+    Log.info('AirPlay initial state', {
+      active: initialAirPlay,
+      supported: 'webkitCurrentPlaybackTargetIsWireless' in audioEl
     });
 
     // ── MediaSession action handlers (registered once, never re-registered) ──

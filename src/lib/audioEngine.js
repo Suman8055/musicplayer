@@ -305,7 +305,10 @@ export function setAirPlayMode(active) {
     _gainNode.gain.cancelScheduledValues(_audioCtx.currentTime);
     _gainNode.gain.setValueAtTime(_gainNode.gain.value, _audioCtx.currentTime);
   }
-  if (!_mediaSource) return;
+  if (!_mediaSource) {
+    if (_callbacks.onLog) _callbacks.onLog('warn', 'AirPlay mode set but no mediaSource', { active });
+    return;
+  }
   if (active) {
     // Disconnect LUFS analyser chain — running AnalyserNode (smoothing=0) causes
     // iOS render-thread stall on AVAudioSession route change → AirPlay buffer dropout
@@ -314,6 +317,9 @@ export function setAirPlayMode(active) {
     if (_audioEl) _audioEl.volume = 1;
     // Longer release: AirPlay buffer depth (300–2000ms) makes 200ms release audible as a step
     if (_limiterCompressor) _limiterCompressor.release.value = 0.5;
+    if (_callbacks.onLog) _callbacks.onLog('info', 'AirPlay engine: LUFS chain disconnected', {
+      ctxState: _audioCtx?.state, limiterRelease: 0.5
+    });
   } else {
     if (_audioCtx && _audioCtx.state !== 'closed') {
       // Restore LUFS analyser tap
@@ -321,6 +327,13 @@ export function setAirPlayMode(active) {
       try { _mediaSource.connect(_gainNode); } catch {}
       if (_audioEl) _audioEl.volume = 1;
       if (_limiterCompressor) _limiterCompressor.release.value = 0.2;
+      if (_callbacks.onLog) _callbacks.onLog('info', 'AirPlay engine: LUFS chain restored', {
+        ctxState: _audioCtx?.state, limiterRelease: 0.2
+      });
+    } else {
+      if (_callbacks.onLog) _callbacks.onLog('warn', 'AirPlay engine: ctx closed on disconnect', {
+        ctxState: _audioCtx?.state
+      });
     }
   }
 }
