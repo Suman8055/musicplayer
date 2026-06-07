@@ -1,5 +1,5 @@
 {
-  "uploadedAt": "2026-06-07T05:14:28.050Z",
+  "uploadedAt": "2026-06-07T05:29:34.026Z",
   "device": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.5 Mobile/15E148 Safari/604.1",
   "entries": [
     {
@@ -101,6 +101,231 @@
         "name": "Niluvanivvade",
         "lufs": "-18.4",
         "gainDb": "2.0"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:26:57.470Z",
+      "level": "INFO",
+      "msg": "App started",
+      "data": {
+        "version": "5.2.12"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:26:57.471Z",
+      "level": "INFO",
+      "msg": "AirPlay initial state",
+      "data": {
+        "active": false,
+        "supported": true,
+        "probeReady": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:26:57.477Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": false
+      }
+    },
+    {
+      "ts": "2026-06-07T05:26:57.479Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:26:58.249Z",
+      "level": "INFO",
+      "msg": "App started",
+      "data": {
+        "version": "5.2.12"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:26:58.250Z",
+      "level": "INFO",
+      "msg": "AirPlay initial state",
+      "data": {
+        "active": false,
+        "supported": true,
+        "probeReady": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:26:58.251Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": false
+      }
+    },
+    {
+      "ts": "2026-06-07T05:26:58.253Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:27:01.970Z",
+      "level": "WARN",
+      "msg": "fetchFeaturedPlaylists failed",
+      "data": {
+        "language": "hindi",
+        "err": "HTTP 404"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:27:09.315Z",
+      "level": "WARN",
+      "msg": "fetchFeaturedPlaylists failed",
+      "data": {
+        "language": "english",
+        "err": "HTTP 404"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:27:09.315Z",
+      "level": "WARN",
+      "msg": "fetchFeaturedPlaylists failed",
+      "data": {
+        "language": "english",
+        "err": "HTTP 404"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:27:09.444Z",
+      "level": "WARN",
+      "msg": "fetchFeaturedPlaylists failed",
+      "data": {
+        "language": "telugu",
+        "err": "HTTP 404"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:27:17.268Z",
+      "level": "INFO",
+      "msg": "AudioContext created",
+      "data": {
+        "sampleRate": 48000
+      }
+    },
+    {
+      "ts": "2026-06-07T05:27:18.199Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Believer",
+        "artist": "Imagine Dragons"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:27:27.764Z",
+      "level": "INFO",
+      "msg": "LUFS norm",
+      "data": {
+        "name": "Believer",
+        "lufs": "-13.1",
+        "gainDb": "-2.9"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:27:43.603Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "One Of The Girls",
+        "artist": "The Weeknd, Jennie, Lily Rose Depp"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:27:51.736Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Espresso",
+        "artist": "Sabrina Carpenter"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:28:01.292Z",
+      "level": "INFO",
+      "msg": "LUFS norm",
+      "data": {
+        "name": "Espresso",
+        "lufs": "-20.0",
+        "gainDb": "2.0"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:28:21.928Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Go Down Deh (feat. Sean Paul &amp; Shaggy)",
+        "artist": "Spice"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:28:31.487Z",
+      "level": "INFO",
+      "msg": "LUFS norm",
+      "data": {
+        "name": "Go Down Deh (feat. Sean Paul &amp; Shaggy)",
+        "lufs": "-7.6",
+        "gainDb": "-6.0"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:28:37.034Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "São Paulo",
+        "artist": "The Weeknd, Anitta"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:28:46.871Z",
+      "level": "INFO",
+      "msg": "LUFS norm",
+      "data": {
+        "name": "São Paulo",
+        "lufs": "-20.2",
+        "gainDb": "2.0"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:28:50.676Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Levitating",
+        "artist": "Dua Lipa"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:29:00.235Z",
+      "level": "INFO",
+      "msg": "LUFS norm",
+      "data": {
+        "name": "Levitating",
+        "lufs": "-9.6",
+        "gainDb": "-6.0"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:29:12.791Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Bones",
+        "artist": "Imagine Dragons"
       }
     }
   ]
