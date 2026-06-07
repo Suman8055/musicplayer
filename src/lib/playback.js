@@ -296,17 +296,18 @@ async function _updateMediaSession(song) {
     navigator.mediaSession.playbackState = 'playing';
   } catch {}
 
-  if (!song.image) return;
+  if (!song.image) { Log.warn('MediaSession: no artwork URL on song', { songId: song.id, name: song.name }); return; }
 
   // Snapshot song id — if the song changes while fetching, discard the result
   const songId = song.id;
   _msAbortCtrl = new AbortController();
   const imgUrl = song.image.replace(/\d+x\d+/, '500x500');
+  Log.info('MediaSession: fetching artwork', { songId, url: imgUrl });
   const dataUrl = await _fetchArtDataUrl(imgUrl);
   _msAbortCtrl = null;
 
-  // Bail if song changed during the async fetch
-  if (!dataUrl || get(nowSong)?.id !== songId) return;
+  if (!dataUrl) { Log.warn('MediaSession: artwork fetch returned null', { songId, url: imgUrl }); return; }
+  if (get(nowSong)?.id !== songId) { Log.info('MediaSession: artwork discarded (song changed)', { songId }); return; }
   try {
     navigator.mediaSession.metadata = new MediaMetadata({
       title:  song.name   || 'Unknown',
@@ -314,5 +315,6 @@ async function _updateMediaSession(song) {
       album:  song.album  || '',
       artwork: [{ src: dataUrl, sizes: '512x512', type: 'image/jpeg' }],
     });
+    Log.info('MediaSession: artwork set', { songId, bytes: dataUrl.length });
   } catch {}
 }

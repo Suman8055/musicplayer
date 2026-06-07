@@ -135,7 +135,9 @@
 
     // ── AirPlay event listeners ──────────────────────────────────────────────
     audioEl.addEventListener('webkitcurrentplaybacktargetiswirelesschanged', () => {
-      audioEngine.setAirPlayMode(audioEl.webkitCurrentPlaybackTargetIsWireless === true);
+      const active = audioEl.webkitCurrentPlaybackTargetIsWireless === true;
+      audioEngine.setAirPlayMode(active);
+      Log.info('AirPlay route changed', { active });
     });
 
     audioEl.addEventListener('webkitplaybacktargetavailabilitychanged', (e) => {
@@ -144,12 +146,12 @@
 
     // ── MediaSession action handlers (registered once, never re-registered) ──
     if ('mediaSession' in navigator) {
-      navigator.mediaSession.setActionHandler('play',         () => { try { audioEl.play(); } catch {} });
-      navigator.mediaSession.setActionHandler('pause',        () => { try { audioEl.pause(); userPaused.set(true); audioEngine.onUserPaused(); } catch {} });
-      navigator.mediaSession.setActionHandler('stop',         () => { try { audioEl.pause(); userPaused.set(true); audioEngine.onUserPaused(); } catch {} });
-      navigator.mediaSession.setActionHandler('nexttrack',    () => { try { next(); } catch (e) { console.warn('[MediaSession] nexttrack error', e); } });
-      navigator.mediaSession.setActionHandler('previoustrack',() => { try { prev(); } catch (e) { console.warn('[MediaSession] previoustrack error', e); } });
-      navigator.mediaSession.setActionHandler('seekto',       (d) => { try { if (d.seekTime != null) audioEl.currentTime = d.seekTime; } catch {} });
+      navigator.mediaSession.setActionHandler('play',         () => { Log.info('MediaSession: play');         try { audioEl.play(); } catch {} });
+      navigator.mediaSession.setActionHandler('pause',        () => { Log.info('MediaSession: pause');        try { audioEl.pause(); userPaused.set(true); audioEngine.onUserPaused(); } catch {} });
+      navigator.mediaSession.setActionHandler('stop',         () => { Log.info('MediaSession: stop');         try { audioEl.pause(); userPaused.set(true); audioEngine.onUserPaused(); } catch {} });
+      navigator.mediaSession.setActionHandler('nexttrack',    () => { Log.info('MediaSession: nexttrack');    try { next(); } catch (e) { Log.warn('MediaSession: nexttrack error', { error: e?.message }); } });
+      navigator.mediaSession.setActionHandler('previoustrack',() => { Log.info('MediaSession: previoustrack'); try { prev(); } catch (e) { Log.warn('MediaSession: previoustrack error', { error: e?.message }); } });
+      navigator.mediaSession.setActionHandler('seekto',       (d) => { Log.info('MediaSession: seekto', { seekTime: d.seekTime }); try { if (d.seekTime != null) audioEl.currentTime = d.seekTime; } catch {} });
     }
 
     // ── Visibility / page lifecycle ──────────────────────────────────────────
