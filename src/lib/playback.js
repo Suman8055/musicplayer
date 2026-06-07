@@ -58,6 +58,12 @@ export async function play(song, newQueue, idx) {
     queueIdx:   get(qIdx),
     shuffle:    get(shuffleOn),
     repeat:     get(repeatMode),
+    name:     song.name,
+    songId:   song.id,
+    queueLen: get(queue).length,
+    queueIdx: get(qIdx),
+    shuffle:  get(shuffleOn),
+    repeat:   get(repeatMode),
   });
 
   try {
@@ -308,6 +314,7 @@ async function _updateMediaSession(song) {
   // Set title/artist immediately — lock screen shows something while artwork fetches.
   // NOTE: iOS Safari WebKit bug — setting both `artist` and `album` causes `album` to be
   // silently dropped. We omit `album` to ensure `artist` always renders on CarPlay/lock screen.
+  // silently dropped. Omit `album` to ensure `artist` always renders on CarPlay/lock screen.
   try {
     navigator.mediaSession.metadata = new MediaMetadata({
       title:   song.name   || 'Unknown',
