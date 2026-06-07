@@ -1,159 +1,69 @@
 {
-  "uploadedAt": "2026-06-07T04:34:36.257Z",
+  "uploadedAt": "2026-06-07T04:37:09.022Z",
   "device": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.5 Mobile/15E148 Safari/604.1",
   "entries": [
     {
-      "ts": "2026-06-07T04:33:28.008Z",
-      "level": "INFO",
-      "msg": "App started",
-      "data": {
-        "version": "5.2.8"
-      }
-    },
-    {
-      "ts": "2026-06-07T04:33:28.008Z",
-      "level": "INFO",
-      "msg": "AirPlay initial state",
-      "data": {
-        "active": false,
-        "supported": true,
-        "rawValue": false
-      }
-    },
-    {
-      "ts": "2026-06-07T04:33:28.729Z",
-      "level": "INFO",
-      "msg": "App started",
-      "data": {
-        "version": "5.2.8"
-      }
-    },
-    {
-      "ts": "2026-06-07T04:33:28.729Z",
-      "level": "INFO",
-      "msg": "AirPlay initial state",
-      "data": {
-        "active": false,
-        "supported": true,
-        "rawValue": false
-      }
-    },
-    {
-      "ts": "2026-06-07T04:33:55.960Z",
-      "level": "WARN",
-      "msg": "fetchFeaturedPlaylists failed",
-      "data": {
-        "language": "hindi",
-        "err": "HTTP 404"
-      }
-    },
-    {
-      "ts": "2026-06-07T04:33:59.134Z",
-      "level": "INFO",
-      "msg": "AudioContext created",
-      "data": {
-        "sampleRate": 48000
-      }
-    },
-    {
-      "ts": "2026-06-07T04:33:59.817Z",
+      "ts": "2026-06-07T04:36:15.048Z",
       "level": "INFO",
       "msg": "Playback started",
       "data": {
-        "name": "Dhurandhar - Title Track",
-        "artist": "Hanumankind, Jasmine Sandlas, Babu Singh Maan, Shashwat Sachdev, Sudhir Yaduvanshi, Charanjit Ahuja, Muhammad Sadiq, Ranjit Kaur"
+        "name": "Teri Ni Kararan",
+        "artist": "Lal Chand Yamla Jatt, Diljit Dosanjh, Shashwat Sachdev"
       }
     },
     {
-      "ts": "2026-06-07T04:33:59.818Z",
+      "ts": "2026-06-07T04:36:15.049Z",
       "level": "INFO",
       "msg": "MediaSession: fetching artwork",
       "data": {
-        "songId": "o2TiOMOu",
+        "songId": "IQMFCwXQ",
         "url": "https://c.saavncdn.com/475/Dhurandhar-Hindi-2025-20260203083204-500x500.jpg"
       }
     },
     {
-      "ts": "2026-06-07T04:33:59.863Z",
+      "ts": "2026-06-07T04:36:15.107Z",
       "level": "INFO",
       "msg": "MediaSession: artwork set",
       "data": {
-        "songId": "o2TiOMOu",
+        "songId": "IQMFCwXQ",
         "bytes": 136699
       }
     },
     {
-      "ts": "2026-06-07T04:34:09.515Z",
-      "level": "INFO",
-      "msg": "Playback started",
-      "data": {
-        "name": "Ishq Jalakar - Karvaan",
-        "artist": "Shashwat Sachdev, Irshad Kamil, Shahzad Ali, Sahir Ludhianvi, Subhadeep Das Chowdhury, Armaan Khan, Roshan"
-      }
-    },
-    {
-      "ts": "2026-06-07T04:34:09.515Z",
-      "level": "INFO",
-      "msg": "MediaSession: fetching artwork",
-      "data": {
-        "songId": "rNG7yxOv",
-        "url": "https://c.saavncdn.com/475/Dhurandhar-Hindi-2025-20260203083204-500x500.jpg"
-      }
-    },
-    {
-      "ts": "2026-06-07T04:34:09.576Z",
-      "level": "INFO",
-      "msg": "MediaSession: artwork set",
-      "data": {
-        "songId": "rNG7yxOv",
-        "bytes": 136699
-      }
-    },
-    {
-      "ts": "2026-06-07T04:34:19.079Z",
+      "ts": "2026-06-07T04:36:24.611Z",
       "level": "INFO",
       "msg": "LUFS norm",
       "data": {
-        "name": "Ishq Jalakar - Karvaan",
-        "lufs": "-15.7",
-        "gainDb": "-0.3"
+        "name": "Teri Ni Kararan",
+        "lufs": "-11.3",
+        "gainDb": "-4.7"
       }
     },
     {
-      "ts": "2026-06-07T04:34:24.032Z",
+      "ts": "2026-06-07T04:37:01.863Z",
       "level": "INFO",
       "msg": "Playback started",
       "data": {
-        "name": "Gehra Hua",
-        "artist": "Irshad Kamil, Arijit Singh, Shashwat Sachdev, Armaan Khan"
+        "name": "Run Down The City - Monica",
+        "artist": "Reble, Majrooh Sultanpuri, Asha Bhosle, Shashwat Sachdev, R.D. Burman"
       }
     },
     {
-      "ts": "2026-06-07T04:34:24.033Z",
+      "ts": "2026-06-07T04:37:01.864Z",
       "level": "INFO",
       "msg": "MediaSession: fetching artwork",
       "data": {
-        "songId": "1gHtmQ3x",
+        "songId": "3dRWYsos",
         "url": "https://c.saavncdn.com/475/Dhurandhar-Hindi-2025-20260203083204-500x500.jpg"
       }
     },
     {
-      "ts": "2026-06-07T04:34:24.084Z",
+      "ts": "2026-06-07T04:37:01.909Z",
       "level": "INFO",
       "msg": "MediaSession: artwork set",
       "data": {
-        "songId": "1gHtmQ3x",
+        "songId": "3dRWYsos",
         "bytes": 136699
-      }
-    },
-    {
-      "ts": "2026-06-07T04:34:33.594Z",
-      "level": "INFO",
-      "msg": "LUFS norm",
-      "data": {
-        "name": "Gehra Hua",
-        "lufs": "-33.4",
-        "gainDb": "2.0"
       }
     }
   ]
