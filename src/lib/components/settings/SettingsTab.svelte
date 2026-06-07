@@ -3,7 +3,7 @@
   import { eqState } from '$lib/stores/eq.js';
   import * as audioEngine from '$lib/audioEngine.js';
   import { EQ_BANDS, EQ_PRESETS } from '$lib/audioEngine.js';
-  import { Log, getGhCfg, saveGhCfg, uploadLogsToGithub } from '$lib/logger.js';
+  import { Log, logTick, getGhCfg, saveGhCfg, uploadLogsToGithub } from '$lib/logger.js';
   import { APP_VERSION, getEnv, setEnv, isStaging } from '$lib/api.js';
   import { idbGetAll, idbClear } from '$lib/idb.js';
   import { downloadedIds, playlists } from '$lib/stores/library.js';
@@ -22,7 +22,7 @@
 
   let ghPat = getGhCfg().pat || '';
   let logFilter = 'ALL';
-  $: logs = Log.all().filter(l => logFilter === 'ALL' || l.level === logFilter).slice(-100).reverse();
+  $: logs = $logTick, Log.all().filter(l => logFilter === 'ALL' || l.level === logFilter).slice(-100).reverse();
   $: stats = intelGetStats();
 
   function onSliderChange(i, e) { audioEngine.setEqGain(i, parseFloat(e.target.value)); }
@@ -166,7 +166,7 @@
       <span>Data source</span><span class="settings-val">JioSaavn (SIGMA)</span>
     </div>
     <div class="settings-row">
-      <span>Logs stored</span><span class="settings-val">{Log.count()}</span>
+      <span>Logs stored</span><span class="settings-val">{$logTick, Log.count()}</span>
     </div>
   </div>
 
