@@ -1,14 +1,17 @@
 // Logger — extracted from index.html
-import { writable } from 'svelte/store';
-
-const LOG_KEY  = 'mbx_logs';
-const LOG_MAX  = 400;
-const GH_REPO  = 'Suman8055/musicplayer';
+const LOG_KEY     = 'mbx_logs';
+const LOG_MAX     = 400;
+const GH_REPO     = 'Suman8055/musicplayer';
 const GH_LOG_PATH = 'logs/musicplayer-log.json';
 const GH_CFG_KEY  = 'mbx_ghcfg';
 
-// Svelte store — increments on every write so SettingsTab re-renders reactively
-export const logTick = writable(0);
+// Lightweight observable tick — no svelte/store import so logger stays SSR-safe
+let _tick = 0;
+const _tickListeners = new Set();
+export const logTick = {
+  subscribe(fn) { _tickListeners.add(fn); fn(_tick); return () => _tickListeners.delete(fn); },
+  _notify()     { _tick++; _tickListeners.forEach(fn => fn(_tick)); },
+};
 
 export const Log = {
   _store: [],
@@ -21,7 +24,7 @@ export const Log = {
     this._store.push(entry);
     if (this._store.length > LOG_MAX) this._store.shift();
     try { localStorage.setItem(LOG_KEY, JSON.stringify(this._store)); } catch {}
-    logTick.update(n => n + 1);
+    logTick._notify();
     const fn = (level === 'ERROR' || level === 'CRITICAL') ? 'error' : 'log';
     console[fn](`[MB:${level}]`, msg, ...(data ? [data] : []));
   },
@@ -30,7 +33,7 @@ export const Log = {
   error(msg, data)    { this._write('ERROR', msg, data); },
   critical(msg, data) { this._write('CRITICAL', msg, data); },
   all()               { return [...this._store]; },
-  clear()             { this._store = []; try { localStorage.removeItem(LOG_KEY); } catch {} logTick.update(n => n + 1); },
+  clear()             { this._store = []; try { localStorage.removeItem(LOG_KEY); } catch {} logTick._notify(); },
   count()             { return this._store.length; },
 };
 
