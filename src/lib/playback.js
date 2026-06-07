@@ -51,6 +51,14 @@ export async function play(song, newQueue, idx) {
   cacheSong(song);
   npOpen.set(true);
   loadingUrl.set(true);
+  Log.info('play() called', {
+    name:       song.name,
+    songId:     song.id,
+    queueLen:   get(queue).length,
+    queueIdx:   get(qIdx),
+    shuffle:    get(shuffleOn),
+    repeat:     get(repeatMode),
+  });
 
   try {
     // ── Offline blob path ────────────────────────────────────────────────────
@@ -260,10 +268,12 @@ async function preloadNext(audio) {
   } catch {}
 }
 
-// Fetch artwork and encode as a data: URL (512×512 JPEG).
+// Fetch artwork and encode as data: URLs at two sizes.
+// iOS Safari CarPlay: small player uses the first artwork entry (~96px); large view uses the second (~512px).
+// Two entries let CarPlay pick the sharpest size for each context without upscaling.
 // Raw CDN URLs are rejected by Tesla/Bluetooth AVRCP firmware (403 outside browser).
-// data: URLs embed the bytes directly — the OS passes them over AVRCP without HTTP.
-async function _fetchArtDataUrl(url) {
+// data: URLs embed bytes directly — the OS passes them over AVRCP without HTTP.
+async function _fetchArtDataUrls(url) {
   try {
     const res = await fetch(url);
     if (!res.ok) return null;
@@ -272,12 +282,14 @@ async function _fetchArtDataUrl(url) {
       const img = new Image();
       const objUrl = URL.createObjectURL(blob);
       img.onload = () => {
-        const SIZE = 512;
-        const cv = document.createElement('canvas');
-        cv.width = SIZE; cv.height = SIZE;
-        cv.getContext('2d').drawImage(img, 0, 0, SIZE, SIZE);
+        const draw = (size, quality) => {
+          const cv = document.createElement('canvas');
+          cv.width = size; cv.height = size;
+          cv.getContext('2d').drawImage(img, 0, 0, size, size);
+          return cv.toDataURL('image/jpeg', quality);
+        };
         URL.revokeObjectURL(objUrl);
-        resolve(cv.toDataURL('image/jpeg', 0.85));
+        resolve({ small: draw(96, 0.80), large: draw(512, 0.85) });
       };
       img.onerror = () => { URL.revokeObjectURL(objUrl); resolve(null); };
       img.src = objUrl;
@@ -293,12 +305,13 @@ async function _updateMediaSession(song) {
   // Cancel any in-flight artwork fetch from a previous song
   if (_msAbortCtrl) { _msAbortCtrl.abort(); _msAbortCtrl = null; }
 
-  // Set title/artist/album immediately so lock screen shows something right away
+  // Set title/artist immediately — lock screen shows something while artwork fetches.
+  // NOTE: iOS Safari WebKit bug — setting both `artist` and `album` causes `album` to be
+  // silently dropped. We omit `album` to ensure `artist` always renders on CarPlay/lock screen.
   try {
     navigator.mediaSession.metadata = new MediaMetadata({
-      title:  song.name   || 'Unknown',
-      artist: song.artist || '',
-      album:  song.album  || '',
+      title:   song.name   || 'Unknown',
+      artist:  song.artist || '',
       artwork: [],
     });
     navigator.mediaSession.playbackState = 'playing';
@@ -311,18 +324,23 @@ async function _updateMediaSession(song) {
   _msAbortCtrl = new AbortController();
   const imgUrl = song.image.replace(/\d+x\d+/, '500x500');
   Log.info('MediaSession: fetching artwork', { songId, url: imgUrl });
-  const dataUrl = await _fetchArtDataUrl(imgUrl);
+  const art = await _fetchArtDataUrls(imgUrl);
   _msAbortCtrl = null;
 
-  if (!dataUrl) { Log.warn('MediaSession: artwork fetch returned null', { songId, url: imgUrl }); return; }
+  if (!art) { Log.warn('MediaSession: artwork fetch returned null', { songId, url: imgUrl }); return; }
   if (get(nowSong)?.id !== songId) { Log.info('MediaSession: artwork discarded (song changed)', { songId }); return; }
   try {
+    // Two artwork sizes: iOS Safari picks the first entry for the small lock screen/CarPlay widget
+    // (~96px context) and the second for the large Now Playing full-screen view (~512px context).
+    // Without both, iOS upscales the single entry and it looks blurry in one of the two views.
     navigator.mediaSession.metadata = new MediaMetadata({
-      title:  song.name   || 'Unknown',
-      artist: song.artist || '',
-      album:  song.album  || '',
-      artwork: [{ src: dataUrl, sizes: '512x512', type: 'image/jpeg' }],
+      title:   song.name   || 'Unknown',
+      artist:  song.artist || '',
+      artwork: [
+        { src: art.small, sizes: '96x96',   type: 'image/jpeg' },
+        { src: art.large, sizes: '512x512', type: 'image/jpeg' },
+      ],
     });
-    Log.info('MediaSession: artwork set', { songId, bytes: dataUrl.length });
+    Log.info('MediaSession: artwork set', { songId, smallBytes: art.small.length, largeBytes: art.large.length });
   } catch {}
 }

@@ -140,6 +140,11 @@ export function ensureAudioCtx() {
     _audioCtx = new AC({ sampleRate: 48000 });
     _audioCtx.addEventListener('statechange', () => {
       const cb = _callbacks.getState?.() ?? {};
+      if (_callbacks.onLog) _callbacks.onLog('info', 'AudioContext statechange', {
+        state:      _audioCtx?.state ?? 'unknown',
+        userPaused: cb.userPaused ?? false,
+        playing:    cb.playing    ?? false,
+      });
       if (_audioCtx.state === 'suspended' && !cb.userPaused) {
         setTimeout(() => {
           if (_audioCtx?.state === 'suspended' && !(_callbacks.getState?.()?.userPaused)) {
@@ -618,6 +623,10 @@ function _teardownStereoWidener() {
 function _rewireAudio() {
   if (!_audioCtx || _rewiring) return;
   _rewiring = true;
+  if (_callbacks.onLog) _callbacks.onLog('info', 'EQ rewire start', {
+    ctxState: _audioCtx?.state ?? 'unknown',
+    cfOn: _cfOn,
+  });
   try {
     _gainNode.gain.setValueAtTime(0, _audioCtx.currentTime);
     _teardownLimiterChain();
@@ -659,6 +668,10 @@ function _rewireAudio() {
     _gainNode.gain.setTargetAtTime(1.0, _audioCtx.currentTime, 0.015);
   } finally {
     _rewiring = false;
+    if (_callbacks.onLog) _callbacks.onLog('info', 'EQ rewire done', {
+      eqNodes: _eqNodes.length,
+      cfOn:    _cfOn,
+    });
   }
   _pushEqState();
 }

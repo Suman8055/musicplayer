@@ -123,7 +123,9 @@
       if ('mediaSession' in navigator && d > 0 && isFinite(t) && isFinite(d)) {
         try {
           navigator.mediaSession.setPositionState({ duration: d, playbackRate: 1.0, position: Math.min(t, d) });
-        } catch {}
+        } catch (e) {
+          Log.warn('MediaSession: setPositionState failed', { err: e?.message, t, d });
+        }
       }
     });
 
@@ -133,12 +135,22 @@
 
     audioEl.addEventListener('ended', () => {
       playing.set(false);
+      Log.info('Song ended naturally', {
+        name:     $nowSong?.name   ?? null,
+        duration: audioEl.duration ?? null,
+      });
+      if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
       onEnded();
     });
 
     audioEl.addEventListener('error', (e) => {
       loadingUrl.set(false);
-      console.warn('[Audio] error', e);
+      const err = audioEl.error;
+      Log.error('Audio element error', {
+        code:    err?.code    ?? null,
+        message: err?.message ?? null,
+        src:     audioEl.src ? audioEl.src.slice(0, 120) : null,
+      });
     });
 
     // ── AirPlay detection ────────────────────────────────────────────────────
