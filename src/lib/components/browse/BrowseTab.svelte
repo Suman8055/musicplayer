@@ -1,7 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { activeTab } from '$lib/stores/ui.js';
-  import { fetchModules, fetchAlbumSongs, fetchPlaylistSongs, fetchCharts, fetchFeaturedPlaylists, fetchArtistTopSongs, fetchArtistAlbums, fetchArtistMeta, filterByLanguage, LANG_TILES } from '$lib/api.js';
+  import { fetchModules, fetchAlbumSongs, fetchPlaylistSongs, fetchCharts, fetchFeaturedPlaylists, fetchArtistTopSongs, fetchArtistAlbums, fetchArtistMeta, filterByLanguage, searchSongs, LANG_TILES } from '$lib/api.js';
   import { buildForYouRows, intelTotalPlays, _timeGreeting } from '$lib/smartPlay.js';
   import { play } from '$lib/playback.js';
   import { cacheSongs, bestImg, decodeHtml } from '$lib/utils.js';
@@ -65,7 +65,14 @@
     detailLoading = true;
     try {
       let songs = type === 'playlist' ? await fetchPlaylistSongs(id) : await fetchAlbumSongs(id);
-      detailSongs = filterByLanguage(songs, activeLang);
+      let filtered = filterByLanguage(songs, activeLang);
+      // Upstream API returns 0 songs for many English chart playlists — fall back to search
+      if (filtered.length === 0 && activeLang) {
+        const query = title.replace(/[-–—]\s*(english|hindi|telugu|tamil|punjabi)\s*$/i, '').trim();
+        const fallback = await searchSongs(`${query} ${activeLang}`, 30).catch(() => []);
+        filtered = filterByLanguage(fallback, activeLang);
+      }
+      detailSongs = filtered;
       cacheSongs(detailSongs);
     } finally { detailLoading = false; }
   }

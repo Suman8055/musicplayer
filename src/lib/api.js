@@ -3,7 +3,7 @@
 import { decodeHtml, bestImg } from './utils.js';
 import { Log } from './logger.js';
 
-export const APP_VERSION = '5.2.0';
+export const APP_VERSION = '5.2.1';
 export const STORE_KEY   = 'mbx_v2';
 export const ENV_KEY     = 'mbx_env';
 export const DES_KEY     = '38346591';
@@ -78,14 +78,15 @@ export function detectScript(text) {
 export function classifyLanguage(song) {
   const tag = (song.language || '').toLowerCase().trim();
   if (ALLOWED_LANGUAGES.has(tag)) return tag;
-  if (tag) return null; // known but not in allowlist
-  // Only use script as fallback when tag is completely absent
   const script = detectScript(song.name + ' ' + song.artist);
+  // Non-allowlist tag (e.g. "pop", "western"): trust Latin script as English
+  if (tag) return script === 'latin' ? 'english' : null;
+  // No tag: fall back to script detection
   if (script === 'telugu') return 'telugu';
   if (script === 'tamil')  return 'tamil';
   if (script === 'devanagari') return 'hindi';
   if (script === 'gurmukhi')   return 'punjabi';
-  return null; // Latin + no tag = unknown, not English
+  return script === 'latin' ? 'english' : null;
 }
 
 export function filterByLanguage(songs, activeLang = '') {
