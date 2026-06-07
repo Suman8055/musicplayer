@@ -1,5 +1,5 @@
 {
-  "uploadedAt": "2026-06-07T05:50:45.700Z",
+  "uploadedAt": "2026-06-07T05:59:22.733Z",
   "device": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.5 Mobile/15E148 Safari/604.1",
   "entries": [
     {
@@ -1378,6 +1378,682 @@
       "data": {
         "songId": "IQMFCwXQ",
         "bytes": 136699
+      }
+    },
+    {
+      "ts": "2026-06-07T05:57:45.735Z",
+      "level": "INFO",
+      "msg": "App started",
+      "data": {
+        "version": "5.2.15"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:57:45.735Z",
+      "level": "INFO",
+      "msg": "AirPlay initial state",
+      "data": {
+        "supported": true,
+        "remoteSupported": true,
+        "probeReady": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:57:45.737Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": false
+      }
+    },
+    {
+      "ts": "2026-06-07T05:57:45.738Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:57:46.608Z",
+      "level": "INFO",
+      "msg": "App started",
+      "data": {
+        "version": "5.2.15"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:57:46.608Z",
+      "level": "INFO",
+      "msg": "AirPlay initial state",
+      "data": {
+        "supported": true,
+        "remoteSupported": true,
+        "probeReady": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:57:46.612Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": false
+      }
+    },
+    {
+      "ts": "2026-06-07T05:57:46.613Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:57:49.123Z",
+      "level": "INFO",
+      "msg": "App started",
+      "data": {
+        "version": "5.2.15"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:57:49.123Z",
+      "level": "INFO",
+      "msg": "AirPlay initial state",
+      "data": {
+        "supported": true,
+        "remoteSupported": true,
+        "probeReady": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:57:49.127Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": false
+      }
+    },
+    {
+      "ts": "2026-06-07T05:57:49.129Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:57:49.757Z",
+      "level": "INFO",
+      "msg": "App started",
+      "data": {
+        "version": "5.2.15"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:57:49.757Z",
+      "level": "INFO",
+      "msg": "AirPlay initial state",
+      "data": {
+        "supported": true,
+        "remoteSupported": true,
+        "probeReady": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:57:49.761Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": false
+      }
+    },
+    {
+      "ts": "2026-06-07T05:57:49.762Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:57:53.950Z",
+      "level": "INFO",
+      "msg": "App started",
+      "data": {
+        "version": "5.2.15"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:57:53.951Z",
+      "level": "INFO",
+      "msg": "AirPlay initial state",
+      "data": {
+        "supported": true,
+        "remoteSupported": true,
+        "probeReady": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:57:53.954Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": false
+      }
+    },
+    {
+      "ts": "2026-06-07T05:57:53.955Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:57:54.559Z",
+      "level": "INFO",
+      "msg": "App started",
+      "data": {
+        "version": "5.2.15"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:57:54.559Z",
+      "level": "INFO",
+      "msg": "AirPlay initial state",
+      "data": {
+        "supported": true,
+        "remoteSupported": true,
+        "probeReady": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:57:54.562Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": false
+      }
+    },
+    {
+      "ts": "2026-06-07T05:57:54.563Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:57:56.771Z",
+      "level": "INFO",
+      "msg": "App started",
+      "data": {
+        "version": "5.2.15"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:57:56.772Z",
+      "level": "INFO",
+      "msg": "AirPlay initial state",
+      "data": {
+        "supported": true,
+        "remoteSupported": true,
+        "probeReady": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:57:56.773Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": false
+      }
+    },
+    {
+      "ts": "2026-06-07T05:57:56.774Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:57:57.379Z",
+      "level": "INFO",
+      "msg": "App started",
+      "data": {
+        "version": "5.2.15"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:57:57.379Z",
+      "level": "INFO",
+      "msg": "AirPlay initial state",
+      "data": {
+        "supported": true,
+        "remoteSupported": true,
+        "probeReady": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:57:57.381Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": false
+      }
+    },
+    {
+      "ts": "2026-06-07T05:57:57.383Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:57:59.725Z",
+      "level": "INFO",
+      "msg": "App started",
+      "data": {
+        "version": "5.2.15"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:57:59.726Z",
+      "level": "INFO",
+      "msg": "AirPlay initial state",
+      "data": {
+        "supported": true,
+        "remoteSupported": true,
+        "probeReady": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:57:59.727Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": false
+      }
+    },
+    {
+      "ts": "2026-06-07T05:57:59.729Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:58:00.345Z",
+      "level": "INFO",
+      "msg": "App started",
+      "data": {
+        "version": "5.2.15"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:58:00.346Z",
+      "level": "INFO",
+      "msg": "AirPlay initial state",
+      "data": {
+        "supported": true,
+        "remoteSupported": true,
+        "probeReady": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:58:00.350Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": false
+      }
+    },
+    {
+      "ts": "2026-06-07T05:58:00.351Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:58:02.865Z",
+      "level": "INFO",
+      "msg": "App started",
+      "data": {
+        "version": "5.2.15"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:58:02.866Z",
+      "level": "INFO",
+      "msg": "AirPlay initial state",
+      "data": {
+        "supported": true,
+        "remoteSupported": true,
+        "probeReady": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:58:02.870Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": false
+      }
+    },
+    {
+      "ts": "2026-06-07T05:58:02.871Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:58:03.486Z",
+      "level": "INFO",
+      "msg": "App started",
+      "data": {
+        "version": "5.2.15"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:58:03.486Z",
+      "level": "INFO",
+      "msg": "AirPlay initial state",
+      "data": {
+        "supported": true,
+        "remoteSupported": true,
+        "probeReady": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:58:03.491Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": false
+      }
+    },
+    {
+      "ts": "2026-06-07T05:58:03.491Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:58:05.873Z",
+      "level": "INFO",
+      "msg": "App started",
+      "data": {
+        "version": "5.2.15"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:58:05.873Z",
+      "level": "INFO",
+      "msg": "AirPlay initial state",
+      "data": {
+        "supported": true,
+        "remoteSupported": true,
+        "probeReady": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:58:05.877Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": false
+      }
+    },
+    {
+      "ts": "2026-06-07T05:58:05.877Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:58:06.495Z",
+      "level": "INFO",
+      "msg": "App started",
+      "data": {
+        "version": "5.2.15"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:58:06.495Z",
+      "level": "INFO",
+      "msg": "AirPlay initial state",
+      "data": {
+        "supported": true,
+        "remoteSupported": true,
+        "probeReady": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:58:06.499Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": false
+      }
+    },
+    {
+      "ts": "2026-06-07T05:58:06.499Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:58:09.173Z",
+      "level": "INFO",
+      "msg": "App started",
+      "data": {
+        "version": "5.2.15"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:58:09.173Z",
+      "level": "INFO",
+      "msg": "AirPlay initial state",
+      "data": {
+        "supported": true,
+        "remoteSupported": true,
+        "probeReady": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:58:09.177Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": false
+      }
+    },
+    {
+      "ts": "2026-06-07T05:58:09.177Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:58:09.985Z",
+      "level": "INFO",
+      "msg": "App started",
+      "data": {
+        "version": "5.2.16"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:58:09.986Z",
+      "level": "INFO",
+      "msg": "AirPlay initial state",
+      "data": {
+        "supported": true,
+        "probeReady": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:58:09.992Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": false
+      }
+    },
+    {
+      "ts": "2026-06-07T05:58:09.994Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:58:11.410Z",
+      "level": "INFO",
+      "msg": "App started",
+      "data": {
+        "version": "5.2.16"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:58:11.411Z",
+      "level": "INFO",
+      "msg": "AirPlay initial state",
+      "data": {
+        "supported": true,
+        "probeReady": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:58:11.412Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": false
+      }
+    },
+    {
+      "ts": "2026-06-07T05:58:11.412Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:58:12.949Z",
+      "level": "WARN",
+      "msg": "fetchFeaturedPlaylists failed",
+      "data": {
+        "language": "hindi",
+        "err": "HTTP 404"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:58:14.194Z",
+      "level": "WARN",
+      "msg": "fetchFeaturedPlaylists failed",
+      "data": {
+        "language": "telugu",
+        "err": "HTTP 404"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:58:14.243Z",
+      "level": "WARN",
+      "msg": "fetchFeaturedPlaylists failed",
+      "data": {
+        "language": "telugu",
+        "err": "HTTP 404"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:58:15.806Z",
+      "level": "INFO",
+      "msg": "AudioContext created",
+      "data": {
+        "sampleRate": 48000
+      }
+    },
+    {
+      "ts": "2026-06-07T05:58:16.788Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Gira Gira Gingiraagirey",
+        "artist": "Mickey J. Meyer, Ram Miriyala, Kasarla Shyam"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:58:26.350Z",
+      "level": "INFO",
+      "msg": "LUFS norm",
+      "data": {
+        "name": "Gira Gira Gingiraagirey",
+        "lufs": "-16.0",
+        "gainDb": "-0.0"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:58:43.281Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Peddi Reddy",
+        "artist": "Mamatha Ramesh"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:58:52.843Z",
+      "level": "INFO",
+      "msg": "LUFS norm",
+      "data": {
+        "name": "Peddi Reddy",
+        "lufs": "-12.7",
+        "gainDb": "-3.3"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:58:57.750Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Rai Rai Raa Raa (From &quot;Peddi&quot;) - Telugu",
+        "artist": "A.R. Rahman, Anantha Sriram"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:59:01.539Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Bayilone Ballipalike",
+        "artist": "Mangli"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:59:03.301Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Niluvanivvade",
+        "artist": "Vijai Bulganin"
       }
     }
   ]
