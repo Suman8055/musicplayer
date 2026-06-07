@@ -299,6 +299,11 @@ export function stopBgKeepAlive() {
 // ── AirPlay ───────────────────────────────────────────────────────────────────
 export function setAirPlayMode(active) {
   _airPlayActive = active;
+  if (_callbacks.onLog) _callbacks.onLog('info', 'AirPlay setAirPlayMode', {
+    active,
+    hasMediaSource: !!_mediaSource,
+    ctxState: _audioCtx?.state ?? 'none'
+  });
   if (_callbacks.onAirPlayModeChange) _callbacks.onAirPlayModeChange(active);
   // Cancel any in-flight LUFS ramp so it doesn't stack when reconnecting
   if (_gainNode && _audioCtx && _audioCtx.state !== 'closed') {
@@ -306,7 +311,6 @@ export function setAirPlayMode(active) {
     _gainNode.gain.setValueAtTime(_gainNode.gain.value, _audioCtx.currentTime);
   }
   if (!_mediaSource) {
-    if (_callbacks.onLog) _callbacks.onLog('warn', 'AirPlay mode set but no mediaSource', { active });
     return;
   }
   if (active) {

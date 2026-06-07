@@ -43,6 +43,10 @@
     // Hand audio elements to playback store and audio engine
     setAudioElement(audioEl);
 
+    // Init logger first so all subsequent events are captured
+    Log.init(APP_VERSION);
+    intelPrune();
+
     // Init audio engine — does NOT create AudioContext yet (lazy, on first gesture)
     audioEngine.init(audioEl, {
       getState: () => ({
@@ -62,10 +66,6 @@
         else { Log.info(msg, data ?? null); console.info('[Engine]', msg, data ?? ''); }
       }
     });
-
-    // Init logger and prune intel
-    Log.init(APP_VERSION);
-    intelPrune();
 
     // Apply elder view if saved from previous session
     if ($elderView) document.body.classList.add('elder-view');
@@ -145,18 +145,28 @@
     });
 
     // iOS does not reliably fire webkitcurrentplaybacktargetiswirelesschanged
-    // when the user picks AirPlay from the system picker — poll as fallback
-    let _airPlayPollState = audioEl.webkitCurrentPlaybackTargetIsWireless === true;
+    // when the user picks AirPlay from the system picker — poll as fallback.
+    // Use == true (loose) because property may be undefined on iOS 18.7 before first audio load.
+    let _airPlayPollState = audioEl.webkitCurrentPlaybackTargetIsWireless == true;
     Log.info('AirPlay initial state', {
       active: _airPlayPollState,
-      supported: 'webkitCurrentPlaybackTargetIsWireless' in audioEl
+      supported: 'webkitCurrentPlaybackTargetIsWireless' in audioEl,
+      rawValue: audioEl.webkitCurrentPlaybackTargetIsWireless
     });
     const _airPlayPollInterval = setInterval(() => {
-      const current = audioEl.webkitCurrentPlaybackTargetIsWireless === true;
-      if (current !== _airPlayPollState) {
-        _airPlayPollState = current;
-        audioEngine.setAirPlayMode(current);
-        Log.info('AirPlay route changed (poll)', { active: current });
+      try {
+        if (!audioEl) return;
+        const current = audioEl.webkitCurrentPlaybackTargetIsWireless == true;
+        if (current !== _airPlayPollState) {
+          _airPlayPollState = current;
+          audioEngine.setAirPlayMode(current);
+          Log.info('AirPlay route changed (poll)', {
+            active: current,
+            rawValue: audioEl.webkitCurrentPlaybackTargetIsWireless
+          });
+        }
+      } catch (err) {
+        Log.warn('AirPlay poll error', { error: err?.message });
       }
     }, 1000);
 
