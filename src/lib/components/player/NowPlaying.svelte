@@ -1,5 +1,5 @@
 <script>
-  import { nowSong, playing, loadingUrl, seekProgress, currentTime, duration, seeking, shuffleOn, repeatMode, userPaused, getAudioElement } from '$lib/stores/playback.js';
+  import { nowSong, playing, loadingUrl, seekProgress, currentTime, duration, seeking, shuffleOn, repeatMode, userPaused, getAudioElement, getAirPlayProbeElement } from '$lib/stores/playback.js';
   import { npOpen, eqSheetOpen, queueOpen, airPlayDspWarn, showSheet, toast } from '$lib/stores/ui.js';
   import { whyChip } from '$lib/stores/smartplay.js';
   import { liked, playlists, downloadedIds } from '$lib/stores/library.js';
@@ -95,6 +95,17 @@
       { label: isLiked ? 'Remove from Liked' : 'Add to Liked', action: toggleLike },
       { label: dl ? 'Remove Download' : 'Download',  action: () => onDownload($nowSong) },
     ]);
+  }
+
+  function showAirPlayPicker() {
+    const probe = getAirPlayProbeElement();
+    const audio = getAudioElement();
+    const el = probe || audio;
+    if (el?.webkitShowPlaybackTargetPicker) {
+      el.webkitShowPlaybackTargetPicker();
+    } else {
+      toast('AirPlay not supported on this device');
+    }
   }
 
   const REPEAT_ICONS = [
@@ -221,6 +232,13 @@
           <line x1="4" y1="18" x2="4" y2="6"/><line x1="9" y1="18" x2="9" y2="10"/>
           <line x1="14" y1="18" x2="14" y2="4"/><line x1="19" y1="18" x2="19" y2="12"/>
         </svg>EQ
+      </button>
+      <!-- svelte-ignore a11y-click-events-have-key-events -->
+      <button class="np-foot" class:accent={$airPlayDspWarn} id="np-airplay-btn" on:click={showAirPlayPicker}>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+          <path d="M5 17H3a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h18a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-2"/>
+          <polygon points="12 15 17 21 7 21"/>
+        </svg>{$airPlayDspWarn ? 'AirPlay ✓' : 'AirPlay'}
       </button>
     </div>
   </div>
