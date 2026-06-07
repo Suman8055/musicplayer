@@ -310,12 +310,12 @@
   preload="metadata"
   playsinline
   webkit-playsinline
-  style="display:none"
+  style="visibility:hidden;position:absolute;width:0;height:0;pointer-events:none"
 ></audio>
 <!-- AirPlay probe: never connected to Web Audio graph so webkitCurrentPlaybackTargetIsWireless works.
-     MUST have preload="metadata" (not "none") so Safari creates an AVPlayer backing object.
-     MUST call .play() in sync with main audioEl so it has an active AVPlayer with a currentItem.
-     volume=0 ensures it is silent locally; AirPlay output is separate and intentional. -->
+     MUST NOT use display:none — iOS Safari suspends the AVPlayer for display:none elements,
+     preventing webkitCurrentPlaybackTargetIsWireless from updating.
+     Use visibility:hidden + zero size so it stays in the layout tree with an active AVPlayer. -->
 <audio
   id="audio-airplay-probe"
   bind:this={airPlayProbeEl}
@@ -323,7 +323,7 @@
   playsinline
   webkit-playsinline
   x-webkit-airplay="allow"
-  style="display:none"
+  style="visibility:hidden;position:absolute;width:0;height:0;pointer-events:none"
 ></audio>
 
 <NetworkBanner />
