@@ -22,3 +22,8 @@ export const isIdle = derived(nowSong, $s => $s === null);
 let _audioEl = null;
 export function setAudioElement(el) { _audioEl = el; }
 export function getAudioElement() { return _audioEl; }
+
+// AirPlay probe ref — mirrors src so Safari treats it as AirPlay-eligible
+let _airPlayProbeEl = null;
+export function setAirPlayProbeElement(el) { _airPlayProbeEl = el; }
+export function getAirPlayProbeElement() { return _airPlayProbeEl; }

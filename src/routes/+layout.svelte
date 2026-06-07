@@ -11,7 +11,7 @@
   import { downloadedIds } from '$lib/stores/library.js';
   import {
     playing, userPaused, nowSong, seekProgress, currentTime, duration,
-    loadingUrl, offlineBlobUrl, seeking, setAudioElement, getAudioElement
+    loadingUrl, offlineBlobUrl, seeking, setAudioElement, getAudioElement, setAirPlayProbeElement
   } from '$lib/stores/playback.js';
   import { toast, airPlayDspWarn, isOnline, updateAvailable, elderView } from '$lib/stores/ui.js';
   import PasscodeGate from '$lib/components/gate/PasscodeGate.svelte';
@@ -32,6 +32,7 @@
   // ── Audio element bindings — NEVER re-mount these ─────────────────────────
   let audioEl;
   let audioPreloadEl;
+  let airPlayProbeEl; // never passed to Web Audio — keeps webkitCurrentPlaybackTargetIsWireless working
 
   // Derived: is gate unlocked?
   $: unlocked = $gateToken === '278b0ebf70ec6ed8b4c6480de49a1650ace8d513d277e1374801564e49186d37';
@@ -42,6 +43,7 @@
   onMount(() => {
     // Hand audio elements to playback store and audio engine
     setAudioElement(audioEl);
+    setAirPlayProbeElement(airPlayProbeEl);
 
     // Init logger first so all subsequent events are captured
     Log.init(APP_VERSION);
@@ -138,42 +140,60 @@
       console.warn('[Audio] error', e);
     });
 
-    // ── AirPlay event listeners ──────────────────────────────────────────────
-    audioEl.addEventListener('webkitcurrentplaybacktargetiswirelesschanged', () => {
-      const active = audioEl.webkitCurrentPlaybackTargetIsWireless === true;
+    // ── AirPlay detection ────────────────────────────────────────────────────
+    // ROOT CAUSE: createMediaElementSource() installs an MTAudioProcessingTap on
+    // AVFoundation which permanently sets allowsExternalPlayback=NO on the AVPlayer.
+    // This makes webkitCurrentPlaybackTargetIsWireless always return false on audioEl.
+    // FIX: use a probe <audio> element that is NEVER passed to createMediaElementSource.
+    // Its webkitCurrentPlaybackTargetIsWireless works correctly.
+
+    // Mirror src to probe so WebKit treats it as a real media element eligible for AirPlay
+    audioEl.addEventListener('emptied', () => { if (airPlayProbeEl) airPlayProbeEl.load(); });
+
+    // Probe event listener (reliable — no MTAudioProcessingTap on probe)
+    airPlayProbeEl.addEventListener('webkitcurrentplaybacktargetiswirelesschanged', () => {
+      const active = airPlayProbeEl.webkitCurrentPlaybackTargetIsWireless === true;
       audioEngine.setAirPlayMode(active);
-      Log.info('AirPlay route changed (event)', { active });
+      Log.info('AirPlay route changed (probe event)', { active });
     });
 
-    audioEl.addEventListener('webkitplaybacktargetavailabilitychanged', (e) => {
-      // airplay button visibility — handled in NowPlaying component
-    });
-
-    // iOS does not reliably fire webkitcurrentplaybacktargetiswirelesschanged
-    // when the user picks AirPlay from the system picker — poll as fallback.
-    // Use == true (loose) because property may be undefined on iOS 18.7 before first audio load.
-    let _airPlayPollState = audioEl.webkitCurrentPlaybackTargetIsWireless == true;
+    let _airPlayPollState = false;
     Log.info('AirPlay initial state', {
       active: _airPlayPollState,
-      supported: 'webkitCurrentPlaybackTargetIsWireless' in audioEl,
-      rawValue: audioEl.webkitCurrentPlaybackTargetIsWireless
+      supported: 'webkitCurrentPlaybackTargetIsWireless' in airPlayProbeEl,
+      probeReady: !!airPlayProbeEl
     });
+
+    // Poll probe element as belt-and-suspenders fallback
     const _airPlayPollInterval = setInterval(() => {
       try {
-        if (!audioEl) return;
-        const current = audioEl.webkitCurrentPlaybackTargetIsWireless == true;
+        if (!airPlayProbeEl) return;
+        const current = airPlayProbeEl.webkitCurrentPlaybackTargetIsWireless === true;
         if (current !== _airPlayPollState) {
           _airPlayPollState = current;
           audioEngine.setAirPlayMode(current);
-          Log.info('AirPlay route changed (poll)', {
-            active: current,
-            rawValue: audioEl.webkitCurrentPlaybackTargetIsWireless
-          });
+          Log.info('AirPlay route changed (probe poll)', { active: current });
         }
       } catch (err) {
         Log.warn('AirPlay poll error', { error: err?.message });
       }
     }, 1000);
+
+    // pause→play heuristic: AirPlay route change causes a brief interruption
+    let _airPlayRouteTimer = null;
+    audioEl.addEventListener('pause', () => {
+      if ($userPaused) return;
+      _airPlayRouteTimer = setTimeout(() => { _airPlayRouteTimer = null; }, 1500);
+    });
+    audioEl.addEventListener('play', () => {
+      if (_airPlayRouteTimer) {
+        clearTimeout(_airPlayRouteTimer);
+        _airPlayRouteTimer = null;
+        Log.info('AirPlay route change heuristic (pause→play)', {
+          probeActive: airPlayProbeEl?.webkitCurrentPlaybackTargetIsWireless
+        });
+      }
+    });
 
     // ── MediaSession action handlers (registered once, never re-registered) ──
     if ('mediaSession' in navigator) {
@@ -263,6 +283,15 @@
   preload="metadata"
   playsinline
   webkit-playsinline
+  style="display:none"
+></audio>
+<!-- AirPlay probe: never connected to Web Audio graph so webkitCurrentPlaybackTargetIsWireless works -->
+<audio
+  id="audio-airplay-probe"
+  bind:this={airPlayProbeEl}
+  preload="none"
+  playsinline
+  x-webkit-airplay="allow"
   style="display:none"
 ></audio>
 
