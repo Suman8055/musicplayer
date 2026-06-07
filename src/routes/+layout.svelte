@@ -142,98 +142,101 @@
     });
 
     // ── AirPlay detection ────────────────────────────────────────────────────
-    // ROOT CAUSE: createMediaElementSource() installs an MTAudioProcessingTap on
-    // AVFoundation which permanently sets allowsExternalPlayback=NO on the AVPlayer.
-    // This makes webkitCurrentPlaybackTargetIsWireless always return false on audioEl.
-    // FIX: use a probe <audio> element that is NEVER passed to createMediaElementSource.
-    // Its webkitCurrentPlaybackTargetIsWireless works correctly.
+    // createMediaElementSource() installs an MTAudioProcessingTap on AVFoundation which
+    // permanently sets allowsExternalPlayback=NO on audioEl's AVPlayer — making
+    // webkitCurrentPlaybackTargetIsWireless always return false on audioEl.
+    // The probe element avoids this, but in practice the webkit event is unreliable
+    // (it only fires if the element was playing before AirPlay was activated).
+    // Primary detection: W3C Remote Playback API state changes on the probe element.
+    // Fallback: webkit property poll on probe. Belt-and-suspenders: both run together.
 
-    // Probe must be silent locally — AirPlay sends its own audio to the receiver
     airPlayProbeEl.volume = 0;
 
-    // Mirror play/pause/seek to probe so it has an active AVPlayer with a currentItem.
-    // webkitCurrentPlaybackTargetIsWireless only returns true on an element with an
-    // active AVPlayer (readyState >= HAVE_METADATA, actively playing or recently played).
+    // Mirror src to probe so it loads the same stream (needed for Remote Playback API
+    // and for webkitCurrentPlaybackTargetIsWireless to have an active AVPlayer).
+    // crossOrigin must match the main audio element's mode per-song.
     audioEl.addEventListener('play', () => {
       if (!airPlayProbeEl || !airPlayProbeEl.src) return;
       airPlayProbeEl.currentTime = audioEl.currentTime;
-      airPlayProbeEl.play().catch(() => {}); // silent — volume=0
+      airPlayProbeEl.play().catch(() => {});
     });
-    audioEl.addEventListener('pause', () => {
-      if (!airPlayProbeEl) return;
-      airPlayProbeEl.pause();
-    });
-    audioEl.addEventListener('seeked', () => {
-      if (!airPlayProbeEl) return;
-      airPlayProbeEl.currentTime = audioEl.currentTime;
-    });
+    audioEl.addEventListener('pause', () => { if (airPlayProbeEl) airPlayProbeEl.pause(); });
+    audioEl.addEventListener('seeked', () => { if (airPlayProbeEl) airPlayProbeEl.currentTime = audioEl.currentTime; });
     audioEl.addEventListener('emptied', () => { if (airPlayProbeEl) airPlayProbeEl.load(); });
 
-    // Device availability — show/hide button based on whether AirPlay targets exist
+    function _onAirPlayActive(active, source) {
+      if (_airPlayPollState === active) return; // dedupe
+      _airPlayPollState = active;
+      airPlayActive.set(active);
+      audioEngine.setAirPlayMode(active);
+      Log.info('AirPlay route changed', { active, source,
+        remoteState: airPlayProbeEl?.remote?.state ?? 'n/a',
+        probeWireless: airPlayProbeEl?.webkitCurrentPlaybackTargetIsWireless ?? 'n/a'
+      });
+    }
+
+    // ── Primary: W3C Remote Playback API on probe ─────────────────────────────
+    // remote.state: 'disconnected' | 'connecting' | 'connected'
+    // This fires on iOS Safari even when webkitCurrentPlaybackTargetIsWireless doesn't.
+    if (airPlayProbeEl.remote) {
+      airPlayProbeEl.remote.addEventListener('connecting', () => _onAirPlayActive(true,  'remote-connecting'));
+      airPlayProbeEl.remote.addEventListener('connect',    () => _onAirPlayActive(true,  'remote-connect'));
+      airPlayProbeEl.remote.addEventListener('disconnect', () => _onAirPlayActive(false, 'remote-disconnect'));
+    }
+    // Also listen on audioEl.remote — even though its webkitCurrentPlaybackTargetIsWireless
+    // is broken by the MTAudioProcessingTap, remote state events still fire.
+    if (audioEl.remote) {
+      audioEl.remote.addEventListener('connecting', () => _onAirPlayActive(true,  'audio-remote-connecting'));
+      audioEl.remote.addEventListener('connect',    () => _onAirPlayActive(true,  'audio-remote-connect'));
+      audioEl.remote.addEventListener('disconnect', () => _onAirPlayActive(false, 'audio-remote-disconnect'));
+    }
+
+    // ── Secondary: webkit wireless target changed event on probe ──────────────
+    airPlayProbeEl.addEventListener('webkitcurrentplaybacktargetiswirelesschanged', () => {
+      const active = airPlayProbeEl.webkitCurrentPlaybackTargetIsWireless === true;
+      _onAirPlayActive(active, 'webkit-event');
+    });
+
+    // ── Device availability (for show/hide button) ────────────────────────────
     airPlayProbeEl.addEventListener('webkitplaybacktargetavailabilitychanged', (e) => {
       const avail = e.availability === 'available';
       airPlayAvailable.set(avail);
       Log.info('AirPlay availability changed', { available: avail });
     });
-    // W3C Remote Playback API availability (fallback for non-webkit)
     if (airPlayProbeEl.remote) {
       airPlayProbeEl.remote.watchAvailability((avail) => {
         airPlayAvailable.set(avail);
-      }).catch(() => {
-        // watchAvailability not supported — always show button
-        airPlayAvailable.set(true);
-      });
+      }).catch(() => { airPlayAvailable.set(true); });
     }
-
-    // Probe event listener (reliable — no MTAudioProcessingTap on probe)
-    airPlayProbeEl.addEventListener('webkitcurrentplaybacktargetiswirelesschanged', () => {
-      const active = airPlayProbeEl.webkitCurrentPlaybackTargetIsWireless === true;
-      airPlayActive.set(active);
-      audioEngine.setAirPlayMode(active);
-      Log.info('AirPlay route changed (probe event)', { active });
-    });
 
     let _airPlayPollState = false;
     Log.info('AirPlay initial state', {
-      active: _airPlayPollState,
       supported: 'webkitCurrentPlaybackTargetIsWireless' in airPlayProbeEl,
+      remoteSupported: !!airPlayProbeEl.remote,
       probeReady: !!airPlayProbeEl
     });
 
-    // Poll both probe and audioEl — probe is preferred (no MTAudioProcessingTap) but
-    // audioEl.webkitCurrentPlaybackTargetIsWireless can also return true on some iOS builds
-    // when the DSP chain is disconnected. Belt-and-suspenders: take either.
+    // ── Tertiary: property poll — catches anything the events miss ─────────────
     const _airPlayPollInterval = setInterval(() => {
       try {
-        if (!airPlayProbeEl) return;
-        const fromProbe = airPlayProbeEl.webkitCurrentPlaybackTargetIsWireless === true;
-        const fromAudio = audioEl?.webkitCurrentPlaybackTargetIsWireless === true;
-        const current = fromProbe || fromAudio;
-        if (current !== _airPlayPollState) {
-          _airPlayPollState = current;
-          airPlayActive.set(current);
-          audioEngine.setAirPlayMode(current);
-          Log.info('AirPlay route changed (poll)', { active: current, fromProbe, fromAudio });
-        }
+        const fromProbe  = airPlayProbeEl?.webkitCurrentPlaybackTargetIsWireless === true;
+        const fromRemote = airPlayProbeEl?.remote?.state === 'connected';
+        const current = fromProbe || fromRemote;
+        if (current !== _airPlayPollState) _onAirPlayActive(current, 'poll');
       } catch (err) {
         Log.warn('AirPlay poll error', { error: err?.message });
       }
     }, 1000);
 
-    // External AirPlay pause guard: when audioEl pauses without userPaused being set
-    // and AirPlay is active (or suspected), the pause came from a hardware remote or
-    // HomePod tap — the MediaSession pause action is NOT fired in that case.
-    // We must NOT let bgKeepAlive auto-resume it. Mark userPaused=true so the
-    // keepalive skips recovery, but only when we are confident AirPlay is active.
+    // External AirPlay pause guard — hardware remote/HomePod tap pauses audioEl
+    // without firing the MediaSession 'pause' action, so userPaused stays false.
+    // Detect it here and treat it as a user pause to stop bgKeepAlive from resuming.
     audioEl.addEventListener('pause', () => {
       if ($userPaused) return;
-      const probeActive = airPlayProbeEl?.webkitCurrentPlaybackTargetIsWireless === true;
-      const audioActive = audioEl?.webkitCurrentPlaybackTargetIsWireless === true;
-      if (probeActive || audioActive || _airPlayPollState) {
-        // External AirPlay device paused — treat same as user pause
+      if (_airPlayPollState) {
         userPaused.set(true);
         audioEngine.onUserPaused();
-        Log.info('AirPlay external pause detected — userPaused set', { probeActive, audioActive });
+        Log.info('AirPlay external pause — userPaused set');
       }
     });
 

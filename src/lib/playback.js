@@ -100,7 +100,7 @@ export async function play(song, newQueue, idx) {
       const prev = get(offlineBlobUrl);
       if (prev) { try { URL.revokeObjectURL(prev); } catch {} offlineBlobUrl.set(null); }
       audio.src = stream.url;
-      const _probe2 = getAirPlayProbeElement(); if (_probe2) { _probe2.crossOrigin = null; _probe2.src = stream.url; }
+      const _probe2 = getAirPlayProbeElement(); if (_probe2) { _probe2.crossOrigin = 'anonymous'; _probe2.src = stream.url; }
       await audio.play().catch(e => Log.warn('Play failed', { err: e.message }));
 
       if (get(nowSong)?.id !== song.id) return;
