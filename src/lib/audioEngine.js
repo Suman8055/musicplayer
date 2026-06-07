@@ -213,6 +213,12 @@ function _gainFromLufs(measuredLufs) {
 export async function measureAndApplyLufs(song) {
   if (!_lufsOn) return;
   if (!_audioCtx || !_lufsAnalyser || !_gainNode) return;
+  if (_airPlayActive) {
+    // Audio is routing to AirPlay — analyser reads silence, skip measurement
+    _gainNode.gain.setTargetAtTime(1.0, _audioCtx.currentTime, 0.5);
+    if (_callbacks.onLog) _callbacks.onLog('info', 'LUFS skipped (AirPlay active)', { name: song.name });
+    return;
+  }
   if (_lufsCache.has(song.id)) {
     _gainNode.gain.cancelScheduledValues(_audioCtx.currentTime);
     _gainNode.gain.setValueAtTime(_gainNode.gain.value, _audioCtx.currentTime);
@@ -309,6 +315,10 @@ export function setAirPlayMode(active) {
   if (_gainNode && _audioCtx && _audioCtx.state !== 'closed') {
     _gainNode.gain.cancelScheduledValues(_audioCtx.currentTime);
     _gainNode.gain.setValueAtTime(_gainNode.gain.value, _audioCtx.currentTime);
+    if (active) {
+      // Reset to unity gain — LUFS analyser reads silence during AirPlay
+      _gainNode.gain.setTargetAtTime(1.0, _audioCtx.currentTime, 0.5);
+    }
   }
   if (!_mediaSource) {
     return;
