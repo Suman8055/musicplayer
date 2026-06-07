@@ -13,7 +13,7 @@
     playing, userPaused, nowSong, seekProgress, currentTime, duration,
     loadingUrl, offlineBlobUrl, seeking, setAudioElement, getAudioElement, setAirPlayProbeElement
   } from '$lib/stores/playback.js';
-  import { toast, airPlayDspWarn, isOnline, updateAvailable, elderView } from '$lib/stores/ui.js';
+  import { toast, airPlayDspWarn, airPlayAvailable, airPlayActive, isOnline, updateAvailable, elderView } from '$lib/stores/ui.js';
   import PasscodeGate from '$lib/components/gate/PasscodeGate.svelte';
   import NetworkBanner from '$lib/components/layout/NetworkBanner.svelte';
   import StagingBanner from '$lib/components/layout/StagingBanner.svelte';
@@ -62,6 +62,7 @@
       },
       onAirPlayModeChange: (active) => {
         airPlayDspWarn.set(active);
+        airPlayActive.set(active);
       },
       onLog: (level, msg, data) => {
         if (level === 'warn') { Log.warn(msg, data ?? null); console.warn('[Engine]', msg, data ?? ''); }
@@ -147,12 +148,47 @@
     // FIX: use a probe <audio> element that is NEVER passed to createMediaElementSource.
     // Its webkitCurrentPlaybackTargetIsWireless works correctly.
 
-    // Mirror src to probe so WebKit treats it as a real media element eligible for AirPlay
+    // Probe must be silent locally — AirPlay sends its own audio to the receiver
+    airPlayProbeEl.volume = 0;
+
+    // Mirror play/pause/seek to probe so it has an active AVPlayer with a currentItem.
+    // webkitCurrentPlaybackTargetIsWireless only returns true on an element with an
+    // active AVPlayer (readyState >= HAVE_METADATA, actively playing or recently played).
+    audioEl.addEventListener('play', () => {
+      if (!airPlayProbeEl || !airPlayProbeEl.src) return;
+      airPlayProbeEl.currentTime = audioEl.currentTime;
+      airPlayProbeEl.play().catch(() => {}); // silent — volume=0
+    });
+    audioEl.addEventListener('pause', () => {
+      if (!airPlayProbeEl) return;
+      airPlayProbeEl.pause();
+    });
+    audioEl.addEventListener('seeked', () => {
+      if (!airPlayProbeEl) return;
+      airPlayProbeEl.currentTime = audioEl.currentTime;
+    });
     audioEl.addEventListener('emptied', () => { if (airPlayProbeEl) airPlayProbeEl.load(); });
+
+    // Device availability — show/hide button based on whether AirPlay targets exist
+    airPlayProbeEl.addEventListener('webkitplaybacktargetavailabilitychanged', (e) => {
+      const avail = e.availability === 'available';
+      airPlayAvailable.set(avail);
+      Log.info('AirPlay availability changed', { available: avail });
+    });
+    // W3C Remote Playback API availability (fallback for non-webkit)
+    if (airPlayProbeEl.remote) {
+      airPlayProbeEl.remote.watchAvailability((avail) => {
+        airPlayAvailable.set(avail);
+      }).catch(() => {
+        // watchAvailability not supported — always show button
+        airPlayAvailable.set(true);
+      });
+    }
 
     // Probe event listener (reliable — no MTAudioProcessingTap on probe)
     airPlayProbeEl.addEventListener('webkitcurrentplaybacktargetiswirelesschanged', () => {
       const active = airPlayProbeEl.webkitCurrentPlaybackTargetIsWireless === true;
+      airPlayActive.set(active);
       audioEngine.setAirPlayMode(active);
       Log.info('AirPlay route changed (probe event)', { active });
     });
@@ -171,6 +207,7 @@
         const current = airPlayProbeEl.webkitCurrentPlaybackTargetIsWireless === true;
         if (current !== _airPlayPollState) {
           _airPlayPollState = current;
+          airPlayActive.set(current);
           audioEngine.setAirPlayMode(current);
           Log.info('AirPlay route changed (probe poll)', { active: current });
         }
@@ -285,12 +322,16 @@
   webkit-playsinline
   style="display:none"
 ></audio>
-<!-- AirPlay probe: never connected to Web Audio graph so webkitCurrentPlaybackTargetIsWireless works -->
+<!-- AirPlay probe: never connected to Web Audio graph so webkitCurrentPlaybackTargetIsWireless works.
+     MUST have preload="metadata" (not "none") so Safari creates an AVPlayer backing object.
+     MUST call .play() in sync with main audioEl so it has an active AVPlayer with a currentItem.
+     volume=0 ensures it is silent locally; AirPlay output is separate and intentional. -->
 <audio
   id="audio-airplay-probe"
   bind:this={airPlayProbeEl}
-  preload="none"
+  preload="metadata"
   playsinline
+  webkit-playsinline
   x-webkit-airplay="allow"
   style="display:none"
 ></audio>

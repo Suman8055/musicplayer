@@ -70,7 +70,7 @@ export async function play(song, newQueue, idx) {
       if ('audioSession' in navigator) navigator.audioSession.type = 'playback';
       audioEngine.resumeAudioCtx().catch(() => {});
       audio.src = blobUrl;
-      const _probe1 = getAirPlayProbeElement(); if (_probe1) _probe1.src = blobUrl;
+      const _probe1 = getAirPlayProbeElement(); if (_probe1) { _probe1.crossOrigin = null; _probe1.src = blobUrl; }
       await audio.play().catch(e => Log.warn('Offline play failed', { err: e.message }));
 
       if (get(nowSong)?.id !== song.id) return;
@@ -100,7 +100,7 @@ export async function play(song, newQueue, idx) {
       const prev = get(offlineBlobUrl);
       if (prev) { try { URL.revokeObjectURL(prev); } catch {} offlineBlobUrl.set(null); }
       audio.src = stream.url;
-      const _probe2 = getAirPlayProbeElement(); if (_probe2) _probe2.src = stream.url;
+      const _probe2 = getAirPlayProbeElement(); if (_probe2) { _probe2.crossOrigin = null; _probe2.src = stream.url; }
       await audio.play().catch(e => Log.warn('Play failed', { err: e.message }));
 
       if (get(nowSong)?.id !== song.id) return;

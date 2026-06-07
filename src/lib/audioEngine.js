@@ -303,6 +303,12 @@ export function stopBgKeepAlive() {
 }
 
 // ── AirPlay ───────────────────────────────────────────────────────────────────
+// When AirPlay is active, createMediaElementSource() captures the audio on the
+// local device, so the Web Audio graph renders silently to local speakers while
+// the native AVPlayer routes the raw stream to the AirPlay receiver directly.
+// Fix: disconnect _mediaSource from the DSP chain entirely on AirPlay activation.
+// This lets the native <audio> element route the stream to AirPlay without any
+// Web Audio processing tap interfering with AVAudioSession routing.
 export function setAirPlayMode(active) {
   _airPlayActive = active;
   if (_callbacks.onLog) _callbacks.onLog('info', 'AirPlay setAirPlayMode', {
@@ -311,41 +317,44 @@ export function setAirPlayMode(active) {
     ctxState: _audioCtx?.state ?? 'none'
   });
   if (_callbacks.onAirPlayModeChange) _callbacks.onAirPlayModeChange(active);
-  // Cancel any in-flight LUFS ramp so it doesn't stack when reconnecting
+
   if (_gainNode && _audioCtx && _audioCtx.state !== 'closed') {
     _gainNode.gain.cancelScheduledValues(_audioCtx.currentTime);
     _gainNode.gain.setValueAtTime(_gainNode.gain.value, _audioCtx.currentTime);
     if (active) {
-      // Reset to unity gain — LUFS analyser reads silence during AirPlay
-      _gainNode.gain.setTargetAtTime(1.0, _audioCtx.currentTime, 0.5);
+      _gainNode.gain.setTargetAtTime(0, _audioCtx.currentTime, 0.1);
+    } else {
+      _gainNode.gain.setTargetAtTime(1.0, _audioCtx.currentTime, 0.1);
     }
   }
-  if (!_mediaSource) {
-    return;
-  }
+
+  if (!_mediaSource) return;
+
   if (active) {
-    // Disconnect LUFS analyser chain — running AnalyserNode (smoothing=0) causes
-    // iOS render-thread stall on AVAudioSession route change → AirPlay buffer dropout
-    try { if (_lufsKw1) _gainNode.disconnect(_lufsKw1); } catch {}
+    // Fully disconnect _mediaSource from the Web Audio graph.
+    // This stops the MTAudioProcessingTap from competing with AVAudioSession AirPlay routing.
+    // Also disconnect the LUFS analyser tap — AnalyserNode with smoothing=0 causes
+    // iOS render-thread stall on AVAudioSession route change → AirPlay buffer dropout.
     try { _mediaSource.disconnect(); } catch {}
+    try { if (_lufsKw1) _gainNode.disconnect(_lufsKw1); } catch {}
     if (_audioEl) _audioEl.volume = 1;
-    // Longer release: AirPlay buffer depth (300–2000ms) makes 200ms release audible as a step
+    // Longer compressor release: AirPlay buffer depth (300–2000ms) makes fast release audible
     if (_limiterCompressor) _limiterCompressor.release.value = 0.5;
-    if (_callbacks.onLog) _callbacks.onLog('info', 'AirPlay engine: LUFS chain disconnected', {
-      ctxState: _audioCtx?.state, limiterRelease: 0.5
+    if (_callbacks.onLog) _callbacks.onLog('info', 'AirPlay engine: DSP chain disconnected', {
+      ctxState: _audioCtx?.state
     });
   } else {
     if (_audioCtx && _audioCtx.state !== 'closed') {
-      // Restore LUFS analyser tap
-      try { if (_lufsKw1) _gainNode.connect(_lufsKw1); } catch {}
+      // Restore full DSP chain: _mediaSource → _gainNode → EQ → limiter → destination
       try { _mediaSource.connect(_gainNode); } catch {}
+      try { if (_lufsKw1) _gainNode.connect(_lufsKw1); } catch {}
       if (_audioEl) _audioEl.volume = 1;
       if (_limiterCompressor) _limiterCompressor.release.value = 0.2;
-      if (_callbacks.onLog) _callbacks.onLog('info', 'AirPlay engine: LUFS chain restored', {
-        ctxState: _audioCtx?.state, limiterRelease: 0.2
+      if (_callbacks.onLog) _callbacks.onLog('info', 'AirPlay engine: DSP chain restored', {
+        ctxState: _audioCtx?.state
       });
     } else {
-      if (_callbacks.onLog) _callbacks.onLog('warn', 'AirPlay engine: ctx closed on disconnect', {
+      if (_callbacks.onLog) _callbacks.onLog('warn', 'AirPlay engine: ctx closed on restore', {
         ctxState: _audioCtx?.state
       });
     }
