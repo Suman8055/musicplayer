@@ -1,7 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { activeTab } from '$lib/stores/ui.js';
-  import { fetchModules, fetchAlbumSongs, fetchPlaylistSongs, fetchCharts, fetchFeaturedPlaylists, fetchArtistTopSongs, fetchArtistAlbums, fetchArtistMeta, filterByLanguage, searchSongs, LANG_TILES } from '$lib/api.js';
+  import { fetchModules, fetchAlbumSongs, fetchPlaylistSongs, fetchCharts, fetchFeaturedPlaylists, fetchArtistTopSongs, fetchArtistAlbums, fetchArtistMeta, filterByLanguage, LANG_TILES } from '$lib/api.js';
   import { buildForYouRows, intelTotalPlays, _timeGreeting } from '$lib/smartPlay.js';
   import { play } from '$lib/playback.js';
   import { cacheSongs, bestImg, decodeHtml } from '$lib/utils.js';
@@ -65,10 +65,6 @@
     detailLoading = true;
     try {
       let songs = type === 'playlist' ? await fetchPlaylistSongs(id) : await fetchAlbumSongs(id);
-      // JioSaavn editorial playlists often return 0 songs — fall back to a language search
-      if (songs.length === 0 && activeLang) {
-        songs = await searchSongs(activeLang, 40);
-      }
       detailSongs = filterByLanguage(songs, activeLang);
       cacheSongs(detailSongs);
     } finally { detailLoading = false; }
@@ -303,6 +299,8 @@
     </div>
     {#if detailLoading}
       <div class="empty-wrap"><div class="spinner"></div></div>
+    {:else if detailSongs.length === 0}
+      <div class="empty-wrap" style="color:var(--fg2);font-size:14px;padding:32px 16px;text-align:center">No songs available for this playlist</div>
     {:else}
       {#each detailSongs as song, i}
         <SongRow {song} onPlay={() => playSong(song, detailSongs, i)} onMore={(s) => onMoreSong(s)} />
