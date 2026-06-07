@@ -64,6 +64,20 @@
     if (!u?.waiting) return;
     u.waiting.postMessage({ type: 'SKIP_WAITING' });
   }
+
+  async function clearCacheAndReload() {
+    try {
+      if ('serviceWorker' in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map(r => r.unregister()));
+      }
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map(k => caches.delete(k)));
+      }
+    } catch {}
+    window.location.reload(true);
+  }
 </script>
 
 <div class="tab-pane" class:active={$activeTab === 'settings'} id="tab-settings">
@@ -167,6 +181,10 @@
     </div>
     <div class="settings-row">
       <span>Logs stored</span><span class="settings-val">{$logTick, Log.count()}</span>
+    </div>
+    <div class="settings-row">
+      <span>Clear Cache</span>
+      <button class="settings-btn danger" on:click={clearCacheAndReload}>Clear &amp; Reload</button>
     </div>
   </div>
 
