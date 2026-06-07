@@ -1,5 +1,5 @@
 {
-  "uploadedAt": "2026-06-07T03:49:29.731Z",
+  "uploadedAt": "2026-06-07T03:57:49.850Z",
   "device": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.5 Mobile/15E148 Safari/604.1",
   "entries": [
     {
@@ -135,6 +135,320 @@
         "name": "Khat",
         "lufs": "-12.5",
         "gainDb": "-3.5"
+      }
+    },
+    {
+      "ts": "2026-06-07T03:55:37.512Z",
+      "level": "INFO",
+      "msg": "App started",
+      "data": {
+        "version": "5.2.0"
+      }
+    },
+    {
+      "ts": "2026-06-07T03:55:37.513Z",
+      "level": "INFO",
+      "msg": "AirPlay initial state",
+      "data": {
+        "active": false,
+        "supported": true
+      }
+    },
+    {
+      "ts": "2026-06-07T03:55:38.433Z",
+      "level": "INFO",
+      "msg": "App started",
+      "data": {
+        "version": "5.2.0"
+      }
+    },
+    {
+      "ts": "2026-06-07T03:55:38.433Z",
+      "level": "INFO",
+      "msg": "AirPlay initial state",
+      "data": {
+        "active": false,
+        "supported": true
+      }
+    },
+    {
+      "ts": "2026-06-07T03:55:44.102Z",
+      "level": "WARN",
+      "msg": "fetchFeaturedPlaylists failed",
+      "data": {
+        "language": "hindi",
+        "err": "HTTP 404"
+      }
+    },
+    {
+      "ts": "2026-06-07T03:55:53.670Z",
+      "level": "INFO",
+      "msg": "AudioContext created",
+      "data": {
+        "sampleRate": 48000
+      }
+    },
+    {
+      "ts": "2026-06-07T03:55:54.657Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Dhurandhar - Title Track",
+        "artist": "Hanumankind, Jasmine Sandlas, Babu Singh Maan, Shashwat Sachdev, Sudhir Yaduvanshi, Charanjit Ahuja, Muhammad Sadiq, Ranjit Kaur"
+      }
+    },
+    {
+      "ts": "2026-06-07T03:55:54.658Z",
+      "level": "INFO",
+      "msg": "MediaSession: fetching artwork",
+      "data": {
+        "songId": "o2TiOMOu",
+        "url": "https://c.saavncdn.com/475/Dhurandhar-Hindi-2025-20260203083204-500x500.jpg"
+      }
+    },
+    {
+      "ts": "2026-06-07T03:55:54.714Z",
+      "level": "INFO",
+      "msg": "MediaSession: artwork set",
+      "data": {
+        "songId": "o2TiOMOu",
+        "bytes": 136699
+      }
+    },
+    {
+      "ts": "2026-06-07T03:56:03.668Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Ishq Jalakar - Karvaan",
+        "artist": "Shashwat Sachdev, Irshad Kamil, Shahzad Ali, Sahir Ludhianvi, Subhadeep Das Chowdhury, Armaan Khan, Roshan"
+      }
+    },
+    {
+      "ts": "2026-06-07T03:56:03.668Z",
+      "level": "INFO",
+      "msg": "MediaSession: fetching artwork",
+      "data": {
+        "songId": "rNG7yxOv",
+        "url": "https://c.saavncdn.com/475/Dhurandhar-Hindi-2025-20260203083204-500x500.jpg"
+      }
+    },
+    {
+      "ts": "2026-06-07T03:56:03.727Z",
+      "level": "INFO",
+      "msg": "MediaSession: artwork set",
+      "data": {
+        "songId": "rNG7yxOv",
+        "bytes": 136699
+      }
+    },
+    {
+      "ts": "2026-06-07T03:56:13.231Z",
+      "level": "INFO",
+      "msg": "LUFS norm",
+      "data": {
+        "name": "Ishq Jalakar - Karvaan",
+        "lufs": "-11.4",
+        "gainDb": "-4.6"
+      }
+    },
+    {
+      "ts": "2026-06-07T03:56:21.483Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Gehra Hua",
+        "artist": "Irshad Kamil, Arijit Singh, Shashwat Sachdev, Armaan Khan"
+      }
+    },
+    {
+      "ts": "2026-06-07T03:56:21.484Z",
+      "level": "INFO",
+      "msg": "MediaSession: fetching artwork",
+      "data": {
+        "songId": "1gHtmQ3x",
+        "url": "https://c.saavncdn.com/475/Dhurandhar-Hindi-2025-20260203083204-500x500.jpg"
+      }
+    },
+    {
+      "ts": "2026-06-07T03:56:21.531Z",
+      "level": "INFO",
+      "msg": "MediaSession: artwork set",
+      "data": {
+        "songId": "1gHtmQ3x",
+        "bytes": 136699
+      }
+    },
+    {
+      "ts": "2026-06-07T03:56:41.491Z",
+      "level": "INFO",
+      "msg": "App started",
+      "data": {
+        "version": "5.2.0"
+      }
+    },
+    {
+      "ts": "2026-06-07T03:56:41.491Z",
+      "level": "INFO",
+      "msg": "AirPlay initial state",
+      "data": {
+        "active": false,
+        "supported": true
+      }
+    },
+    {
+      "ts": "2026-06-07T03:56:50.293Z",
+      "level": "WARN",
+      "msg": "fetchFeaturedPlaylists failed",
+      "data": {
+        "language": "hindi",
+        "err": "HTTP 404"
+      }
+    },
+    {
+      "ts": "2026-06-07T03:56:54.533Z",
+      "level": "INFO",
+      "msg": "AudioContext created",
+      "data": {
+        "sampleRate": 48000
+      }
+    },
+    {
+      "ts": "2026-06-07T03:56:54.849Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Dhurandhar - Title Track",
+        "artist": "Hanumankind, Jasmine Sandlas, Babu Singh Maan, Shashwat Sachdev, Sudhir Yaduvanshi, Charanjit Ahuja, Muhammad Sadiq, Ranjit Kaur"
+      }
+    },
+    {
+      "ts": "2026-06-07T03:56:54.850Z",
+      "level": "INFO",
+      "msg": "MediaSession: fetching artwork",
+      "data": {
+        "songId": "o2TiOMOu",
+        "url": "https://c.saavncdn.com/475/Dhurandhar-Hindi-2025-20260203083204-500x500.jpg"
+      }
+    },
+    {
+      "ts": "2026-06-07T03:56:54.916Z",
+      "level": "INFO",
+      "msg": "MediaSession: artwork set",
+      "data": {
+        "songId": "o2TiOMOu",
+        "bytes": 136699
+      }
+    },
+    {
+      "ts": "2026-06-07T03:57:04.412Z",
+      "level": "INFO",
+      "msg": "LUFS norm",
+      "data": {
+        "name": "Dhurandhar - Title Track",
+        "lufs": "-25.4",
+        "gainDb": "2.0"
+      }
+    },
+    {
+      "ts": "2026-06-07T03:57:09.015Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Ishq Jalakar - Karvaan",
+        "artist": "Shashwat Sachdev, Irshad Kamil, Shahzad Ali, Sahir Ludhianvi, Subhadeep Das Chowdhury, Armaan Khan, Roshan"
+      }
+    },
+    {
+      "ts": "2026-06-07T03:57:09.015Z",
+      "level": "INFO",
+      "msg": "MediaSession: fetching artwork",
+      "data": {
+        "songId": "rNG7yxOv",
+        "url": "https://c.saavncdn.com/475/Dhurandhar-Hindi-2025-20260203083204-500x500.jpg"
+      }
+    },
+    {
+      "ts": "2026-06-07T03:57:09.076Z",
+      "level": "INFO",
+      "msg": "MediaSession: artwork set",
+      "data": {
+        "songId": "rNG7yxOv",
+        "bytes": 136699
+      }
+    },
+    {
+      "ts": "2026-06-07T03:57:18.575Z",
+      "level": "INFO",
+      "msg": "LUFS norm",
+      "data": {
+        "name": "Ishq Jalakar - Karvaan",
+        "lufs": "-6.2",
+        "gainDb": "-6.0"
+      }
+    },
+    {
+      "ts": "2026-06-07T03:57:27.033Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Gehra Hua",
+        "artist": "Irshad Kamil, Arijit Singh, Shashwat Sachdev, Armaan Khan"
+      }
+    },
+    {
+      "ts": "2026-06-07T03:57:27.033Z",
+      "level": "INFO",
+      "msg": "MediaSession: fetching artwork",
+      "data": {
+        "songId": "1gHtmQ3x",
+        "url": "https://c.saavncdn.com/475/Dhurandhar-Hindi-2025-20260203083204-500x500.jpg"
+      }
+    },
+    {
+      "ts": "2026-06-07T03:57:27.145Z",
+      "level": "INFO",
+      "msg": "MediaSession: artwork set",
+      "data": {
+        "songId": "1gHtmQ3x",
+        "bytes": 136699
+      }
+    },
+    {
+      "ts": "2026-06-07T03:57:36.598Z",
+      "level": "INFO",
+      "msg": "LUFS norm",
+      "data": {
+        "name": "Gehra Hua",
+        "lufs": "-19.5",
+        "gainDb": "2.0"
+      }
+    },
+    {
+      "ts": "2026-06-07T03:57:42.708Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Teri Ni Kararan",
+        "artist": "Lal Chand Yamla Jatt, Diljit Dosanjh, Shashwat Sachdev"
+      }
+    },
+    {
+      "ts": "2026-06-07T03:57:42.709Z",
+      "level": "INFO",
+      "msg": "MediaSession: fetching artwork",
+      "data": {
+        "songId": "IQMFCwXQ",
+        "url": "https://c.saavncdn.com/475/Dhurandhar-Hindi-2025-20260203083204-500x500.jpg"
+      }
+    },
+    {
+      "ts": "2026-06-07T03:57:42.756Z",
+      "level": "INFO",
+      "msg": "MediaSession: artwork set",
+      "data": {
+        "songId": "IQMFCwXQ",
+        "bytes": 136699
       }
     }
   ]
