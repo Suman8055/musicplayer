@@ -1,0 +1,3543 @@
+{
+  "uploadedAt": "2026-06-07T03:36:20.440Z",
+  "device": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.5 Mobile/15E148 Safari/604.1",
+  "entries": [
+    {
+      "ts": "2026-06-05T22:41:15.127Z",
+      "level": "INFO",
+      "msg": "AudioContext state",
+      "data": {
+        "state": "interrupted"
+      }
+    },
+    {
+      "ts": "2026-06-05T22:41:15.213Z",
+      "level": "INFO",
+      "msg": "AudioContext state",
+      "data": {
+        "state": "suspended"
+      }
+    },
+    {
+      "ts": "2026-06-05T22:41:15.213Z",
+      "level": "INFO",
+      "msg": "Fight-back play() succeeded",
+      "data": null
+    },
+    {
+      "ts": "2026-06-05T22:41:16.022Z",
+      "level": "INFO",
+      "msg": "AudioContext state",
+      "data": {
+        "state": "running"
+      }
+    },
+    {
+      "ts": "2026-06-05T22:41:16.297Z",
+      "level": "INFO",
+      "msg": "Stream OK",
+      "data": {
+        "id": "3dTPhT9e",
+        "quality": "320kbps",
+        "network": "320kbps",
+        "isHls": false
+      }
+    },
+    {
+      "ts": "2026-06-05T22:41:16.297Z",
+      "level": "INFO",
+      "msg": "Preloaded next",
+      "data": {
+        "id": "3dTPhT9e",
+        "name": "Sher Khul Gaye"
+      }
+    },
+    {
+      "ts": "2026-06-05T22:41:46.034Z",
+      "level": "INFO",
+      "msg": "LUFS norm",
+      "data": {
+        "name": "Gehra Hua",
+        "lufs": "-21.1",
+        "gainDb": "3.0"
+      }
+    },
+    {
+      "ts": "2026-06-05T22:46:41.244Z",
+      "level": "INFO",
+      "msg": "App foregrounded",
+      "data": {
+        "ctxBefore": "running",
+        "ctxAfter": "running",
+        "audioPaused": false,
+        "needsPlay": false,
+        "iosPaused": false
+      }
+    },
+    {
+      "ts": "2026-06-05T22:46:43.809Z",
+      "level": "INFO",
+      "msg": "App backgrounded",
+      "data": {
+        "playing": true,
+        "userPaused": false,
+        "ctx": "running",
+        "audioSession": "playback"
+      }
+    },
+    {
+      "ts": "2026-06-05T22:47:17.359Z",
+      "level": "WARN",
+      "msg": "OS interrupted playback",
+      "data": {
+        "ctx": "running",
+        "docHidden": true,
+        "song": "Gehra Hua"
+      }
+    },
+    {
+      "ts": "2026-06-05T22:47:17.467Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Sher Khul Gaye"
+      }
+    },
+    {
+      "ts": "2026-06-05T22:47:20.037Z",
+      "level": "INFO",
+      "msg": "Stream OK",
+      "data": {
+        "id": "4y6PQVso",
+        "quality": "320kbps",
+        "network": "320kbps",
+        "isHls": false
+      }
+    },
+    {
+      "ts": "2026-06-05T22:47:20.038Z",
+      "level": "INFO",
+      "msg": "Preloaded next",
+      "data": {
+        "id": "4y6PQVso",
+        "name": "Hai Re (From \"Itllu Arjuna\")"
+      }
+    },
+    {
+      "ts": "2026-06-05T22:47:49.034Z",
+      "level": "INFO",
+      "msg": "LUFS norm",
+      "data": {
+        "name": "Sher Khul Gaye",
+        "lufs": "-9.8",
+        "gainDb": "-6.2"
+      }
+    },
+    {
+      "ts": "2026-06-05T22:50:18.617Z",
+      "level": "WARN",
+      "msg": "OS interrupted playback",
+      "data": {
+        "ctx": "running",
+        "docHidden": true,
+        "song": "Sher Khul Gaye"
+      }
+    },
+    {
+      "ts": "2026-06-05T22:50:18.743Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Hai Re (From \"Itllu Arjuna\")"
+      }
+    },
+    {
+      "ts": "2026-06-05T22:50:21.023Z",
+      "level": "INFO",
+      "msg": "Stream OK",
+      "data": {
+        "id": "5OjdY4fM",
+        "quality": "320kbps",
+        "network": "320kbps",
+        "isHls": false
+      }
+    },
+    {
+      "ts": "2026-06-05T22:50:21.023Z",
+      "level": "INFO",
+      "msg": "Preloaded next",
+      "data": {
+        "id": "5OjdY4fM",
+        "name": "Tillu Anna DJ Pedithe"
+      }
+    },
+    {
+      "ts": "2026-06-05T22:50:51.033Z",
+      "level": "INFO",
+      "msg": "LUFS norm",
+      "data": {
+        "name": "Hai Re (From \"Itllu Arjuna\")",
+        "lufs": "-21.6",
+        "gainDb": "3.0"
+      }
+    },
+    {
+      "ts": "2026-06-05T22:53:44.525Z",
+      "level": "WARN",
+      "msg": "OS interrupted playback",
+      "data": {
+        "ctx": "running",
+        "docHidden": true,
+        "song": "Hai Re (From \"Itllu Arjuna\")"
+      }
+    },
+    {
+      "ts": "2026-06-05T22:53:44.640Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Tillu Anna DJ Pedithe"
+      }
+    },
+    {
+      "ts": "2026-06-05T22:53:46.875Z",
+      "level": "INFO",
+      "msg": "Stream OK",
+      "data": {
+        "id": "7a1qRRBG",
+        "quality": "320kbps",
+        "network": "320kbps",
+        "isHls": false
+      }
+    },
+    {
+      "ts": "2026-06-05T22:53:46.876Z",
+      "level": "INFO",
+      "msg": "Preloaded next",
+      "data": {
+        "id": "7a1qRRBG",
+        "name": "Baba Neeku Mokkutha"
+      }
+    },
+    {
+      "ts": "2026-06-05T22:53:54.179Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Baba Neeku Mokkutha"
+      }
+    },
+    {
+      "ts": "2026-06-05T22:53:56.466Z",
+      "level": "INFO",
+      "msg": "Stream OK",
+      "data": {
+        "id": "8N_6I8Gn",
+        "quality": "320kbps",
+        "network": "320kbps",
+        "isHls": false
+      }
+    },
+    {
+      "ts": "2026-06-05T22:53:56.466Z",
+      "level": "INFO",
+      "msg": "Preloaded next",
+      "data": {
+        "id": "8N_6I8Gn",
+        "name": "Harleys In Hawaii"
+      }
+    },
+    {
+      "ts": "2026-06-05T22:54:13.569Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Harleys In Hawaii"
+      }
+    },
+    {
+      "ts": "2026-06-05T22:54:15.750Z",
+      "level": "INFO",
+      "msg": "Stream OK",
+      "data": {
+        "id": "AYPbEWem",
+        "quality": "320kbps",
+        "network": "320kbps",
+        "isHls": false
+      }
+    },
+    {
+      "ts": "2026-06-05T22:54:15.750Z",
+      "level": "INFO",
+      "msg": "Preloaded next",
+      "data": {
+        "id": "AYPbEWem",
+        "name": "Adi Arabi Kadalandam (Bombay / Soundtrack Version)"
+      }
+    },
+    {
+      "ts": "2026-06-05T22:54:46.035Z",
+      "level": "INFO",
+      "msg": "LUFS norm",
+      "data": {
+        "name": "Harleys In Hawaii",
+        "lufs": "-7.0",
+        "gainDb": "-9.0"
+      }
+    },
+    {
+      "ts": "2026-06-05T22:54:53.981Z",
+      "level": "INFO",
+      "msg": "App foregrounded",
+      "data": {
+        "ctxBefore": "running",
+        "ctxAfter": "running",
+        "audioPaused": false,
+        "needsPlay": false,
+        "iosPaused": false
+      }
+    },
+    {
+      "ts": "2026-06-05T22:55:00.964Z",
+      "level": "INFO",
+      "msg": "App backgrounded",
+      "data": {
+        "playing": true,
+        "userPaused": false,
+        "ctx": "running",
+        "audioSession": "playback"
+      }
+    },
+    {
+      "ts": "2026-06-05T22:57:20.094Z",
+      "level": "WARN",
+      "msg": "OS interrupted playback",
+      "data": {
+        "ctx": "running",
+        "docHidden": true,
+        "song": "Harleys In Hawaii"
+      }
+    },
+    {
+      "ts": "2026-06-05T22:57:20.212Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Adi Arabi Kadalandam (Bombay / Soundtrack Version)"
+      }
+    },
+    {
+      "ts": "2026-06-05T22:57:22.420Z",
+      "level": "INFO",
+      "msg": "Stream OK",
+      "data": {
+        "id": "B2InkzZj",
+        "quality": "320kbps",
+        "network": "320kbps",
+        "isHls": false
+      }
+    },
+    {
+      "ts": "2026-06-05T22:57:22.421Z",
+      "level": "INFO",
+      "msg": "Preloaded next",
+      "data": {
+        "id": "B2InkzZj",
+        "name": "KAMALA PURAM RODDATA DJ"
+      }
+    },
+    {
+      "ts": "2026-06-05T22:57:26.874Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "KAMALA PURAM RODDATA DJ"
+      }
+    },
+    {
+      "ts": "2026-06-05T22:57:29.142Z",
+      "level": "INFO",
+      "msg": "Stream OK",
+      "data": {
+        "id": "BhKP6P-H",
+        "quality": "320kbps",
+        "network": "320kbps",
+        "isHls": false
+      }
+    },
+    {
+      "ts": "2026-06-05T22:57:29.143Z",
+      "level": "INFO",
+      "msg": "Preloaded next",
+      "data": {
+        "id": "BhKP6P-H",
+        "name": "Espresso"
+      }
+    },
+    {
+      "ts": "2026-06-05T22:57:32.223Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Espresso"
+      }
+    },
+    {
+      "ts": "2026-06-05T22:57:34.416Z",
+      "level": "INFO",
+      "msg": "Stream OK",
+      "data": {
+        "id": "CNi4GEJ7",
+        "quality": "320kbps",
+        "network": "320kbps",
+        "isHls": false
+      }
+    },
+    {
+      "ts": "2026-06-05T22:57:34.418Z",
+      "level": "INFO",
+      "msg": "Preloaded next",
+      "data": {
+        "id": "CNi4GEJ7",
+        "name": "Preminche Premava"
+      }
+    },
+    {
+      "ts": "2026-06-05T22:57:41.122Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Preminche Premava"
+      }
+    },
+    {
+      "ts": "2026-06-05T22:57:43.395Z",
+      "level": "INFO",
+      "msg": "Stream OK",
+      "data": {
+        "id": "E6RpWxTT",
+        "quality": "320kbps",
+        "network": "320kbps",
+        "isHls": false
+      }
+    },
+    {
+      "ts": "2026-06-05T22:57:43.396Z",
+      "level": "INFO",
+      "msg": "Preloaded next",
+      "data": {
+        "id": "E6RpWxTT",
+        "name": "Dracula (JENNIE Remix)"
+      }
+    },
+    {
+      "ts": "2026-06-05T22:57:44.371Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Dracula (JENNIE Remix)"
+      }
+    },
+    {
+      "ts": "2026-06-05T22:57:46.526Z",
+      "level": "INFO",
+      "msg": "Stream OK",
+      "data": {
+        "id": "HPfQu3xR",
+        "quality": "320kbps",
+        "network": "320kbps",
+        "isHls": false
+      }
+    },
+    {
+      "ts": "2026-06-05T22:57:46.527Z",
+      "level": "INFO",
+      "msg": "Preloaded next",
+      "data": {
+        "id": "HPfQu3xR",
+        "name": "Naal Nachna"
+      }
+    },
+    {
+      "ts": "2026-06-05T22:57:56.378Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Naal Nachna"
+      }
+    },
+    {
+      "ts": "2026-06-05T22:57:58.518Z",
+      "level": "INFO",
+      "msg": "Stream OK",
+      "data": {
+        "id": "HtoCuROi",
+        "quality": "320kbps",
+        "network": "320kbps",
+        "isHls": false
+      }
+    },
+    {
+      "ts": "2026-06-05T22:57:58.518Z",
+      "level": "INFO",
+      "msg": "Preloaded next",
+      "data": {
+        "id": "HtoCuROi",
+        "name": "Singari"
+      }
+    },
+    {
+      "ts": "2026-06-05T22:58:22.180Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Singari"
+      }
+    },
+    {
+      "ts": "2026-06-05T22:58:24.506Z",
+      "level": "INFO",
+      "msg": "Stream OK",
+      "data": {
+        "id": "KPUyEuLS",
+        "quality": "320kbps",
+        "network": "320kbps",
+        "isHls": false
+      }
+    },
+    {
+      "ts": "2026-06-05T22:58:24.507Z",
+      "level": "INFO",
+      "msg": "Preloaded next",
+      "data": {
+        "id": "KPUyEuLS",
+        "name": "Shararat"
+      }
+    },
+    {
+      "ts": "2026-06-05T22:58:53.205Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Shararat"
+      }
+    },
+    {
+      "ts": "2026-06-05T22:58:55.380Z",
+      "level": "INFO",
+      "msg": "Stream OK",
+      "data": {
+        "id": "MiqvKtFt",
+        "quality": "320kbps",
+        "network": "320kbps",
+        "isHls": false
+      }
+    },
+    {
+      "ts": "2026-06-05T22:58:55.381Z",
+      "level": "INFO",
+      "msg": "Preloaded next",
+      "data": {
+        "id": "MiqvKtFt",
+        "name": "Yede Yedeydey - Duet"
+      }
+    },
+    {
+      "ts": "2026-06-05T22:58:57.466Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Yede Yedeydey - Duet"
+      }
+    },
+    {
+      "ts": "2026-06-05T22:58:59.698Z",
+      "level": "INFO",
+      "msg": "Stream OK",
+      "data": {
+        "id": "MuaEIlJs",
+        "quality": "320kbps",
+        "network": "320kbps",
+        "isHls": false
+      }
+    },
+    {
+      "ts": "2026-06-05T22:58:59.700Z",
+      "level": "INFO",
+      "msg": "Preloaded next",
+      "data": {
+        "id": "MuaEIlJs",
+        "name": "Sapphire"
+      }
+    },
+    {
+      "ts": "2026-06-05T22:59:01.479Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Sapphire"
+      }
+    },
+    {
+      "ts": "2026-06-05T22:59:03.699Z",
+      "level": "INFO",
+      "msg": "Stream OK",
+      "data": {
+        "id": "Nz39tynw",
+        "quality": "320kbps",
+        "network": "320kbps",
+        "isHls": false
+      }
+    },
+    {
+      "ts": "2026-06-05T22:59:03.700Z",
+      "level": "INFO",
+      "msg": "Preloaded next",
+      "data": {
+        "id": "Nz39tynw",
+        "name": "Paruvam Vanaga"
+      }
+    },
+    {
+      "ts": "2026-06-05T22:59:33.029Z",
+      "level": "INFO",
+      "msg": "LUFS norm",
+      "data": {
+        "name": "Sapphire",
+        "lufs": "-22.2",
+        "gainDb": "3.0"
+      }
+    },
+    {
+      "ts": "2026-06-05T22:59:48.920Z",
+      "level": "WARN",
+      "msg": "OS interrupted playback",
+      "data": {
+        "ctx": "running",
+        "docHidden": true,
+        "song": "Sapphire"
+      }
+    },
+    {
+      "ts": "2026-06-05T22:59:48.928Z",
+      "level": "INFO",
+      "msg": "AudioContext state",
+      "data": {
+        "state": "interrupted"
+      }
+    },
+    {
+      "ts": "2026-06-05T22:59:49.081Z",
+      "level": "INFO",
+      "msg": "AudioContext state",
+      "data": {
+        "state": "suspended"
+      }
+    },
+    {
+      "ts": "2026-06-05T22:59:49.081Z",
+      "level": "INFO",
+      "msg": "Fight-back play() succeeded",
+      "data": null
+    },
+    {
+      "ts": "2026-06-05T22:59:49.082Z",
+      "level": "WARN",
+      "msg": "OS interrupted playback",
+      "data": {
+        "ctx": "interrupted",
+        "docHidden": true,
+        "song": "Sapphire"
+      }
+    },
+    {
+      "ts": "2026-06-05T22:59:49.082Z",
+      "level": "INFO",
+      "msg": "AudioContext state",
+      "data": {
+        "state": "interrupted"
+      }
+    },
+    {
+      "ts": "2026-06-05T22:59:49.143Z",
+      "level": "INFO",
+      "msg": "AudioContext state",
+      "data": {
+        "state": "suspended"
+      }
+    },
+    {
+      "ts": "2026-06-05T22:59:49.144Z",
+      "level": "INFO",
+      "msg": "Fight-back play() succeeded",
+      "data": null
+    },
+    {
+      "ts": "2026-06-05T23:19:53.040Z",
+      "level": "INFO",
+      "msg": "AudioContext state",
+      "data": {
+        "state": "running"
+      }
+    },
+    {
+      "ts": "2026-06-05T23:37:17.205Z",
+      "level": "INFO",
+      "msg": "pagehide",
+      "data": {
+        "playing": true,
+        "userPaused": false,
+        "ctx": "running"
+      }
+    },
+    {
+      "ts": "2026-06-05T23:37:17.205Z",
+      "level": "INFO",
+      "msg": "App backgrounded",
+      "data": {
+        "playing": true,
+        "userPaused": false,
+        "ctx": "running",
+        "audioSession": "playback"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:02:17.112Z",
+      "level": "INFO",
+      "msg": "App started",
+      "data": {
+        "version": "4.1.61"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:02:17.901Z",
+      "level": "INFO",
+      "msg": "pagehide",
+      "data": {
+        "playing": false,
+        "userPaused": false
+      }
+    },
+    {
+      "ts": "2026-06-06T17:02:17.902Z",
+      "level": "INFO",
+      "msg": "App backgrounded",
+      "data": {
+        "playing": false,
+        "userPaused": false,
+        "audioSession": "auto"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:02:17.983Z",
+      "level": "INFO",
+      "msg": "App started",
+      "data": {
+        "version": "4.1.61"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:02:18.907Z",
+      "level": "INFO",
+      "msg": "Search songs OK",
+      "data": {
+        "q": "Naveen, Charan, S.P. Balasubrahmanyam",
+        "count": 15
+      }
+    },
+    {
+      "ts": "2026-06-06T17:02:19.632Z",
+      "level": "INFO",
+      "msg": "Search songs OK",
+      "data": {
+        "q": "Hiphop Tamizha, Thamizh Aadhavan",
+        "count": 1
+      }
+    },
+    {
+      "ts": "2026-06-06T17:02:19.730Z",
+      "level": "INFO",
+      "msg": "Search songs OK",
+      "data": {
+        "q": "Katy Perry",
+        "count": 15
+      }
+    },
+    {
+      "ts": "2026-06-06T17:02:20.516Z",
+      "level": "INFO",
+      "msg": "Search songs fallback",
+      "data": {
+        "q": "Sujatha Mohan, Vaishali, Subha, Richa Sarma latest"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:02:20.560Z",
+      "level": "INFO",
+      "msg": "Search songs OK",
+      "data": {
+        "q": "Hiphop Tamizha, Thamizh Aadhavan feat",
+        "count": 1
+      }
+    },
+    {
+      "ts": "2026-06-06T17:02:20.589Z",
+      "level": "INFO",
+      "msg": "Search songs OK",
+      "data": {
+        "q": "Katy Perry feat",
+        "count": 15
+      }
+    },
+    {
+      "ts": "2026-06-06T17:02:20.591Z",
+      "level": "INFO",
+      "msg": "Search songs OK",
+      "data": {
+        "q": "Hiphop Tamizha, Thamizh Aadhavan hits",
+        "count": 1
+      }
+    },
+    {
+      "ts": "2026-06-06T17:02:20.626Z",
+      "level": "INFO",
+      "msg": "Search songs OK",
+      "data": {
+        "q": "Katy Perry hits",
+        "count": 15
+      }
+    },
+    {
+      "ts": "2026-06-06T17:02:20.662Z",
+      "level": "INFO",
+      "msg": "Search songs fallback",
+      "data": {
+        "q": "Sujatha Mohan, Vaishali, Subha, Richa Sarma feat"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:02:20.673Z",
+      "level": "INFO",
+      "msg": "Search songs fallback",
+      "data": {
+        "q": "Sujatha Mohan, Vaishali, Subha, Richa Sarma hits"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:02:20.854Z",
+      "level": "INFO",
+      "msg": "Search songs OK",
+      "data": {
+        "q": "Katy Perry latest",
+        "count": 15
+      }
+    },
+    {
+      "ts": "2026-06-06T17:02:21.647Z",
+      "level": "INFO",
+      "msg": "Search songs OK",
+      "data": {
+        "q": "Hiphop Tamizha, Thamizh Aadhavan latest",
+        "count": 1
+      }
+    },
+    {
+      "ts": "2026-06-06T17:02:27.375Z",
+      "level": "INFO",
+      "msg": "AudioContext created",
+      "data": null
+    },
+    {
+      "ts": "2026-06-06T17:02:27.546Z",
+      "level": "INFO",
+      "msg": "AudioContext state",
+      "data": {
+        "state": "running"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:02:27.752Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Nee Gunde Lona"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:02:29.945Z",
+      "level": "INFO",
+      "msg": "Stream OK",
+      "data": {
+        "id": "-VK2HtKD",
+        "quality": "320kbps",
+        "network": "320kbps",
+        "isHls": false
+      }
+    },
+    {
+      "ts": "2026-06-06T17:02:29.946Z",
+      "level": "INFO",
+      "msg": "Preloaded next",
+      "data": {
+        "id": "-VK2HtKD",
+        "name": "Chiku Buku Raile"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:02:33.666Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Chiku Buku Raile"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:02:35.874Z",
+      "level": "INFO",
+      "msg": "Stream OK",
+      "data": {
+        "id": "1gHtmQ3x",
+        "quality": "320kbps",
+        "network": "320kbps",
+        "isHls": false
+      }
+    },
+    {
+      "ts": "2026-06-06T17:02:35.874Z",
+      "level": "INFO",
+      "msg": "Preloaded next",
+      "data": {
+        "id": "1gHtmQ3x",
+        "name": "Gehra Hua"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:02:45.726Z",
+      "level": "INFO",
+      "msg": "LUFS norm",
+      "data": {
+        "name": "Chiku Buku Raile",
+        "lufs": "-12.5",
+        "gainDb": "-3.5"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:03:10.630Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Gehra Hua"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:03:13.628Z",
+      "level": "INFO",
+      "msg": "Stream OK",
+      "data": {
+        "id": "3dTPhT9e",
+        "quality": "320kbps",
+        "network": "320kbps",
+        "isHls": false
+      }
+    },
+    {
+      "ts": "2026-06-06T17:03:13.629Z",
+      "level": "INFO",
+      "msg": "Preloaded next",
+      "data": {
+        "id": "3dTPhT9e",
+        "name": "Sher Khul Gaye"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:03:22.686Z",
+      "level": "INFO",
+      "msg": "LUFS norm",
+      "data": {
+        "name": "Gehra Hua",
+        "lufs": "-20.3",
+        "gainDb": "2.0"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:03:22.858Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Sher Khul Gaye"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:03:25.333Z",
+      "level": "INFO",
+      "msg": "Stream OK",
+      "data": {
+        "id": "4y6PQVso",
+        "quality": "320kbps",
+        "network": "320kbps",
+        "isHls": false
+      }
+    },
+    {
+      "ts": "2026-06-06T17:03:25.334Z",
+      "level": "INFO",
+      "msg": "Preloaded next",
+      "data": {
+        "id": "4y6PQVso",
+        "name": "Hai Re (From \"Itllu Arjuna\")"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:03:34.917Z",
+      "level": "INFO",
+      "msg": "LUFS norm",
+      "data": {
+        "name": "Sher Khul Gaye",
+        "lufs": "-12.1",
+        "gainDb": "-3.9"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:03:35.650Z",
+      "level": "INFO",
+      "msg": "App backgrounded",
+      "data": {
+        "playing": true,
+        "userPaused": false,
+        "ctx": "running",
+        "audioSession": "playback"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:03:46.666Z",
+      "level": "INFO",
+      "msg": "App foregrounded",
+      "data": {
+        "ctxBefore": "running",
+        "ctxAfter": "running",
+        "audioPaused": true,
+        "needsPlay": false,
+        "iosPaused": false
+      }
+    },
+    {
+      "ts": "2026-06-06T17:03:51.393Z",
+      "level": "INFO",
+      "msg": "App backgrounded",
+      "data": {
+        "playing": true,
+        "userPaused": false,
+        "ctx": "running",
+        "audioSession": "playback"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:04:04.598Z",
+      "level": "INFO",
+      "msg": "App foregrounded",
+      "data": {
+        "ctxBefore": "running",
+        "ctxAfter": "running",
+        "audioPaused": false,
+        "needsPlay": false,
+        "iosPaused": false
+      }
+    },
+    {
+      "ts": "2026-06-06T17:04:08.765Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Hai Re (From \"Itllu Arjuna\")"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:04:10.947Z",
+      "level": "INFO",
+      "msg": "Stream OK",
+      "data": {
+        "id": "5OjdY4fM",
+        "quality": "320kbps",
+        "network": "320kbps",
+        "isHls": false
+      }
+    },
+    {
+      "ts": "2026-06-06T17:04:10.947Z",
+      "level": "INFO",
+      "msg": "Preloaded next",
+      "data": {
+        "id": "5OjdY4fM",
+        "name": "Tillu Anna DJ Pedithe"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:04:20.825Z",
+      "level": "INFO",
+      "msg": "LUFS norm",
+      "data": {
+        "name": "Hai Re (From \"Itllu Arjuna\")",
+        "lufs": "-16.7",
+        "gainDb": "0.7"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:05:03.606Z",
+      "level": "WARN",
+      "msg": "OS interrupted playback",
+      "data": {
+        "ctx": "running",
+        "docHidden": false,
+        "song": "Hai Re (From \"Itllu Arjuna\")"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:05:03.831Z",
+      "level": "INFO",
+      "msg": "Fight-back play() succeeded",
+      "data": null
+    },
+    {
+      "ts": "2026-06-06T17:05:03.831Z",
+      "level": "INFO",
+      "msg": "AudioContext state",
+      "data": {
+        "state": "suspended"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:05:04.708Z",
+      "level": "INFO",
+      "msg": "AudioContext state",
+      "data": {
+        "state": "running"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:13:40.631Z",
+      "level": "INFO",
+      "msg": "App backgrounded",
+      "data": {
+        "playing": false,
+        "userPaused": true,
+        "ctx": "running",
+        "audioSession": "playback"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:25:37.073Z",
+      "level": "INFO",
+      "msg": "AudioContext state",
+      "data": {
+        "state": "interrupted"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:25:40.403Z",
+      "level": "INFO",
+      "msg": "AudioContext state",
+      "data": {
+        "state": "running"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:25:53.327Z",
+      "level": "INFO",
+      "msg": "App foregrounded",
+      "data": {
+        "ctxBefore": "running",
+        "ctxAfter": "running",
+        "audioPaused": true,
+        "needsPlay": false,
+        "iosPaused": false
+      }
+    },
+    {
+      "ts": "2026-06-06T17:25:55.564Z",
+      "level": "INFO",
+      "msg": "App backgrounded",
+      "data": {
+        "playing": false,
+        "userPaused": true,
+        "ctx": "running",
+        "audioSession": "playback"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:26:29.944Z",
+      "level": "INFO",
+      "msg": "App foregrounded",
+      "data": {
+        "ctxBefore": "running",
+        "ctxAfter": "running",
+        "audioPaused": true,
+        "needsPlay": false,
+        "iosPaused": false
+      }
+    },
+    {
+      "ts": "2026-06-06T17:27:16.908Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Tillu Anna DJ Pedithe"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:27:17.916Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Baba Neeku Mokkutha"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:27:18.806Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Harleys In Hawaii"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:27:19.121Z",
+      "level": "INFO",
+      "msg": "Stream OK",
+      "data": {
+        "id": "8N_6I8Gn",
+        "quality": "320kbps",
+        "network": "320kbps",
+        "isHls": false
+      }
+    },
+    {
+      "ts": "2026-06-06T17:27:19.122Z",
+      "level": "INFO",
+      "msg": "Preloaded next",
+      "data": {
+        "id": "8N_6I8Gn",
+        "name": "Harleys In Hawaii"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:27:19.575Z",
+      "level": "WARN",
+      "msg": "Offline play failed",
+      "data": {
+        "err": "The operation is not supported."
+      }
+    },
+    {
+      "ts": "2026-06-06T17:27:19.576Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Adi Arabi Kadalandam (Bombay / Soundtrack Version)"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:27:19.577Z",
+      "level": "ERROR",
+      "msg": "Audio error",
+      "data": {
+        "name": "Adi Arabi Kadalandam (Bombay / Soundtrack Version)",
+        "code": 4,
+        "type": "SRC_NOT_SUPPORTED"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:27:19.960Z",
+      "level": "INFO",
+      "msg": "pagehide",
+      "data": {
+        "playing": false,
+        "userPaused": false,
+        "ctx": "running"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:27:19.961Z",
+      "level": "INFO",
+      "msg": "App backgrounded",
+      "data": {
+        "playing": false,
+        "userPaused": false,
+        "ctx": "running",
+        "audioSession": "playback"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:27:20.313Z",
+      "level": "INFO",
+      "msg": "App started",
+      "data": {
+        "version": "4.1.64"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:27:20.380Z",
+      "level": "INFO",
+      "msg": "Search songs OK",
+      "data": {
+        "q": "Hiphop Tamizha, Thamizh Aadhavan",
+        "count": 1
+      }
+    },
+    {
+      "ts": "2026-06-06T17:27:20.383Z",
+      "level": "INFO",
+      "msg": "Search songs OK",
+      "data": {
+        "q": "Katy Perry",
+        "count": 15
+      }
+    },
+    {
+      "ts": "2026-06-06T17:27:20.426Z",
+      "level": "INFO",
+      "msg": "Search songs OK",
+      "data": {
+        "q": "Naveen, Charan, S.P. Balasubrahmanyam",
+        "count": 15
+      }
+    },
+    {
+      "ts": "2026-06-06T17:27:20.479Z",
+      "level": "INFO",
+      "msg": "Search songs OK",
+      "data": {
+        "q": "Katy Perry feat",
+        "count": 15
+      }
+    },
+    {
+      "ts": "2026-06-06T17:27:20.479Z",
+      "level": "INFO",
+      "msg": "Search songs OK",
+      "data": {
+        "q": "Katy Perry latest",
+        "count": 15
+      }
+    },
+    {
+      "ts": "2026-06-06T17:27:20.479Z",
+      "level": "INFO",
+      "msg": "Search songs OK",
+      "data": {
+        "q": "Katy Perry hits",
+        "count": 15
+      }
+    },
+    {
+      "ts": "2026-06-06T17:27:20.479Z",
+      "level": "INFO",
+      "msg": "Search songs fallback",
+      "data": {
+        "q": "Sujatha Mohan, Vaishali, Subha, Richa Sarma feat"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:27:20.481Z",
+      "level": "INFO",
+      "msg": "Search songs OK",
+      "data": {
+        "q": "Hiphop Tamizha, Thamizh Aadhavan latest",
+        "count": 1
+      }
+    },
+    {
+      "ts": "2026-06-06T17:27:20.482Z",
+      "level": "INFO",
+      "msg": "Search songs OK",
+      "data": {
+        "q": "Hiphop Tamizha, Thamizh Aadhavan hits",
+        "count": 1
+      }
+    },
+    {
+      "ts": "2026-06-06T17:27:20.482Z",
+      "level": "INFO",
+      "msg": "Search songs OK",
+      "data": {
+        "q": "Hiphop Tamizha, Thamizh Aadhavan feat",
+        "count": 1
+      }
+    },
+    {
+      "ts": "2026-06-06T17:27:20.482Z",
+      "level": "INFO",
+      "msg": "Search songs fallback",
+      "data": {
+        "q": "Sujatha Mohan, Vaishali, Subha, Richa Sarma latest"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:27:20.484Z",
+      "level": "INFO",
+      "msg": "Search songs fallback",
+      "data": {
+        "q": "Sujatha Mohan, Vaishali, Subha, Richa Sarma hits"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:27:21.342Z",
+      "level": "INFO",
+      "msg": "pagehide",
+      "data": {
+        "playing": false,
+        "userPaused": false
+      }
+    },
+    {
+      "ts": "2026-06-06T17:27:21.343Z",
+      "level": "INFO",
+      "msg": "App backgrounded",
+      "data": {
+        "playing": false,
+        "userPaused": false,
+        "audioSession": "auto"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:27:21.417Z",
+      "level": "INFO",
+      "msg": "App started",
+      "data": {
+        "version": "4.1.64"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:27:21.471Z",
+      "level": "INFO",
+      "msg": "Search songs OK",
+      "data": {
+        "q": "Hiphop Tamizha, Thamizh Aadhavan",
+        "count": 1
+      }
+    },
+    {
+      "ts": "2026-06-06T17:27:21.471Z",
+      "level": "INFO",
+      "msg": "Search songs OK",
+      "data": {
+        "q": "Katy Perry",
+        "count": 15
+      }
+    },
+    {
+      "ts": "2026-06-06T17:27:21.471Z",
+      "level": "INFO",
+      "msg": "Search songs OK",
+      "data": {
+        "q": "Naveen, Charan, S.P. Balasubrahmanyam",
+        "count": 15
+      }
+    },
+    {
+      "ts": "2026-06-06T17:27:21.508Z",
+      "level": "INFO",
+      "msg": "Search songs OK",
+      "data": {
+        "q": "Hiphop Tamizha, Thamizh Aadhavan latest",
+        "count": 1
+      }
+    },
+    {
+      "ts": "2026-06-06T17:27:21.508Z",
+      "level": "INFO",
+      "msg": "Search songs OK",
+      "data": {
+        "q": "Hiphop Tamizha, Thamizh Aadhavan feat",
+        "count": 1
+      }
+    },
+    {
+      "ts": "2026-06-06T17:27:21.509Z",
+      "level": "INFO",
+      "msg": "Search songs OK",
+      "data": {
+        "q": "Katy Perry hits",
+        "count": 15
+      }
+    },
+    {
+      "ts": "2026-06-06T17:27:21.510Z",
+      "level": "INFO",
+      "msg": "Search songs OK",
+      "data": {
+        "q": "Hiphop Tamizha, Thamizh Aadhavan hits",
+        "count": 1
+      }
+    },
+    {
+      "ts": "2026-06-06T17:27:21.518Z",
+      "level": "INFO",
+      "msg": "Search songs OK",
+      "data": {
+        "q": "Katy Perry latest",
+        "count": 15
+      }
+    },
+    {
+      "ts": "2026-06-06T17:27:21.519Z",
+      "level": "INFO",
+      "msg": "Search songs fallback",
+      "data": {
+        "q": "Sujatha Mohan, Vaishali, Subha, Richa Sarma feat"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:27:21.520Z",
+      "level": "INFO",
+      "msg": "Search songs OK",
+      "data": {
+        "q": "Katy Perry feat",
+        "count": 15
+      }
+    },
+    {
+      "ts": "2026-06-06T17:27:21.520Z",
+      "level": "INFO",
+      "msg": "Search songs fallback",
+      "data": {
+        "q": "Sujatha Mohan, Vaishali, Subha, Richa Sarma hits"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:27:21.527Z",
+      "level": "INFO",
+      "msg": "Search songs fallback",
+      "data": {
+        "q": "Sujatha Mohan, Vaishali, Subha, Richa Sarma latest"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:27:35.907Z",
+      "level": "INFO",
+      "msg": "AudioContext created",
+      "data": null
+    },
+    {
+      "ts": "2026-06-06T17:27:36.057Z",
+      "level": "INFO",
+      "msg": "AudioContext state",
+      "data": {
+        "state": "running"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:27:36.207Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Guns and Roses"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:27:38.430Z",
+      "level": "INFO",
+      "msg": "Stream OK",
+      "data": {
+        "id": "XHwAd5c0",
+        "quality": "320kbps",
+        "network": "320kbps",
+        "isHls": false
+      }
+    },
+    {
+      "ts": "2026-06-06T17:27:38.430Z",
+      "level": "INFO",
+      "msg": "Preloaded next",
+      "data": {
+        "id": "XHwAd5c0",
+        "name": "Aura 10/10 (From \"Meesaya Murukku 2\")"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:27:43.487Z",
+      "level": "WARN",
+      "msg": "OS interrupted playback",
+      "data": {
+        "ctx": "running",
+        "docHidden": false,
+        "song": "Guns and Roses"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:27:43.528Z",
+      "level": "INFO",
+      "msg": "AudioContext state",
+      "data": {
+        "state": "interrupted"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:27:43.666Z",
+      "level": "INFO",
+      "msg": "AudioContext state",
+      "data": {
+        "state": "suspended"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:27:43.667Z",
+      "level": "INFO",
+      "msg": "Fight-back play() succeeded",
+      "data": null
+    },
+    {
+      "ts": "2026-06-06T17:27:45.769Z",
+      "level": "INFO",
+      "msg": "LUFS norm",
+      "data": {
+        "name": "Guns and Roses",
+        "lufs": "-13.7",
+        "gainDb": "-2.3"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:27:53.942Z",
+      "level": "INFO",
+      "msg": "App backgrounded",
+      "data": {
+        "playing": false,
+        "userPaused": true,
+        "ctx": "suspended",
+        "audioSession": "playback"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:28:34.776Z",
+      "level": "INFO",
+      "msg": "AudioContext state",
+      "data": {
+        "state": "running"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:28:34.777Z",
+      "level": "INFO",
+      "msg": "App foregrounded",
+      "data": {
+        "ctxBefore": "suspended",
+        "ctxAfter": "running",
+        "audioPaused": true,
+        "needsPlay": false,
+        "iosPaused": false
+      }
+    },
+    {
+      "ts": "2026-06-06T17:29:44.108Z",
+      "level": "INFO",
+      "msg": "App backgrounded",
+      "data": {
+        "playing": false,
+        "userPaused": true,
+        "ctx": "running",
+        "audioSession": "playback"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:33:31.343Z",
+      "level": "INFO",
+      "msg": "AudioContext state",
+      "data": {
+        "state": "interrupted"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:33:42.474Z",
+      "level": "INFO",
+      "msg": "AudioContext state",
+      "data": {
+        "state": "suspended"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:46:03.760Z",
+      "level": "INFO",
+      "msg": "AudioContext state",
+      "data": {
+        "state": "running"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:46:03.763Z",
+      "level": "INFO",
+      "msg": "App foregrounded",
+      "data": {
+        "ctxBefore": "suspended",
+        "ctxAfter": "running",
+        "audioPaused": true,
+        "needsPlay": false,
+        "iosPaused": false
+      }
+    },
+    {
+      "ts": "2026-06-06T17:46:06.880Z",
+      "level": "INFO",
+      "msg": "pagehide",
+      "data": {
+        "playing": false,
+        "userPaused": true,
+        "ctx": "running"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:46:06.883Z",
+      "level": "INFO",
+      "msg": "App backgrounded",
+      "data": {
+        "playing": false,
+        "userPaused": true,
+        "ctx": "running",
+        "audioSession": "playback"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:46:07.149Z",
+      "level": "INFO",
+      "msg": "App started",
+      "data": {
+        "version": "4.1.65"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:46:07.311Z",
+      "level": "INFO",
+      "msg": "Search songs OK",
+      "data": {
+        "q": "Hiphop Tamizha, Thamizh Aadhavan",
+        "count": 1
+      }
+    },
+    {
+      "ts": "2026-06-06T17:46:07.311Z",
+      "level": "INFO",
+      "msg": "Search songs OK",
+      "data": {
+        "q": "Katy Perry",
+        "count": 15
+      }
+    },
+    {
+      "ts": "2026-06-06T17:46:07.312Z",
+      "level": "INFO",
+      "msg": "Search songs OK",
+      "data": {
+        "q": "Naveen, Charan, S.P. Balasubrahmanyam",
+        "count": 15
+      }
+    },
+    {
+      "ts": "2026-06-06T17:46:07.341Z",
+      "level": "INFO",
+      "msg": "Search songs OK",
+      "data": {
+        "q": "Hiphop Tamizha, Thamizh Aadhavan latest",
+        "count": 1
+      }
+    },
+    {
+      "ts": "2026-06-06T17:46:07.344Z",
+      "level": "INFO",
+      "msg": "Search songs OK",
+      "data": {
+        "q": "Hiphop Tamizha, Thamizh Aadhavan feat",
+        "count": 1
+      }
+    },
+    {
+      "ts": "2026-06-06T17:46:07.348Z",
+      "level": "INFO",
+      "msg": "Search songs OK",
+      "data": {
+        "q": "Hiphop Tamizha, Thamizh Aadhavan hits",
+        "count": 1
+      }
+    },
+    {
+      "ts": "2026-06-06T17:46:07.348Z",
+      "level": "INFO",
+      "msg": "Search songs OK",
+      "data": {
+        "q": "Katy Perry latest",
+        "count": 15
+      }
+    },
+    {
+      "ts": "2026-06-06T17:46:07.349Z",
+      "level": "INFO",
+      "msg": "Search songs fallback",
+      "data": {
+        "q": "Sujatha Mohan, Vaishali, Subha, Richa Sarma feat"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:46:07.351Z",
+      "level": "INFO",
+      "msg": "Search songs fallback",
+      "data": {
+        "q": "Sujatha Mohan, Vaishali, Subha, Richa Sarma latest"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:46:07.352Z",
+      "level": "INFO",
+      "msg": "Search songs fallback",
+      "data": {
+        "q": "Sujatha Mohan, Vaishali, Subha, Richa Sarma hits"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:46:07.354Z",
+      "level": "INFO",
+      "msg": "Search songs OK",
+      "data": {
+        "q": "Katy Perry feat",
+        "count": 15
+      }
+    },
+    {
+      "ts": "2026-06-06T17:46:07.383Z",
+      "level": "INFO",
+      "msg": "Search songs OK",
+      "data": {
+        "q": "Katy Perry hits",
+        "count": 15
+      }
+    },
+    {
+      "ts": "2026-06-06T17:46:07.820Z",
+      "level": "INFO",
+      "msg": "pagehide",
+      "data": {
+        "playing": false,
+        "userPaused": false
+      }
+    },
+    {
+      "ts": "2026-06-06T17:46:07.821Z",
+      "level": "INFO",
+      "msg": "App backgrounded",
+      "data": {
+        "playing": false,
+        "userPaused": false,
+        "audioSession": "auto"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:46:07.898Z",
+      "level": "INFO",
+      "msg": "App started",
+      "data": {
+        "version": "4.1.65"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:46:07.930Z",
+      "level": "INFO",
+      "msg": "Search songs OK",
+      "data": {
+        "q": "Hiphop Tamizha, Thamizh Aadhavan",
+        "count": 1
+      }
+    },
+    {
+      "ts": "2026-06-06T17:46:07.935Z",
+      "level": "INFO",
+      "msg": "Search songs OK",
+      "data": {
+        "q": "Katy Perry",
+        "count": 15
+      }
+    },
+    {
+      "ts": "2026-06-06T17:46:07.949Z",
+      "level": "INFO",
+      "msg": "Search songs OK",
+      "data": {
+        "q": "Naveen, Charan, S.P. Balasubrahmanyam",
+        "count": 15
+      }
+    },
+    {
+      "ts": "2026-06-06T17:46:07.979Z",
+      "level": "INFO",
+      "msg": "Search songs OK",
+      "data": {
+        "q": "Hiphop Tamizha, Thamizh Aadhavan feat",
+        "count": 1
+      }
+    },
+    {
+      "ts": "2026-06-06T17:46:07.980Z",
+      "level": "INFO",
+      "msg": "Search songs OK",
+      "data": {
+        "q": "Hiphop Tamizha, Thamizh Aadhavan hits",
+        "count": 1
+      }
+    },
+    {
+      "ts": "2026-06-06T17:46:07.981Z",
+      "level": "INFO",
+      "msg": "Search songs OK",
+      "data": {
+        "q": "Hiphop Tamizha, Thamizh Aadhavan latest",
+        "count": 1
+      }
+    },
+    {
+      "ts": "2026-06-06T17:46:07.983Z",
+      "level": "INFO",
+      "msg": "Search songs OK",
+      "data": {
+        "q": "Katy Perry hits",
+        "count": 15
+      }
+    },
+    {
+      "ts": "2026-06-06T17:46:07.987Z",
+      "level": "INFO",
+      "msg": "Search songs fallback",
+      "data": {
+        "q": "Sujatha Mohan, Vaishali, Subha, Richa Sarma hits"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:46:07.988Z",
+      "level": "INFO",
+      "msg": "Search songs fallback",
+      "data": {
+        "q": "Sujatha Mohan, Vaishali, Subha, Richa Sarma latest"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:46:07.989Z",
+      "level": "INFO",
+      "msg": "Search songs OK",
+      "data": {
+        "q": "Katy Perry latest",
+        "count": 15
+      }
+    },
+    {
+      "ts": "2026-06-06T17:46:07.990Z",
+      "level": "INFO",
+      "msg": "Search songs fallback",
+      "data": {
+        "q": "Sujatha Mohan, Vaishali, Subha, Richa Sarma feat"
+      }
+    },
+    {
+      "ts": "2026-06-06T17:46:07.991Z",
+      "level": "INFO",
+      "msg": "Search songs OK",
+      "data": {
+        "q": "Katy Perry feat",
+        "count": 15
+      }
+    },
+    {
+      "ts": "2026-06-06T17:46:32.900Z",
+      "level": "INFO",
+      "msg": "App backgrounded",
+      "data": {
+        "playing": false,
+        "userPaused": false,
+        "audioSession": "auto"
+      }
+    },
+    {
+      "ts": "2026-06-06T18:55:11.711Z",
+      "level": "INFO",
+      "msg": "App foregrounded",
+      "data": {
+        "audioPaused": true,
+        "needsPlay": null,
+        "iosPaused": false
+      }
+    },
+    {
+      "ts": "2026-06-06T18:55:13.095Z",
+      "level": "INFO",
+      "msg": "pagehide",
+      "data": {
+        "playing": false,
+        "userPaused": false
+      }
+    },
+    {
+      "ts": "2026-06-06T18:55:13.096Z",
+      "level": "INFO",
+      "msg": "App backgrounded",
+      "data": {
+        "playing": false,
+        "userPaused": false,
+        "audioSession": "playback"
+      }
+    },
+    {
+      "ts": "2026-06-06T18:55:13.242Z",
+      "level": "INFO",
+      "msg": "App started",
+      "data": {
+        "version": "5.0.0"
+      }
+    },
+    {
+      "ts": "2026-06-06T18:55:13.782Z",
+      "level": "INFO",
+      "msg": "App started",
+      "data": {
+        "version": "5.0.0"
+      }
+    },
+    {
+      "ts": "2026-06-06T18:55:35.479Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Nee Gunde Lona"
+      }
+    },
+    {
+      "ts": "2026-06-06T18:55:37.887Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Chiku Buku Raile"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:00:39.971Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Gehra Hua"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:00:41.684Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Sher Khul Gaye"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:00:42.722Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Hai Re (From \"Itllu Arjuna\")"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:03:06.454Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Tillu Anna DJ Pedithe"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:03:09.964Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Baba Neeku Mokkutha"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:03:11.068Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Harleys In Hawaii"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:06:17.749Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Adi Arabi Kadalandam (Bombay / Soundtrack Version)"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:09:14.406Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "KAMALA PURAM RODDATA DJ"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:09:39.379Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Espresso"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:09:46.111Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Preminche Premava"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:09:47.049Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Dracula (JENNIE Remix)"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:09:48.010Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Naal Nachna"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:09:54.287Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Singari"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:09:55.386Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Shararat"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:10:25.794Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Yede Yedeydey - Duet"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:10:51.516Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Sapphire"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:10:52.805Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Paruvam Vanaga"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:11:35.293Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Rubaroo"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:11:36.332Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Baagundu Po"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:11:37.324Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Vennela Vennela"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:11:38.526Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Kailove Chedugudu - Duet"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:13:04.726Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Guns and Roses"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:15:00.767Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Aura 10/10 (From \"Meesaya Murukku 2\")"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:15:25.364Z",
+      "level": "INFO",
+      "msg": "App started",
+      "data": {
+        "version": "5.1.0"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:15:26.035Z",
+      "level": "INFO",
+      "msg": "App started",
+      "data": {
+        "version": "5.1.0"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:16:18.064Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Aaya Sher (From \"The Paradise\") (Telugu)",
+        "artist": "Kasarla Shyam, Anirudh Ravichander, Jangi Reddy, Arjun Chandy"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:16:21.917Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Hellallallo (From \"Peddi\") - Telugu",
+        "artist": "Anantha Sriram, A.R. Rahman, Rakshita Suresh"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:16:30.362Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Hellallallo",
+        "artist": "Anantha Sriram, A.R. Rahman, Rakshita Suresh"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:16:32.005Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Chikiri Chikiri (From \"Peddi\") - Telugu",
+        "artist": "A.R. Rahman, Mohit Chauhan, Balaji"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:16:34.120Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Chikiri Chikiri",
+        "artist": "Balaji, A.R. Rahman, Mohit Chauhan"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:16:36.189Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Chikiri Chikiri (From \"Peddi\")",
+        "artist": "Mohit Chauhan, A.R. Rahman, Balaji"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:16:38.133Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Chikiri Chikiri (From \"Peddi\")",
+        "artist": "Mohit Chauhan, A.R. Rahman, Balaji"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:16:39.500Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Chikiri Chikiri (From \"Peddi\")",
+        "artist": "Mohit Chauhan, A.R. Rahman, Balaji"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:16:42.254Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Massa Massa",
+        "artist": "Anantha Sriram, A.R. Rahman, Vishal Mishra"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:16:43.184Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Rai Rai Raa Raa (From \"Peddi\") - Telugu",
+        "artist": "A.R. Rahman, Anantha Sriram"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:17:01.668Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Udi Udi",
+        "artist": "Sarkar, Hruday, Aneesh"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:17:20.097Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Gehra Hua"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:17:23.244Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Prem Ki Leela",
+        "artist": "Prasad S, Swaradish Dr Bharat Balvalli, Shreya Ghoshal, Javed Ali, Suvarna Tiwari"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:17:23.520Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Sahiba"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:17:30.227Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Darkhaast",
+        "artist": "Mithoon, Arijit Singh, Sunidhi Chauhan"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:17:33.252Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Tum Hi Ho",
+        "artist": "Mithoon, Arijit Singh"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:18:58.845Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Arz Kiya Hai | Coke Studio Bharat",
+        "artist": "Anuv Jain"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:19:01.249Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Ishq De Fanniyar - Female",
+        "artist": "Jyotica Tangri"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:19:06.140Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Tum Ho Toh",
+        "artist": "Vishal Mishra, Hansika Pareek, Raj Shekhar"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:19:08.801Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Jaan Se Guzarte Hain",
+        "artist": "Shashwat Sachdev, Khan Saab"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:19:12.237Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Aawaara Angaara",
+        "artist": "A.R. Rahman, Faheem Abdullah, Irshad Kamil"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:19:16.594Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Deewana Main Tera",
+        "artist": "Kumar Sanu, Sadhana Sargam"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:20:07.606Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Lutt Le Gaya",
+        "artist": "Shashwat Sachdev, Simran Choudhary"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:20:11.335Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Saiyaara",
+        "artist": "Tanishk Bagchi, Faheem Abdullah, Arslan Nizami, Irshad Kamil"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:20:14.205Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Shararat"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:20:17.118Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Dhurandhar The Revenge - Aari Aari",
+        "artist": "Irshad Kamil, Bombay Rockers, Reble, Token, Shashwat Sachdev, Khan Saab, Jasmine Sandlas, Sudhir Yaduvanshi"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:20:41.059Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Namo Namo",
+        "artist": "Amit Trivedi"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:20:43.244Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Jaiye Sajana",
+        "artist": "Satinder Sartaaj, Jasmine Sandlas, Shashwat Sachdev"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:20:44.578Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Ganga Ke Kinare",
+        "artist": "Bunny, Sagar"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:20:46.040Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Naal Nachna"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:20:48.437Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Deewaana Deewaana",
+        "artist": "A.R. Rahman, Irshad Kamil"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:20:50.485Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Barbaad",
+        "artist": "The Rish, Jubin Nautiyal"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:20:51.798Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Dhun",
+        "artist": "Mithoon, Arijit Singh"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:20:53.941Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Humsafar",
+        "artist": "Sachet-Parampara, Sachet Tandon, Parampara Tandon, Irshad Kamil, Prashant Pandey"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:23:28.964Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Sitaare (From \"Ikkis\")",
+        "artist": "Amitabh Bhattacharya, Arijit Singh, Sachin-Jigar"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:23:32.244Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Humnava Mere",
+        "artist": "Jubin Nautiyal"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:23:51.217Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Om Namo Bhagavate Vasudevaya",
+        "artist": "Sanjith Hegde, Saurabh Mittal, Vijay Prakash, Twinkle Mittal, Sam C.S."
+      }
+    },
+    {
+      "ts": "2026-06-06T19:24:08.834Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Kailove Chedugudu (From \"Sakhi\")",
+        "artist": "Naveen, S.P. Charan, S.P. Balasubrahmanyam"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:26:53.192Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Kailove Chedugudu (From \"Sakhi\")",
+        "artist": "Naveen, S.P. Charan, S.P. Balasubrahmanyam"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:27:16.864Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Teenage Song",
+        "artist": "Swaroop Goli, G.V. Prakash Kumar, Nazeeruddin"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:28:00.047Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Sakhiye (From \"Youth - Telugu\")",
+        "artist": "Kittu Vissapragada, G.V. Prakash Kumar, Sinjith Yerramilli, Sindhuja Tanuku"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:30:19.939Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Love You Cheppesane",
+        "artist": "Sanare, G.V. Prakash Kumar, Eshwar, Venkatramanan"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:31:55.108Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Sakhiye (From \"Youth - Telugu\")",
+        "artist": "Kittu Vissapragada, G.V. Prakash Kumar, Sinjith Yerramilli, Sindhuja Tanuku"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:34:24.629Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Love You Cheppesane",
+        "artist": "Sanare, G.V. Prakash Kumar, Eshwar, Venkatramanan"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:34:52.594Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Bujji Kutti",
+        "artist": "Sanare, G.V. Prakash Kumar, Suresh Bobbili, MC Hari"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:43:07.446Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Love You Cheppesane",
+        "artist": "Sanare, G.V. Prakash Kumar, Eshwar, Venkatramanan"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:43:09.962Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Sakhiye (From \"Youth - Telugu\")",
+        "artist": "Kittu Vissapragada, G.V. Prakash Kumar, Sinjith Yerramilli, Sindhuja Tanuku"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:46:06.649Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Love You Cheppesane",
+        "artist": "Sanare, G.V. Prakash Kumar, Eshwar, Venkatramanan"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:46:20.640Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Nee Gunde Lona"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:46:22.900Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Ishq Jaisa Kuch"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:46:50.894Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Guns and Roses"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:51:04.841Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Paruvam Vanaga"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:54:41.862Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Make Way For The King (From \"Raaka\")"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:54:51.996Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Dracula (JENNIE Remix)"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:55:04.164Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Gundellonaa"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:57:24.468Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Vennela Vennela"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:57:30.996Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Adi Arabi Kadalandam (Bombay / Soundtrack Version)"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:58:17.038Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Boom Boom"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:58:27.879Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Tillu Anna DJ Pedithe"
+      }
+    },
+    {
+      "ts": "2026-06-06T19:58:30.480Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Pachchadanamey - Duet"
+      }
+    },
+    {
+      "ts": "2026-06-06T20:04:29.218Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Sahiba"
+      }
+    },
+    {
+      "ts": "2026-06-06T20:07:40.086Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Baagundu Po"
+      }
+    },
+    {
+      "ts": "2026-06-06T20:07:44.525Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Baba Neeku Mokkutha"
+      }
+    },
+    {
+      "ts": "2026-06-06T20:13:36.593Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Woman"
+      }
+    },
+    {
+      "ts": "2026-06-06T20:13:50.967Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Ishq Jalakar - Karvaan"
+      }
+    },
+    {
+      "ts": "2026-06-06T20:16:50.009Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Chiku Buku Raile"
+      }
+    },
+    {
+      "ts": "2026-06-07T00:51:43.186Z",
+      "level": "INFO",
+      "msg": "App started",
+      "data": {
+        "version": "5.1.0"
+      }
+    },
+    {
+      "ts": "2026-06-07T01:38:57.696Z",
+      "level": "INFO",
+      "msg": "App started",
+      "data": {
+        "version": "5.1.0"
+      }
+    },
+    {
+      "ts": "2026-06-07T01:41:34.691Z",
+      "level": "INFO",
+      "msg": "App started",
+      "data": {
+        "version": "5.2.0"
+      }
+    },
+    {
+      "ts": "2026-06-07T01:41:36.112Z",
+      "level": "INFO",
+      "msg": "App started",
+      "data": {
+        "version": "5.2.0"
+      }
+    },
+    {
+      "ts": "2026-06-07T01:41:37.551Z",
+      "level": "WARN",
+      "msg": "fetchFeaturedPlaylists failed",
+      "data": {
+        "language": "hindi",
+        "err": "HTTP 404"
+      }
+    },
+    {
+      "ts": "2026-06-07T01:42:03.419Z",
+      "level": "WARN",
+      "msg": "fetchFeaturedPlaylists failed",
+      "data": {
+        "language": "english",
+        "err": "HTTP 404"
+      }
+    },
+    {
+      "ts": "2026-06-07T01:42:03.466Z",
+      "level": "WARN",
+      "msg": "fetchFeaturedPlaylists failed",
+      "data": {
+        "language": "english",
+        "err": "HTTP 404"
+      }
+    },
+    {
+      "ts": "2026-06-07T01:42:40.020Z",
+      "level": "WARN",
+      "msg": "fetchFeaturedPlaylists failed",
+      "data": {
+        "language": "telugu",
+        "err": "HTTP 404"
+      }
+    },
+    {
+      "ts": "2026-06-07T01:42:40.027Z",
+      "level": "WARN",
+      "msg": "fetchFeaturedPlaylists failed",
+      "data": {
+        "language": "telugu",
+        "err": "HTTP 404"
+      }
+    },
+    {
+      "ts": "2026-06-07T01:43:43.392Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Firestorm (From \"They Call Him OG\")",
+        "artist": "Thaman S, Str, Raja Kumari, Deepak Blue, Nazeeruddin, Bharath Raj Ravula"
+      }
+    },
+    {
+      "ts": "2026-06-07T01:43:43.394Z",
+      "level": "INFO",
+      "msg": "MediaSession: fetching artwork",
+      "data": {
+        "songId": "LRljO_cp",
+        "url": "https://c.saavncdn.com/233/Firestorm-From-They-Call-Him-OG-Telugu-2025-20250802151651-500x500.jpg"
+      }
+    },
+    {
+      "ts": "2026-06-07T01:43:43.491Z",
+      "level": "INFO",
+      "msg": "MediaSession: artwork set",
+      "data": {
+        "songId": "LRljO_cp",
+        "bytes": 138491
+      }
+    },
+    {
+      "ts": "2026-06-07T01:43:59.954Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Bujji Thalli",
+        "artist": "Devi Sri Prasad, Javed Ali"
+      }
+    },
+    {
+      "ts": "2026-06-07T01:43:59.955Z",
+      "level": "INFO",
+      "msg": "MediaSession: fetching artwork",
+      "data": {
+        "songId": "zcTKI9Ii",
+        "url": "https://c.saavncdn.com/000/Thandel-Telugu-2024-20250124164708-500x500.jpg"
+      }
+    },
+    {
+      "ts": "2026-06-07T01:44:00.015Z",
+      "level": "INFO",
+      "msg": "MediaSession: artwork set",
+      "data": {
+        "songId": "zcTKI9Ii",
+        "bytes": 148463
+      }
+    },
+    {
+      "ts": "2026-06-07T01:44:15.117Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "RANU BOMBAI KI RANU",
+        "artist": "Ramu Rathod, Kalyan Keys, Singer Prabha"
+      }
+    },
+    {
+      "ts": "2026-06-07T01:44:15.118Z",
+      "level": "INFO",
+      "msg": "MediaSession: fetching artwork",
+      "data": {
+        "songId": "5v65xHf-",
+        "url": "https://c.saavncdn.com/556/RANU-BOMBAI-KI-RANU-Telugu-2025-20250122174707-500x500.jpg"
+      }
+    },
+    {
+      "ts": "2026-06-07T01:44:15.186Z",
+      "level": "INFO",
+      "msg": "MediaSession: artwork set",
+      "data": {
+        "songId": "5v65xHf-",
+        "bytes": 168579
+      }
+    },
+    {
+      "ts": "2026-06-07T01:44:52.988Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Godari Gattu Meedha (From \"Sankranthiki Vasthunam\")",
+        "artist": "Ramana Gogula, Madhu Priya, Bhaskarabhatla, Bheems Ceciroleo"
+      }
+    },
+    {
+      "ts": "2026-06-07T01:44:52.988Z",
+      "level": "INFO",
+      "msg": "MediaSession: fetching artwork",
+      "data": {
+        "songId": "90-yrswd",
+        "url": "https://c.saavncdn.com/522/Godari-Gattu-Meedha-From-Sankranthiki-Vasthunam-Telugu-2024-20241204151003-500x500.jpg"
+      }
+    },
+    {
+      "ts": "2026-06-07T01:44:53.043Z",
+      "level": "INFO",
+      "msg": "MediaSession: artwork set",
+      "data": {
+        "songId": "90-yrswd",
+        "bytes": 123299
+      }
+    },
+    {
+      "ts": "2026-06-07T01:46:01.220Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Nee Gunde Lona"
+      }
+    },
+    {
+      "ts": "2026-06-07T01:46:01.220Z",
+      "level": "INFO",
+      "msg": "MediaSession: fetching artwork",
+      "data": {
+        "songId": "-6vARGXe",
+        "url": "https://c.saavncdn.com/177/Dude-Telugu-Original-Motion-Picture-Soundtrack-Telugu-2025-20251029174900-500x500.jpg"
+      }
+    },
+    {
+      "ts": "2026-06-07T01:46:01.358Z",
+      "level": "INFO",
+      "msg": "MediaSession: artwork set",
+      "data": {
+        "songId": "-6vARGXe",
+        "bytes": 173435
+      }
+    },
+    {
+      "ts": "2026-06-07T01:46:25.664Z",
+      "level": "INFO",
+      "msg": "Download removed",
+      "data": {
+        "id": "-6vARGXe"
+      }
+    },
+    {
+      "ts": "2026-06-07T01:46:29.285Z",
+      "level": "INFO",
+      "msg": "Downloaded",
+      "data": {
+        "id": "-6vARGXe",
+        "name": "Nee Gunde Lona",
+        "bytes": 10873791
+      }
+    },
+    {
+      "ts": "2026-06-07T01:46:34.220Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Chiku Buku Raile"
+      }
+    },
+    {
+      "ts": "2026-06-07T01:46:34.220Z",
+      "level": "INFO",
+      "msg": "MediaSession: fetching artwork",
+      "data": {
+        "songId": "-VK2HtKD",
+        "url": "https://c.saavncdn.com/171/Gentleman-Telugu-2014-20251014151405-500x500.jpg"
+      }
+    },
+    {
+      "ts": "2026-06-07T01:46:34.263Z",
+      "level": "INFO",
+      "msg": "MediaSession: artwork set",
+      "data": {
+        "songId": "-VK2HtKD",
+        "bytes": 133827
+      }
+    },
+    {
+      "ts": "2026-06-07T01:51:13.384Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Gehra Hua"
+      }
+    },
+    {
+      "ts": "2026-06-07T01:51:13.384Z",
+      "level": "INFO",
+      "msg": "MediaSession: fetching artwork",
+      "data": {
+        "songId": "1gHtmQ3x",
+        "url": "https://c.saavncdn.com/475/Dhurandhar-Hindi-2025-20260203083204-500x500.jpg"
+      }
+    },
+    {
+      "ts": "2026-06-07T01:51:13.484Z",
+      "level": "INFO",
+      "msg": "MediaSession: artwork set",
+      "data": {
+        "songId": "1gHtmQ3x",
+        "bytes": 136699
+      }
+    },
+    {
+      "ts": "2026-06-07T01:51:17.953Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Sher Khul Gaye"
+      }
+    },
+    {
+      "ts": "2026-06-07T01:51:17.953Z",
+      "level": "INFO",
+      "msg": "MediaSession: fetching artwork",
+      "data": {
+        "songId": "3dTPhT9e",
+        "url": "https://c.saavncdn.com/142/Fighter-Hindi-2024-20240701191023-500x500.jpg"
+      }
+    },
+    {
+      "ts": "2026-06-07T01:51:18.010Z",
+      "level": "INFO",
+      "msg": "MediaSession: artwork set",
+      "data": {
+        "songId": "3dTPhT9e",
+        "bytes": 144691
+      }
+    },
+    {
+      "ts": "2026-06-07T01:51:19.313Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Hai Re (From \"Itllu Arjuna\")"
+      }
+    },
+    {
+      "ts": "2026-06-07T01:51:19.313Z",
+      "level": "INFO",
+      "msg": "MediaSession: fetching artwork",
+      "data": {
+        "songId": "4y6PQVso",
+        "url": "https://c.saavncdn.com/310/Hai-Re-From-Itllu-Arjuna-Telugu-2026-20260528191136-500x500.jpg"
+      }
+    },
+    {
+      "ts": "2026-06-07T01:51:19.358Z",
+      "level": "INFO",
+      "msg": "MediaSession: artwork set",
+      "data": {
+        "songId": "4y6PQVso",
+        "bytes": 113487
+      }
+    },
+    {
+      "ts": "2026-06-07T01:54:45.280Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Tillu Anna DJ Pedithe"
+      }
+    },
+    {
+      "ts": "2026-06-07T01:54:45.281Z",
+      "level": "INFO",
+      "msg": "MediaSession: fetching artwork",
+      "data": {
+        "songId": "5OjdY4fM",
+        "url": "https://c.saavncdn.com/430/DJ-Tillu-Telugu-2022-20220210033850-500x500.jpg"
+      }
+    },
+    {
+      "ts": "2026-06-07T01:54:46.205Z",
+      "level": "INFO",
+      "msg": "MediaSession: artwork set",
+      "data": {
+        "songId": "5OjdY4fM",
+        "bytes": 103499
+      }
+    },
+    {
+      "ts": "2026-06-07T01:57:49.581Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Baba Neeku Mokkutha"
+      }
+    },
+    {
+      "ts": "2026-06-07T01:57:49.581Z",
+      "level": "INFO",
+      "msg": "MediaSession: fetching artwork",
+      "data": {
+        "songId": "7a1qRRBG",
+        "url": "https://c.saavncdn.com/762/Baba-2002-500x500.jpg"
+      }
+    },
+    {
+      "ts": "2026-06-07T01:57:49.674Z",
+      "level": "INFO",
+      "msg": "MediaSession: artwork set",
+      "data": {
+        "songId": "7a1qRRBG",
+        "bytes": 121031
+      }
+    },
+    {
+      "ts": "2026-06-07T01:58:39.876Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Harleys In Hawaii"
+      }
+    },
+    {
+      "ts": "2026-06-07T01:58:39.876Z",
+      "level": "INFO",
+      "msg": "MediaSession: fetching artwork",
+      "data": {
+        "songId": "8N_6I8Gn",
+        "url": "https://c.saavncdn.com/289/Harleys-In-Hawaii-English-2019-20260513081446-500x500.jpg"
+      }
+    },
+    {
+      "ts": "2026-06-07T01:58:40.028Z",
+      "level": "INFO",
+      "msg": "MediaSession: artwork set",
+      "data": {
+        "songId": "8N_6I8Gn",
+        "bytes": 141367
+      }
+    },
+    {
+      "ts": "2026-06-07T02:01:11.879Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Adi Arabi Kadalandam (Bombay / Soundtrack Version)"
+      }
+    },
+    {
+      "ts": "2026-06-07T02:01:11.879Z",
+      "level": "INFO",
+      "msg": "MediaSession: fetching artwork",
+      "data": {
+        "songId": "AYPbEWem",
+        "url": "https://c.saavncdn.com/369/Bombay-Telugu-1994-20190924060934-500x500.jpg"
+      }
+    },
+    {
+      "ts": "2026-06-07T02:01:11.991Z",
+      "level": "INFO",
+      "msg": "MediaSession: artwork set",
+      "data": {
+        "songId": "AYPbEWem",
+        "bytes": 184391
+      }
+    },
+    {
+      "ts": "2026-06-07T02:06:29.176Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "KAMALA PURAM RODDATA DJ"
+      }
+    },
+    {
+      "ts": "2026-06-07T02:06:29.176Z",
+      "level": "INFO",
+      "msg": "MediaSession: fetching artwork",
+      "data": {
+        "songId": "B2InkzZj",
+        "url": "https://c.saavncdn.com/582/KAMALA-PURAM-RODDATA-DJ-Telugu-2025-20250322061404-500x500.jpg"
+      }
+    },
+    {
+      "ts": "2026-06-07T02:06:30.257Z",
+      "level": "INFO",
+      "msg": "MediaSession: artwork set",
+      "data": {
+        "songId": "B2InkzZj",
+        "bytes": 152495
+      }
+    },
+    {
+      "ts": "2026-06-07T02:06:58.138Z",
+      "level": "INFO",
+      "msg": "MediaSession: nexttrack",
+      "data": null
+    },
+    {
+      "ts": "2026-06-07T02:06:58.285Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Espresso"
+      }
+    },
+    {
+      "ts": "2026-06-07T02:06:58.286Z",
+      "level": "INFO",
+      "msg": "MediaSession: fetching artwork",
+      "data": {
+        "songId": "BhKP6P-H",
+        "url": "https://c.saavncdn.com/111/Espresso-English-2024-20240412064803-500x500.jpg"
+      }
+    },
+    {
+      "ts": "2026-06-07T02:06:58.340Z",
+      "level": "INFO",
+      "msg": "MediaSession: artwork set",
+      "data": {
+        "songId": "BhKP6P-H",
+        "bytes": 104523
+      }
+    },
+    {
+      "ts": "2026-06-07T02:07:19.989Z",
+      "level": "INFO",
+      "msg": "MediaSession: nexttrack",
+      "data": null
+    },
+    {
+      "ts": "2026-06-07T02:07:20.136Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Preminche Premava"
+      }
+    },
+    {
+      "ts": "2026-06-07T02:07:20.136Z",
+      "level": "INFO",
+      "msg": "MediaSession: fetching artwork",
+      "data": {
+        "songId": "CNi4GEJ7",
+        "url": "https://c.saavncdn.com/317/Nuvvu-Nenu-Prema-2006-500x500.jpg"
+      }
+    },
+    {
+      "ts": "2026-06-07T02:07:20.181Z",
+      "level": "INFO",
+      "msg": "MediaSession: artwork set",
+      "data": {
+        "songId": "CNi4GEJ7",
+        "bytes": 134135
+      }
+    },
+    {
+      "ts": "2026-06-07T02:07:21.920Z",
+      "level": "INFO",
+      "msg": "MediaSession: nexttrack",
+      "data": null
+    },
+    {
+      "ts": "2026-06-07T02:07:22.072Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Dracula (JENNIE Remix)"
+      }
+    },
+    {
+      "ts": "2026-06-07T02:07:22.072Z",
+      "level": "INFO",
+      "msg": "MediaSession: fetching artwork",
+      "data": {
+        "songId": "E6RpWxTT",
+        "url": "https://c.saavncdn.com/246/Dracula-Remix-English-2026-20260203071441-500x500.jpg"
+      }
+    },
+    {
+      "ts": "2026-06-07T02:07:22.212Z",
+      "level": "INFO",
+      "msg": "MediaSession: artwork set",
+      "data": {
+        "songId": "E6RpWxTT",
+        "bytes": 73539
+      }
+    },
+    {
+      "ts": "2026-06-07T02:09:18.540Z",
+      "level": "INFO",
+      "msg": "MediaSession: nexttrack",
+      "data": null
+    },
+    {
+      "ts": "2026-06-07T02:09:18.688Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Naal Nachna"
+      }
+    },
+    {
+      "ts": "2026-06-07T02:09:18.688Z",
+      "level": "INFO",
+      "msg": "MediaSession: fetching artwork",
+      "data": {
+        "songId": "HPfQu3xR",
+        "url": "https://c.saavncdn.com/475/Dhurandhar-Hindi-2025-20260203083204-500x500.jpg"
+      }
+    },
+    {
+      "ts": "2026-06-07T02:09:18.738Z",
+      "level": "INFO",
+      "msg": "MediaSession: artwork set",
+      "data": {
+        "songId": "HPfQu3xR",
+        "bytes": 136699
+      }
+    },
+    {
+      "ts": "2026-06-07T02:09:48.218Z",
+      "level": "INFO",
+      "msg": "MediaSession: nexttrack",
+      "data": null
+    },
+    {
+      "ts": "2026-06-07T02:09:48.369Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Singari"
+      }
+    },
+    {
+      "ts": "2026-06-07T02:09:48.369Z",
+      "level": "INFO",
+      "msg": "MediaSession: fetching artwork",
+      "data": {
+        "songId": "HtoCuROi",
+        "url": "https://c.saavncdn.com/177/Dude-Telugu-Original-Motion-Picture-Soundtrack-Telugu-2025-20251029174900-500x500.jpg"
+      }
+    },
+    {
+      "ts": "2026-06-07T02:09:48.434Z",
+      "level": "INFO",
+      "msg": "MediaSession: artwork set",
+      "data": {
+        "songId": "HtoCuROi",
+        "bytes": 173435
+      }
+    },
+    {
+      "ts": "2026-06-07T02:09:49.817Z",
+      "level": "INFO",
+      "msg": "MediaSession: nexttrack",
+      "data": null
+    },
+    {
+      "ts": "2026-06-07T02:09:49.967Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Shararat"
+      }
+    },
+    {
+      "ts": "2026-06-07T02:09:49.967Z",
+      "level": "INFO",
+      "msg": "MediaSession: fetching artwork",
+      "data": {
+        "songId": "KPUyEuLS",
+        "url": "https://c.saavncdn.com/475/Dhurandhar-Hindi-2025-20260203083204-500x500.jpg"
+      }
+    },
+    {
+      "ts": "2026-06-07T02:09:50.004Z",
+      "level": "INFO",
+      "msg": "MediaSession: artwork set",
+      "data": {
+        "songId": "KPUyEuLS",
+        "bytes": 136699
+      }
+    },
+    {
+      "ts": "2026-06-07T02:09:52.134Z",
+      "level": "INFO",
+      "msg": "MediaSession: nexttrack",
+      "data": null
+    },
+    {
+      "ts": "2026-06-07T02:09:52.286Z",
+      "level": "INFO",
+      "msg": "Playback (offline)",
+      "data": {
+        "name": "Yede Yedeydey - Duet"
+      }
+    },
+    {
+      "ts": "2026-06-07T02:09:52.286Z",
+      "level": "INFO",
+      "msg": "MediaSession: fetching artwork",
+      "data": {
+        "songId": "MiqvKtFt",
+        "url": "https://c.saavncdn.com/392/Sakhi-Tamil-2000-20201008164019-500x500.jpg"
+      }
+    },
+    {
+      "ts": "2026-06-07T02:09:52.375Z",
+      "level": "INFO",
+      "msg": "MediaSession: artwork set",
+      "data": {
+        "songId": "MiqvKtFt",
+        "bytes": 136175
+      }
+    },
+    {
+      "ts": "2026-06-07T03:30:14.372Z",
+      "level": "INFO",
+      "msg": "App started",
+      "data": {
+        "version": "5.2.0"
+      }
+    },
+    {
+      "ts": "2026-06-07T03:31:03.205Z",
+      "level": "WARN",
+      "msg": "fetchFeaturedPlaylists failed",
+      "data": {
+        "language": "hindi",
+        "err": "HTTP 404"
+      }
+    },
+    {
+      "ts": "2026-06-07T03:31:11.697Z",
+      "level": "WARN",
+      "msg": "fetchFeaturedPlaylists failed",
+      "data": {
+        "language": "telugu",
+        "err": "HTTP 404"
+      }
+    },
+    {
+      "ts": "2026-06-07T03:31:11.750Z",
+      "level": "WARN",
+      "msg": "fetchFeaturedPlaylists failed",
+      "data": {
+        "language": "telugu",
+        "err": "HTTP 404"
+      }
+    },
+    {
+      "ts": "2026-06-07T03:31:28.744Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Dheema",
+        "artist": "Sri Sai Kiran, Anirudh Ravichander"
+      }
+    },
+    {
+      "ts": "2026-06-07T03:31:28.746Z",
+      "level": "INFO",
+      "msg": "MediaSession: fetching artwork",
+      "data": {
+        "songId": "JYivWaM-",
+        "url": "https://c.saavncdn.com/473/Love-Insurance-Kompany-Telugu-Telugu-2026-20260410121758-500x500.jpg"
+      }
+    },
+    {
+      "ts": "2026-06-07T03:31:28.813Z",
+      "level": "INFO",
+      "msg": "MediaSession: artwork set",
+      "data": {
+        "songId": "JYivWaM-",
+        "bytes": 117387
+      }
+    },
+    {
+      "ts": "2026-06-07T03:31:58.237Z",
+      "level": "INFO",
+      "msg": "App started",
+      "data": {
+        "version": "5.2.0"
+      }
+    }
+  ]
+}
