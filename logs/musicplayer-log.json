@@ -1,5 +1,5 @@
 {
-  "uploadedAt": "2026-06-07T05:29:34.026Z",
+  "uploadedAt": "2026-06-07T05:40:30.700Z",
   "device": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.5 Mobile/15E148 Safari/604.1",
   "entries": [
     {
@@ -326,6 +326,412 @@
       "data": {
         "name": "Bones",
         "artist": "Imagine Dragons"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:36:28.131Z",
+      "level": "INFO",
+      "msg": "App started",
+      "data": {
+        "version": "5.2.13"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:36:28.132Z",
+      "level": "INFO",
+      "msg": "AirPlay initial state",
+      "data": {
+        "active": false,
+        "supported": true,
+        "probeReady": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:36:28.135Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": false
+      }
+    },
+    {
+      "ts": "2026-06-07T05:36:28.138Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:36:28.776Z",
+      "level": "INFO",
+      "msg": "App started",
+      "data": {
+        "version": "5.2.13"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:36:28.776Z",
+      "level": "INFO",
+      "msg": "AirPlay initial state",
+      "data": {
+        "active": false,
+        "supported": true,
+        "probeReady": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:36:28.777Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": false
+      }
+    },
+    {
+      "ts": "2026-06-07T05:36:28.778Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:36:34.621Z",
+      "level": "WARN",
+      "msg": "fetchFeaturedPlaylists failed",
+      "data": {
+        "language": "hindi",
+        "err": "HTTP 404"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:36:37.913Z",
+      "level": "INFO",
+      "msg": "AudioContext created",
+      "data": {
+        "sampleRate": 48000
+      }
+    },
+    {
+      "ts": "2026-06-07T05:36:39.024Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Chand Mera Dil (Title Track)",
+        "artist": "Amitabh Bhattacharya, Sachin-Jigar, Faheem Abdullah"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:36:48.590Z",
+      "level": "INFO",
+      "msg": "LUFS norm",
+      "data": {
+        "name": "Chand Mera Dil (Title Track)",
+        "lufs": "-23.9",
+        "gainDb": "2.0"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:36:59.548Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Teen Baan Ke Dhari",
+        "artist": "Chotu Singh Rawna"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:37:02.631Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Sitaare (From &quot;Ikkis&quot;)",
+        "artist": "Amitabh Bhattacharya, Arijit Singh, Sachin-Jigar"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:37:06.042Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Udi Udi",
+        "artist": "Sarkar, Hruday, Aneesh"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:37:08.467Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Chunnari Chunnari - Let’s Go! (From &quot;Hai Jawani Toh Ishq Hona Hai&quot;)",
+        "artist": "Anu Malik, IP Singh, Sameer Anjaan, Akshay &amp; IP, Jonita Gandhi, Asees Kaur, Sudhir Yaduvanshi, Anuradha Sriram"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:37:18.025Z",
+      "level": "INFO",
+      "msg": "LUFS norm",
+      "data": {
+        "name": "Chunnari Chunnari - Let’s Go! (From &quot;Hai Jawani Toh Ishq Hona Hai&quot;)",
+        "lufs": "-9.7",
+        "gainDb": "-6.0"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:37:29.636Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Chand Mera Dil (Title Track)",
+        "artist": "Amitabh Bhattacharya, Sachin-Jigar, Faheem Abdullah"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:37:29.637Z",
+      "level": "INFO",
+      "msg": "MediaSession: fetching artwork",
+      "data": {
+        "songId": "glW6y4jX",
+        "url": "https://c.saavncdn.com/549/Chand-Mera-Dil-Hindi-2026-20260518102642-500x500.jpg"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:37:29.733Z",
+      "level": "INFO",
+      "msg": "MediaSession: artwork set",
+      "data": {
+        "songId": "glW6y4jX",
+        "bytes": 97159
+      }
+    },
+    {
+      "ts": "2026-06-07T05:37:36.453Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Aitbaar (From \"Chand Mera Dil\")",
+        "artist": "Amitabh Bhattacharya, Sachin-Jigar, Faheem Abdullah"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:37:36.453Z",
+      "level": "INFO",
+      "msg": "MediaSession: fetching artwork",
+      "data": {
+        "songId": "qxMnsVMV",
+        "url": "https://c.saavncdn.com/549/Chand-Mera-Dil-Hindi-2026-20260518102642-500x500.jpg"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:37:36.514Z",
+      "level": "INFO",
+      "msg": "MediaSession: artwork set",
+      "data": {
+        "songId": "qxMnsVMV",
+        "bytes": 97159
+      }
+    },
+    {
+      "ts": "2026-06-07T05:37:46.009Z",
+      "level": "INFO",
+      "msg": "LUFS norm",
+      "data": {
+        "name": "Aitbaar (From \"Chand Mera Dil\")",
+        "lufs": "-16.5",
+        "gainDb": "0.5"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:38:05.423Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Khasiyat (From \"Chand Mera Dil\")",
+        "artist": "Amitabh Bhattacharya, Sachin-Jigar, Raghav Chaitanya, Jonita Gandhi"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:38:05.423Z",
+      "level": "INFO",
+      "msg": "MediaSession: fetching artwork",
+      "data": {
+        "songId": "KNaJb7GR",
+        "url": "https://c.saavncdn.com/549/Chand-Mera-Dil-Hindi-2026-20260518102642-500x500.jpg"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:38:05.526Z",
+      "level": "INFO",
+      "msg": "MediaSession: artwork set",
+      "data": {
+        "songId": "KNaJb7GR",
+        "bytes": 97159
+      }
+    },
+    {
+      "ts": "2026-06-07T05:38:14.990Z",
+      "level": "INFO",
+      "msg": "LUFS norm",
+      "data": {
+        "name": "Khasiyat (From \"Chand Mera Dil\")",
+        "lufs": "-12.1",
+        "gainDb": "-3.9"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:39:24.347Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Phir Ajnabi (From \"Chand Mera Dil\")",
+        "artist": "Amitabh Bhattacharya, Sachin-Jigar, Junaid Ahmed"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:39:24.347Z",
+      "level": "INFO",
+      "msg": "MediaSession: fetching artwork",
+      "data": {
+        "songId": "3AJd4BOX",
+        "url": "https://c.saavncdn.com/549/Chand-Mera-Dil-Hindi-2026-20260518102642-500x500.jpg"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:39:24.388Z",
+      "level": "INFO",
+      "msg": "MediaSession: artwork set",
+      "data": {
+        "songId": "3AJd4BOX",
+        "bytes": 97159
+      }
+    },
+    {
+      "ts": "2026-06-07T05:39:33.318Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Ishq Nibhaavan De (From \"Chand Mera Dil\")",
+        "artist": "Amitabh Bhattacharya, Sachin-Jigar, Tushar Joshi"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:39:33.318Z",
+      "level": "INFO",
+      "msg": "MediaSession: fetching artwork",
+      "data": {
+        "songId": "WkfSUCgf",
+        "url": "https://c.saavncdn.com/549/Chand-Mera-Dil-Hindi-2026-20260518102642-500x500.jpg"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:39:33.359Z",
+      "level": "INFO",
+      "msg": "MediaSession: artwork set",
+      "data": {
+        "songId": "WkfSUCgf",
+        "bytes": 97159
+      }
+    },
+    {
+      "ts": "2026-06-07T05:39:43.836Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Chand Mera Dil - Shreya Ghoshal",
+        "artist": "Amitabh Bhattacharya, Sachin-Jigar, Shreya Ghoshal"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:39:43.836Z",
+      "level": "INFO",
+      "msg": "MediaSession: fetching artwork",
+      "data": {
+        "songId": "pLxSsFvv",
+        "url": "https://c.saavncdn.com/549/Chand-Mera-Dil-Hindi-2026-20260518102642-500x500.jpg"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:39:43.890Z",
+      "level": "INFO",
+      "msg": "MediaSession: artwork set",
+      "data": {
+        "songId": "pLxSsFvv",
+        "bytes": 97159
+      }
+    },
+    {
+      "ts": "2026-06-07T05:39:49.797Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Dhurandhar The Revenge - Aari Aari",
+        "artist": "Irshad Kamil, Bombay Rockers, Reble, Token, Shashwat Sachdev, Khan Saab, Jasmine Sandlas, Sudhir Yaduvanshi"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:39:49.798Z",
+      "level": "INFO",
+      "msg": "MediaSession: fetching artwork",
+      "data": {
+        "songId": "dq6oL2dA",
+        "url": "https://c.saavncdn.com/581/Dhurandhar-The-Revenge-Hindi-2026-20260409161002-500x500.jpg"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:39:49.935Z",
+      "level": "INFO",
+      "msg": "MediaSession: artwork set",
+      "data": {
+        "songId": "dq6oL2dA",
+        "bytes": 156835
+      }
+    },
+    {
+      "ts": "2026-06-07T05:39:59.373Z",
+      "level": "INFO",
+      "msg": "LUFS norm",
+      "data": {
+        "name": "Dhurandhar The Revenge - Aari Aari",
+        "lufs": "-13.9",
+        "gainDb": "-2.1"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:40:00.994Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Main Aur Tu",
+        "artist": "Jasmine Sandlas, Reble, Shashwat Sachdev"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:40:00.994Z",
+      "level": "INFO",
+      "msg": "MediaSession: fetching artwork",
+      "data": {
+        "songId": "kltZsTYC",
+        "url": "https://c.saavncdn.com/581/Dhurandhar-The-Revenge-Hindi-2026-20260409161002-500x500.jpg"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:40:01.099Z",
+      "level": "INFO",
+      "msg": "MediaSession: artwork set",
+      "data": {
+        "songId": "kltZsTYC",
+        "bytes": 156835
+      }
+    },
+    {
+      "ts": "2026-06-07T05:40:10.561Z",
+      "level": "INFO",
+      "msg": "LUFS norm",
+      "data": {
+        "name": "Main Aur Tu",
+        "lufs": "-9.2",
+        "gainDb": "-6.0"
       }
     }
   ]
