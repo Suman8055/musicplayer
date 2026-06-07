@@ -22,7 +22,8 @@
 
   let ghPat = getGhCfg().pat || '';
   let logFilter = 'ALL';
-  $: logs = $logTick, Log.all().filter(l => logFilter === 'ALL' || l.level === logFilter).slice(-100).reverse();
+  $: void $logTick; // track logTick as dependency
+  $: logs = Log.all().filter(l => logFilter === 'ALL' || l.level === logFilter).slice(-100).reverse();
   $: stats = intelGetStats();
 
   function onSliderChange(i, e) { audioEngine.setEqGain(i, parseFloat(e.target.value)); }
@@ -180,7 +181,7 @@
       <span>Data source</span><span class="settings-val">JioSaavn (SIGMA)</span>
     </div>
     <div class="settings-row">
-      <span>Logs stored</span><span class="settings-val">{$logTick, Log.count()}</span>
+      <span>Logs stored</span><span class="settings-val">{logs.length}</span>
     </div>
     <div class="settings-row">
       <span>Clear Cache</span>

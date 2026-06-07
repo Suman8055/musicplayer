@@ -73,7 +73,12 @@
     // Smart update — only notify when SW version is genuinely newer than current
     window.addEventListener('sw-update-ready', e => {
       const { waiting, newVersion } = e.detail;
-      if (newVersion && newVersion !== ('mbx-sk-' + APP_VERSION) && newVersion > ('mbx-sk-' + APP_VERSION)) {
+      // Compare semantic versions extracted from cache keys (e.g. mbx-sk-v5.2.7-abc1234)
+      const _parseVer = s => { const m = s?.match(/v(\d+)\.(\d+)\.(\d+)/); return m ? [+m[1],+m[2],+m[3]] : [0,0,0]; };
+      const [nm,ni,np] = _parseVer(newVersion);
+      const [cm,ci,cp] = _parseVer(APP_VERSION);
+      const isNewer = nm > cm || (nm===cm && ni > ci) || (nm===cm && ni===ci && np > cp);
+      if (newVersion && isNewer) {
         updateAvailable.set({ waiting, newVersion });
       }
     });
