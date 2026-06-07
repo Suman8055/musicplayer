@@ -278,7 +278,9 @@ export function startBgKeepAlive() {
     const cb = _callbacks.getState?.() ?? {};
     if (!cb.playing || cb.userPaused || !_audioCtx) return;
     if (_audioCtx.state === 'suspended') { try { await _audioCtx.resume(); } catch {} }
-    if (_audioEl?.paused && !cb.userPaused && cb.nowSong) {
+    // Never force-resume on AirPlay — external device controls (remote, HomePod tap) pause
+    // audioEl without setting userPaused. Calling play() here would override that hardware pause.
+    if (_audioEl?.paused && !cb.userPaused && cb.nowSong && !_airPlayActive) {
       try { await _audioEl.play(); } catch {}
       return;
     }

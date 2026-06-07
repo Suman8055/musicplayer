@@ -200,35 +200,40 @@
       probeReady: !!airPlayProbeEl
     });
 
-    // Poll probe element as belt-and-suspenders fallback
+    // Poll both probe and audioEl — probe is preferred (no MTAudioProcessingTap) but
+    // audioEl.webkitCurrentPlaybackTargetIsWireless can also return true on some iOS builds
+    // when the DSP chain is disconnected. Belt-and-suspenders: take either.
     const _airPlayPollInterval = setInterval(() => {
       try {
         if (!airPlayProbeEl) return;
-        const current = airPlayProbeEl.webkitCurrentPlaybackTargetIsWireless === true;
+        const fromProbe = airPlayProbeEl.webkitCurrentPlaybackTargetIsWireless === true;
+        const fromAudio = audioEl?.webkitCurrentPlaybackTargetIsWireless === true;
+        const current = fromProbe || fromAudio;
         if (current !== _airPlayPollState) {
           _airPlayPollState = current;
           airPlayActive.set(current);
           audioEngine.setAirPlayMode(current);
-          Log.info('AirPlay route changed (probe poll)', { active: current });
+          Log.info('AirPlay route changed (poll)', { active: current, fromProbe, fromAudio });
         }
       } catch (err) {
         Log.warn('AirPlay poll error', { error: err?.message });
       }
     }, 1000);
 
-    // pause→play heuristic: AirPlay route change causes a brief interruption
-    let _airPlayRouteTimer = null;
+    // External AirPlay pause guard: when audioEl pauses without userPaused being set
+    // and AirPlay is active (or suspected), the pause came from a hardware remote or
+    // HomePod tap — the MediaSession pause action is NOT fired in that case.
+    // We must NOT let bgKeepAlive auto-resume it. Mark userPaused=true so the
+    // keepalive skips recovery, but only when we are confident AirPlay is active.
     audioEl.addEventListener('pause', () => {
       if ($userPaused) return;
-      _airPlayRouteTimer = setTimeout(() => { _airPlayRouteTimer = null; }, 1500);
-    });
-    audioEl.addEventListener('play', () => {
-      if (_airPlayRouteTimer) {
-        clearTimeout(_airPlayRouteTimer);
-        _airPlayRouteTimer = null;
-        Log.info('AirPlay route change heuristic (pause→play)', {
-          probeActive: airPlayProbeEl?.webkitCurrentPlaybackTargetIsWireless
-        });
+      const probeActive = airPlayProbeEl?.webkitCurrentPlaybackTargetIsWireless === true;
+      const audioActive = audioEl?.webkitCurrentPlaybackTargetIsWireless === true;
+      if (probeActive || audioActive || _airPlayPollState) {
+        // External AirPlay device paused — treat same as user pause
+        userPaused.set(true);
+        audioEngine.onUserPaused();
+        Log.info('AirPlay external pause detected — userPaused set', { probeActive, audioActive });
       }
     });
 
