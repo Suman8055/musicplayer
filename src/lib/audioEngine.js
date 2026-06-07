@@ -214,6 +214,8 @@ export async function measureAndApplyLufs(song) {
   if (!_lufsOn) return;
   if (!_audioCtx || !_lufsAnalyser || !_gainNode) return;
   if (_lufsCache.has(song.id)) {
+    _gainNode.gain.cancelScheduledValues(_audioCtx.currentTime);
+    _gainNode.gain.setValueAtTime(_gainNode.gain.value, _audioCtx.currentTime);
     _gainNode.gain.setTargetAtTime(_lufsCache.get(song.id), _audioCtx.currentTime, 3.0);
     return;
   }
@@ -274,16 +276,18 @@ export function startBgKeepAlive() {
       try { await _audioEl.play(); } catch {}
       return;
     }
-    try {
-      const osc = _audioCtx.createOscillator();
-      const g   = _audioCtx.createGain();
-      g.gain.value = 0;
-      osc.connect(g);
-      g.connect(_audioCtx.destination);
-      osc.start();
-      osc.stop(_audioCtx.currentTime + 0.001);
-      setTimeout(() => { try { osc.disconnect(); g.disconnect(); } catch {} }, 2);
-    } catch {}
+    if (!_airPlayActive) {
+      try {
+        const osc = _audioCtx.createOscillator();
+        const g   = _audioCtx.createGain();
+        g.gain.value = 0;
+        osc.connect(g);
+        g.connect(_audioCtx.destination);
+        osc.start();
+        osc.stop(_audioCtx.currentTime + 0.001);
+        setTimeout(() => { try { osc.disconnect(); g.disconnect(); } catch {} }, 2);
+      } catch {}
+    }
   }, 10000);
 }
 
@@ -296,14 +300,27 @@ export function stopBgKeepAlive() {
 export function setAirPlayMode(active) {
   _airPlayActive = active;
   if (_callbacks.onAirPlayModeChange) _callbacks.onAirPlayModeChange(active);
+  // Cancel any in-flight LUFS ramp so it doesn't stack when reconnecting
+  if (_gainNode && _audioCtx && _audioCtx.state !== 'closed') {
+    _gainNode.gain.cancelScheduledValues(_audioCtx.currentTime);
+    _gainNode.gain.setValueAtTime(_gainNode.gain.value, _audioCtx.currentTime);
+  }
   if (!_mediaSource) return;
   if (active) {
+    // Disconnect LUFS analyser chain — running AnalyserNode (smoothing=0) causes
+    // iOS render-thread stall on AVAudioSession route change → AirPlay buffer dropout
+    try { if (_lufsKw1) _gainNode.disconnect(_lufsKw1); } catch {}
     try { _mediaSource.disconnect(); } catch {}
-    if (_audioEl) _audioEl.volume = Math.min(1, _gainNode?.gain.value ?? 1);
+    if (_audioEl) _audioEl.volume = 1;
+    // Longer release: AirPlay buffer depth (300–2000ms) makes 200ms release audible as a step
+    if (_limiterCompressor) _limiterCompressor.release.value = 0.5;
   } else {
     if (_audioCtx && _audioCtx.state !== 'closed') {
+      // Restore LUFS analyser tap
+      try { if (_lufsKw1) _gainNode.connect(_lufsKw1); } catch {}
       try { _mediaSource.connect(_gainNode); } catch {}
       if (_audioEl) _audioEl.volume = 1;
+      if (_limiterCompressor) _limiterCompressor.release.value = 0.2;
     }
   }
 }
