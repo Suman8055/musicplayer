@@ -1,25 +1,45 @@
 {
-  "uploadedAt": "2026-06-07T04:10:47.172Z",
+  "uploadedAt": "2026-06-07T04:34:36.257Z",
   "device": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.5 Mobile/15E148 Safari/604.1",
   "entries": [
     {
-      "ts": "2026-06-07T04:09:06.770Z",
+      "ts": "2026-06-07T04:33:28.008Z",
       "level": "INFO",
       "msg": "App started",
       "data": {
-        "version": "5.2.0"
+        "version": "5.2.8"
       }
     },
     {
-      "ts": "2026-06-07T04:09:07.409Z",
+      "ts": "2026-06-07T04:33:28.008Z",
+      "level": "INFO",
+      "msg": "AirPlay initial state",
+      "data": {
+        "active": false,
+        "supported": true,
+        "rawValue": false
+      }
+    },
+    {
+      "ts": "2026-06-07T04:33:28.729Z",
       "level": "INFO",
       "msg": "App started",
       "data": {
-        "version": "5.2.0"
+        "version": "5.2.8"
       }
     },
     {
-      "ts": "2026-06-07T04:09:22.979Z",
+      "ts": "2026-06-07T04:33:28.729Z",
+      "level": "INFO",
+      "msg": "AirPlay initial state",
+      "data": {
+        "active": false,
+        "supported": true,
+        "rawValue": false
+      }
+    },
+    {
+      "ts": "2026-06-07T04:33:55.960Z",
       "level": "WARN",
       "msg": "fetchFeaturedPlaylists failed",
       "data": {
@@ -28,7 +48,79 @@
       }
     },
     {
-      "ts": "2026-06-07T04:09:32.003Z",
+      "ts": "2026-06-07T04:33:59.134Z",
+      "level": "INFO",
+      "msg": "AudioContext created",
+      "data": {
+        "sampleRate": 48000
+      }
+    },
+    {
+      "ts": "2026-06-07T04:33:59.817Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Dhurandhar - Title Track",
+        "artist": "Hanumankind, Jasmine Sandlas, Babu Singh Maan, Shashwat Sachdev, Sudhir Yaduvanshi, Charanjit Ahuja, Muhammad Sadiq, Ranjit Kaur"
+      }
+    },
+    {
+      "ts": "2026-06-07T04:33:59.818Z",
+      "level": "INFO",
+      "msg": "MediaSession: fetching artwork",
+      "data": {
+        "songId": "o2TiOMOu",
+        "url": "https://c.saavncdn.com/475/Dhurandhar-Hindi-2025-20260203083204-500x500.jpg"
+      }
+    },
+    {
+      "ts": "2026-06-07T04:33:59.863Z",
+      "level": "INFO",
+      "msg": "MediaSession: artwork set",
+      "data": {
+        "songId": "o2TiOMOu",
+        "bytes": 136699
+      }
+    },
+    {
+      "ts": "2026-06-07T04:34:09.515Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Ishq Jalakar - Karvaan",
+        "artist": "Shashwat Sachdev, Irshad Kamil, Shahzad Ali, Sahir Ludhianvi, Subhadeep Das Chowdhury, Armaan Khan, Roshan"
+      }
+    },
+    {
+      "ts": "2026-06-07T04:34:09.515Z",
+      "level": "INFO",
+      "msg": "MediaSession: fetching artwork",
+      "data": {
+        "songId": "rNG7yxOv",
+        "url": "https://c.saavncdn.com/475/Dhurandhar-Hindi-2025-20260203083204-500x500.jpg"
+      }
+    },
+    {
+      "ts": "2026-06-07T04:34:09.576Z",
+      "level": "INFO",
+      "msg": "MediaSession: artwork set",
+      "data": {
+        "songId": "rNG7yxOv",
+        "bytes": 136699
+      }
+    },
+    {
+      "ts": "2026-06-07T04:34:19.079Z",
+      "level": "INFO",
+      "msg": "LUFS norm",
+      "data": {
+        "name": "Ishq Jalakar - Karvaan",
+        "lufs": "-15.7",
+        "gainDb": "-0.3"
+      }
+    },
+    {
+      "ts": "2026-06-07T04:34:24.032Z",
       "level": "INFO",
       "msg": "Playback started",
       "data": {
@@ -37,7 +129,7 @@
       }
     },
     {
-      "ts": "2026-06-07T04:09:32.004Z",
+      "ts": "2026-06-07T04:34:24.033Z",
       "level": "INFO",
       "msg": "MediaSession: fetching artwork",
       "data": {
@@ -46,7 +138,7 @@
       }
     },
     {
-      "ts": "2026-06-07T04:09:32.062Z",
+      "ts": "2026-06-07T04:34:24.084Z",
       "level": "INFO",
       "msg": "MediaSession: artwork set",
       "data": {
@@ -55,138 +147,13 @@
       }
     },
     {
-      "ts": "2026-06-07T04:09:41.810Z",
+      "ts": "2026-06-07T04:34:33.594Z",
       "level": "INFO",
-      "msg": "Playback started",
+      "msg": "LUFS norm",
       "data": {
-        "name": "Jaiye Sajana",
-        "artist": "Satinder Sartaaj, Jasmine Sandlas, Shashwat Sachdev"
-      }
-    },
-    {
-      "ts": "2026-06-07T04:09:41.810Z",
-      "level": "INFO",
-      "msg": "MediaSession: fetching artwork",
-      "data": {
-        "songId": "TCu0tFIp",
-        "url": "https://c.saavncdn.com/581/Dhurandhar-The-Revenge-Hindi-2026-20260409161002-500x500.jpg"
-      }
-    },
-    {
-      "ts": "2026-06-07T04:09:41.864Z",
-      "level": "INFO",
-      "msg": "MediaSession: artwork set",
-      "data": {
-        "songId": "TCu0tFIp",
-        "bytes": 156835
-      }
-    },
-    {
-      "ts": "2026-06-07T04:09:57.080Z",
-      "level": "INFO",
-      "msg": "Playback started",
-      "data": {
-        "name": "Deewaana Deewaana",
-        "artist": "A.R. Rahman, Irshad Kamil"
-      }
-    },
-    {
-      "ts": "2026-06-07T04:09:57.081Z",
-      "level": "INFO",
-      "msg": "MediaSession: fetching artwork",
-      "data": {
-        "songId": "xtX3So8U",
-        "url": "https://c.saavncdn.com/733/Tere-Ishk-Mein-Hindi-2025-20251203141038-500x500.jpg"
-      }
-    },
-    {
-      "ts": "2026-06-07T04:09:57.148Z",
-      "level": "INFO",
-      "msg": "MediaSession: artwork set",
-      "data": {
-        "songId": "xtX3So8U",
-        "bytes": 83271
-      }
-    },
-    {
-      "ts": "2026-06-07T04:09:59.676Z",
-      "level": "INFO",
-      "msg": "Playback started",
-      "data": {
-        "name": "Barbaad",
-        "artist": "The Rish, Jubin Nautiyal"
-      }
-    },
-    {
-      "ts": "2026-06-07T04:09:59.676Z",
-      "level": "INFO",
-      "msg": "MediaSession: fetching artwork",
-      "data": {
-        "songId": "Q72cSWjq",
-        "url": "https://c.saavncdn.com/598/Saiyaara-Hindi-2025-20250703061754-500x500.jpg"
-      }
-    },
-    {
-      "ts": "2026-06-07T04:09:59.734Z",
-      "level": "INFO",
-      "msg": "MediaSession: artwork set",
-      "data": {
-        "songId": "Q72cSWjq",
-        "bytes": 144987
-      }
-    },
-    {
-      "ts": "2026-06-07T04:10:00.703Z",
-      "level": "INFO",
-      "msg": "Playback started",
-      "data": {
-        "name": "Ganga Ke Kinare",
-        "artist": "Bunny, Sagar"
-      }
-    },
-    {
-      "ts": "2026-06-07T04:10:00.703Z",
-      "level": "INFO",
-      "msg": "MediaSession: fetching artwork",
-      "data": {
-        "songId": "aF3M4c46",
-        "url": "https://c.saavncdn.com/273/Ganga-Ke-Kinare-Hindi-2026-20260223122928-500x500.jpg"
-      }
-    },
-    {
-      "ts": "2026-06-07T04:10:00.749Z",
-      "level": "INFO",
-      "msg": "MediaSession: artwork set",
-      "data": {
-        "songId": "aF3M4c46",
-        "bytes": 98435
-      }
-    },
-    {
-      "ts": "2026-06-07T04:10:14.522Z",
-      "level": "INFO",
-      "msg": "Playback started",
-      "data": {
-        "name": "Tum Ho Toh",
-        "artist": "Vishal Mishra, Hansika Pareek, Raj Shekhar"
-      }
-    },
-    {
-      "ts": "2026-06-07T04:10:14.522Z",
-      "level": "INFO",
-      "msg": "MediaSession: fetching artwork",
-      "data": {
-        "songId": "RMnHyp2C",
-        "url": "https://c.saavncdn.com/598/Saiyaara-Hindi-2025-20250703061754-500x500.jpg"
-      }
-    },
-    {
-      "ts": "2026-06-07T04:10:14.575Z",
-      "level": "INFO",
-      "msg": "MediaSession: artwork set",
-      "data": {
-        "songId": "RMnHyp2C",
-        "bytes": 144987
+        "name": "Gehra Hua",
+        "lufs": "-33.4",
+        "gainDb": "2.0"
       }
     }
   ]
