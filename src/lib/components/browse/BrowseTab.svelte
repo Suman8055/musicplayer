@@ -67,8 +67,10 @@
       let songs = type === 'playlist' ? await fetchPlaylistSongs(id) : await fetchAlbumSongs(id);
       // JioSaavn editorial playlists often return 0 songs — fall back to search
       if (songs.length === 0 && title) {
-        const query = activeLang ? `${title} ${activeLang}` : title;
-        songs = await searchSongs(query, 30);
+        // Strip language suffix (e.g. " - English", " - Hindi") from chart title for cleaner query
+        const cleanTitle = title.replace(/\s*[-–]\s*(english|hindi|punjabi|telugu|tamil)\s*$/i, '').trim();
+        const query = cleanTitle || activeLang || title;
+        songs = await searchSongs(query, 40);
       }
       detailSongs = filterByLanguage(songs, activeLang);
       cacheSongs(detailSongs);
