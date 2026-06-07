@@ -4,12 +4,11 @@
 //   1. SPA fallback: any navigation request → serve /musicplayer/index.html
 //   2. Cache-first for /_app/immutable/ (content-hashed, never changes)
 //   3. Network-first for API calls (streaming URLs must be fresh)
-//   4. skipWaiting only after shell cache succeeds — prevents blank screen on partial cache
 
 const BASE  = self.registration.scope.replace(/\/$/, '');
-const CACHE = 'mbx-sk-v5.2.18-59918fc';
+const CACHE = 'mbx-sk-v5.2.1-041ea70';
 
-// Shell files — updated by inject-sw-shell.js after build with current chunk hashes
+// Shell files — updated after build when hashed _app filenames are known
 const SHELL = [
   BASE + '/',
   BASE + '/index.html',
@@ -18,27 +17,21 @@ const SHELL = [
   BASE + '/icon-192.png',
   BASE + '/icon-512.png',
   BASE + '/apple-touch-icon.png',
-  BASE + '/_app/immutable/entry/start.DB64XbQL.js',
-  BASE + '/_app/immutable/chunks/CkUMd_Rg.js',
+  BASE + '/_app/immutable/entry/start.DpBkDrBq.js',
+  BASE + '/_app/immutable/chunks/DgEy3apK.js',
   BASE + '/_app/immutable/chunks/BSw_KR7x.js',
   BASE + '/_app/immutable/chunks/C6MFgNCR.js',
-  BASE + '/_app/immutable/entry/app.r_YGuD8p.js',
+  BASE + '/_app/immutable/entry/app.DJtcf7Mo.js',
   BASE + '/_app/immutable/chunks/CmsKOCeN.js',
   BASE + '/_app/immutable/chunks/-In5gsl0.js',
-  BASE + '/_app/immutable/nodes/0.4JMWbaiL.js',
-  BASE + '/_app/immutable/chunks/Ccwu6JuH.js',
-  BASE + '/_app/immutable/assets/0.Dd_GaZkb.css',
+  BASE + '/_app/immutable/nodes/0.C-MzjR7O.js',
+  BASE + '/_app/immutable/chunks/1c_MOruw.js',
+  BASE + '/_app/immutable/assets/0.BdWKE3eZ.css',
 ];
 
 self.addEventListener('install', e => {
   e.waitUntil(
-    caches.open(CACHE)
-      .then(c => c.addAll(SHELL))
-      .then(() => self.skipWaiting())
-      .catch(err => {
-        console.error('[SW] Shell pre-cache failed — keeping old SW active', err);
-        throw err; // prevents skipWaiting, old SW stays in control
-      })
+    caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())
   );
 });
 
@@ -83,9 +76,7 @@ self.addEventListener('fetch', e => {
     e.respondWith(
       fetch(e.request)
         .then(res => res.ok ? res : caches.match(BASE + '/index.html'))
-        .catch(() => caches.match(BASE + '/index.html')
-          .then(cached => cached || new Response('App offline — please reload', { status: 503, headers: { 'Content-Type': 'text/plain' } }))
-        )
+        .catch(() => caches.match(BASE + '/index.html'))
     );
     return;
   }
