@@ -1,5 +1,5 @@
 {
-  "uploadedAt": "2026-06-07T05:45:44.919Z",
+  "uploadedAt": "2026-06-07T05:50:45.700Z",
   "device": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.5 Mobile/15E148 Safari/604.1",
   "entries": [
     {
@@ -1144,6 +1144,235 @@
     },
     {
       "ts": "2026-06-07T05:45:29.341Z",
+      "level": "INFO",
+      "msg": "MediaSession: artwork set",
+      "data": {
+        "songId": "IQMFCwXQ",
+        "bytes": 136699
+      }
+    },
+    {
+      "ts": "2026-06-07T05:49:28.297Z",
+      "level": "INFO",
+      "msg": "App started",
+      "data": {
+        "version": "5.2.15"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:49:28.298Z",
+      "level": "INFO",
+      "msg": "AirPlay initial state",
+      "data": {
+        "supported": true,
+        "remoteSupported": true,
+        "probeReady": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:49:28.306Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": false
+      }
+    },
+    {
+      "ts": "2026-06-07T05:49:28.309Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:49:28.912Z",
+      "level": "INFO",
+      "msg": "App started",
+      "data": {
+        "version": "5.2.15"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:49:28.912Z",
+      "level": "INFO",
+      "msg": "AirPlay initial state",
+      "data": {
+        "supported": true,
+        "remoteSupported": true,
+        "probeReady": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:49:28.913Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": false
+      }
+    },
+    {
+      "ts": "2026-06-07T05:49:28.913Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:49:31.456Z",
+      "level": "WARN",
+      "msg": "fetchFeaturedPlaylists failed",
+      "data": {
+        "language": "hindi",
+        "err": "HTTP 404"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:49:33.921Z",
+      "level": "INFO",
+      "msg": "AudioContext created",
+      "data": {
+        "sampleRate": 48000
+      }
+    },
+    {
+      "ts": "2026-06-07T05:49:34.577Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Dhurandhar - Title Track",
+        "artist": "Hanumankind, Jasmine Sandlas, Babu Singh Maan, Shashwat Sachdev, Sudhir Yaduvanshi, Charanjit Ahuja, Muhammad Sadiq, Ranjit Kaur"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:49:34.577Z",
+      "level": "INFO",
+      "msg": "MediaSession: fetching artwork",
+      "data": {
+        "songId": "o2TiOMOu",
+        "url": "https://c.saavncdn.com/475/Dhurandhar-Hindi-2025-20260203083204-500x500.jpg"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:49:34.649Z",
+      "level": "INFO",
+      "msg": "MediaSession: artwork set",
+      "data": {
+        "songId": "o2TiOMOu",
+        "bytes": 136699
+      }
+    },
+    {
+      "ts": "2026-06-07T05:49:44.159Z",
+      "level": "INFO",
+      "msg": "LUFS norm",
+      "data": {
+        "name": "Dhurandhar - Title Track",
+        "lufs": "-9.1",
+        "gainDb": "-6.0"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:49:44.396Z",
+      "level": "INFO",
+      "msg": "AirPlay connecting (waiting for connect)",
+      "data": {}
+    },
+    {
+      "ts": "2026-06-07T05:49:51.334Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Ishq Jalakar - Karvaan",
+        "artist": "Shashwat Sachdev, Irshad Kamil, Shahzad Ali, Sahir Ludhianvi, Subhadeep Das Chowdhury, Armaan Khan, Roshan"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:49:51.335Z",
+      "level": "INFO",
+      "msg": "MediaSession: fetching artwork",
+      "data": {
+        "songId": "rNG7yxOv",
+        "url": "https://c.saavncdn.com/475/Dhurandhar-Hindi-2025-20260203083204-500x500.jpg"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:49:51.402Z",
+      "level": "INFO",
+      "msg": "MediaSession: artwork set",
+      "data": {
+        "songId": "rNG7yxOv",
+        "bytes": 136699
+      }
+    },
+    {
+      "ts": "2026-06-07T05:50:00.895Z",
+      "level": "INFO",
+      "msg": "LUFS norm",
+      "data": {
+        "name": "Ishq Jalakar - Karvaan",
+        "lufs": "-23.7",
+        "gainDb": "2.0"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:50:06.745Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Gehra Hua",
+        "artist": "Irshad Kamil, Arijit Singh, Shashwat Sachdev, Armaan Khan"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:50:06.745Z",
+      "level": "INFO",
+      "msg": "MediaSession: fetching artwork",
+      "data": {
+        "songId": "1gHtmQ3x",
+        "url": "https://c.saavncdn.com/475/Dhurandhar-Hindi-2025-20260203083204-500x500.jpg"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:50:06.831Z",
+      "level": "INFO",
+      "msg": "MediaSession: artwork set",
+      "data": {
+        "songId": "1gHtmQ3x",
+        "bytes": 136699
+      }
+    },
+    {
+      "ts": "2026-06-07T05:50:16.304Z",
+      "level": "INFO",
+      "msg": "LUFS norm",
+      "data": {
+        "name": "Gehra Hua",
+        "lufs": "-17.2",
+        "gainDb": "1.2"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:50:29.943Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Teri Ni Kararan",
+        "artist": "Lal Chand Yamla Jatt, Diljit Dosanjh, Shashwat Sachdev"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:50:29.943Z",
+      "level": "INFO",
+      "msg": "MediaSession: fetching artwork",
+      "data": {
+        "songId": "IQMFCwXQ",
+        "url": "https://c.saavncdn.com/475/Dhurandhar-Hindi-2025-20260203083204-500x500.jpg"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:50:29.989Z",
       "level": "INFO",
       "msg": "MediaSession: artwork set",
       "data": {
