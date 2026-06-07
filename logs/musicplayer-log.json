@@ -1,5 +1,5 @@
 {
-  "uploadedAt": "2026-06-07T05:40:30.700Z",
+  "uploadedAt": "2026-06-07T05:45:44.919Z",
   "device": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.5 Mobile/15E148 Safari/604.1",
   "entries": [
     {
@@ -732,6 +732,423 @@
         "name": "Main Aur Tu",
         "lufs": "-9.2",
         "gainDb": "-6.0"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:43:18.654Z",
+      "level": "INFO",
+      "msg": "App started",
+      "data": {
+        "version": "5.2.13"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:43:18.655Z",
+      "level": "INFO",
+      "msg": "AirPlay initial state",
+      "data": {
+        "active": false,
+        "supported": true,
+        "probeReady": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:43:18.656Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": false
+      }
+    },
+    {
+      "ts": "2026-06-07T05:43:18.660Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:43:19.464Z",
+      "level": "INFO",
+      "msg": "App started",
+      "data": {
+        "version": "5.2.13"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:43:19.465Z",
+      "level": "INFO",
+      "msg": "AirPlay initial state",
+      "data": {
+        "active": false,
+        "supported": true,
+        "probeReady": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:43:19.466Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": false
+      }
+    },
+    {
+      "ts": "2026-06-07T05:43:19.467Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:43:22.571Z",
+      "level": "INFO",
+      "msg": "App started",
+      "data": {
+        "version": "5.2.13"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:43:22.571Z",
+      "level": "INFO",
+      "msg": "AirPlay initial state",
+      "data": {
+        "active": false,
+        "supported": true,
+        "probeReady": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:43:22.574Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": false
+      }
+    },
+    {
+      "ts": "2026-06-07T05:43:22.575Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:43:23.163Z",
+      "level": "INFO",
+      "msg": "App started",
+      "data": {
+        "version": "5.2.13"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:43:23.163Z",
+      "level": "INFO",
+      "msg": "AirPlay initial state",
+      "data": {
+        "active": false,
+        "supported": true,
+        "probeReady": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:43:23.167Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": false
+      }
+    },
+    {
+      "ts": "2026-06-07T05:43:23.167Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:43:59.779Z",
+      "level": "INFO",
+      "msg": "App started",
+      "data": {
+        "version": "5.2.14"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:43:59.780Z",
+      "level": "INFO",
+      "msg": "AirPlay initial state",
+      "data": {
+        "supported": true,
+        "remoteSupported": true,
+        "probeReady": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:43:59.783Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": false
+      }
+    },
+    {
+      "ts": "2026-06-07T05:43:59.785Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:44:00.298Z",
+      "level": "INFO",
+      "msg": "App started",
+      "data": {
+        "version": "5.2.14"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:44:00.299Z",
+      "level": "INFO",
+      "msg": "AirPlay initial state",
+      "data": {
+        "supported": true,
+        "remoteSupported": true,
+        "probeReady": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:44:00.299Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": false
+      }
+    },
+    {
+      "ts": "2026-06-07T05:44:00.300Z",
+      "level": "INFO",
+      "msg": "AirPlay availability changed",
+      "data": {
+        "available": true
+      }
+    },
+    {
+      "ts": "2026-06-07T05:44:02.725Z",
+      "level": "WARN",
+      "msg": "fetchFeaturedPlaylists failed",
+      "data": {
+        "language": "hindi",
+        "err": "HTTP 404"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:44:06.423Z",
+      "level": "INFO",
+      "msg": "AudioContext created",
+      "data": {
+        "sampleRate": 48000
+      }
+    },
+    {
+      "ts": "2026-06-07T05:44:07.166Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Dhurandhar - Title Track",
+        "artist": "Hanumankind, Jasmine Sandlas, Babu Singh Maan, Shashwat Sachdev, Sudhir Yaduvanshi, Charanjit Ahuja, Muhammad Sadiq, Ranjit Kaur"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:44:07.166Z",
+      "level": "INFO",
+      "msg": "MediaSession: fetching artwork",
+      "data": {
+        "songId": "o2TiOMOu",
+        "url": "https://c.saavncdn.com/475/Dhurandhar-Hindi-2025-20260203083204-500x500.jpg"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:44:07.225Z",
+      "level": "INFO",
+      "msg": "MediaSession: artwork set",
+      "data": {
+        "songId": "o2TiOMOu",
+        "bytes": 136699
+      }
+    },
+    {
+      "ts": "2026-06-07T05:44:16.727Z",
+      "level": "INFO",
+      "msg": "LUFS norm",
+      "data": {
+        "name": "Dhurandhar - Title Track",
+        "lufs": "-27.2",
+        "gainDb": "2.0"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:44:26.532Z",
+      "level": "INFO",
+      "msg": "AirPlay setAirPlayMode",
+      "data": {
+        "active": true,
+        "hasMediaSource": true,
+        "ctxState": "running"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:44:26.532Z",
+      "level": "INFO",
+      "msg": "AirPlay engine: DSP chain disconnected",
+      "data": {
+        "ctxState": "running"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:44:26.532Z",
+      "level": "INFO",
+      "msg": "AirPlay route changed",
+      "data": {
+        "active": true,
+        "source": "remote-connecting",
+        "remoteState": "connecting",
+        "probeWireless": false
+      }
+    },
+    {
+      "ts": "2026-06-07T05:44:27.391Z",
+      "level": "INFO",
+      "msg": "AirPlay setAirPlayMode",
+      "data": {
+        "active": false,
+        "hasMediaSource": true,
+        "ctxState": "running"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:44:27.391Z",
+      "level": "INFO",
+      "msg": "AirPlay engine: DSP chain restored",
+      "data": {
+        "ctxState": "running"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:44:27.391Z",
+      "level": "INFO",
+      "msg": "AirPlay route changed",
+      "data": {
+        "active": false,
+        "source": "poll",
+        "remoteState": "connecting",
+        "probeWireless": false
+      }
+    },
+    {
+      "ts": "2026-06-07T05:44:37.039Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Ishq Jalakar - Karvaan",
+        "artist": "Shashwat Sachdev, Irshad Kamil, Shahzad Ali, Sahir Ludhianvi, Subhadeep Das Chowdhury, Armaan Khan, Roshan"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:44:37.039Z",
+      "level": "INFO",
+      "msg": "MediaSession: fetching artwork",
+      "data": {
+        "songId": "rNG7yxOv",
+        "url": "https://c.saavncdn.com/475/Dhurandhar-Hindi-2025-20260203083204-500x500.jpg"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:44:37.087Z",
+      "level": "INFO",
+      "msg": "MediaSession: artwork set",
+      "data": {
+        "songId": "rNG7yxOv",
+        "bytes": 136699
+      }
+    },
+    {
+      "ts": "2026-06-07T05:44:46.646Z",
+      "level": "INFO",
+      "msg": "LUFS norm",
+      "data": {
+        "name": "Ishq Jalakar - Karvaan",
+        "lufs": "-14.6",
+        "gainDb": "-1.4"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:44:58.113Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Gehra Hua",
+        "artist": "Irshad Kamil, Arijit Singh, Shashwat Sachdev, Armaan Khan"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:44:58.113Z",
+      "level": "INFO",
+      "msg": "MediaSession: fetching artwork",
+      "data": {
+        "songId": "1gHtmQ3x",
+        "url": "https://c.saavncdn.com/475/Dhurandhar-Hindi-2025-20260203083204-500x500.jpg"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:44:58.377Z",
+      "level": "INFO",
+      "msg": "MediaSession: artwork set",
+      "data": {
+        "songId": "1gHtmQ3x",
+        "bytes": 136699
+      }
+    },
+    {
+      "ts": "2026-06-07T05:45:07.670Z",
+      "level": "INFO",
+      "msg": "LUFS norm",
+      "data": {
+        "name": "Gehra Hua",
+        "lufs": "-18.4",
+        "gainDb": "2.0"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:45:29.294Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Teri Ni Kararan",
+        "artist": "Lal Chand Yamla Jatt, Diljit Dosanjh, Shashwat Sachdev"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:45:29.294Z",
+      "level": "INFO",
+      "msg": "MediaSession: fetching artwork",
+      "data": {
+        "songId": "IQMFCwXQ",
+        "url": "https://c.saavncdn.com/475/Dhurandhar-Hindi-2025-20260203083204-500x500.jpg"
+      }
+    },
+    {
+      "ts": "2026-06-07T05:45:29.341Z",
+      "level": "INFO",
+      "msg": "MediaSession: artwork set",
+      "data": {
+        "songId": "IQMFCwXQ",
+        "bytes": 136699
       }
     }
   ]
