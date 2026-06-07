@@ -137,20 +137,28 @@
     audioEl.addEventListener('webkitcurrentplaybacktargetiswirelesschanged', () => {
       const active = audioEl.webkitCurrentPlaybackTargetIsWireless === true;
       audioEngine.setAirPlayMode(active);
-      Log.info('AirPlay route changed', { active });
+      Log.info('AirPlay route changed (event)', { active });
     });
 
     audioEl.addEventListener('webkitplaybacktargetavailabilitychanged', (e) => {
       // airplay button visibility — handled in NowPlaying component
     });
 
-    // Log initial AirPlay state — catches the case where AirPlay was already
-    // active before the app loaded (event would never fire in that case)
-    const initialAirPlay = audioEl.webkitCurrentPlaybackTargetIsWireless === true;
+    // iOS does not reliably fire webkitcurrentplaybacktargetiswirelesschanged
+    // when the user picks AirPlay from the system picker — poll as fallback
+    let _airPlayPollState = audioEl.webkitCurrentPlaybackTargetIsWireless === true;
     Log.info('AirPlay initial state', {
-      active: initialAirPlay,
+      active: _airPlayPollState,
       supported: 'webkitCurrentPlaybackTargetIsWireless' in audioEl
     });
+    const _airPlayPollInterval = setInterval(() => {
+      const current = audioEl.webkitCurrentPlaybackTargetIsWireless === true;
+      if (current !== _airPlayPollState) {
+        _airPlayPollState = current;
+        audioEngine.setAirPlayMode(current);
+        Log.info('AirPlay route changed (poll)', { active: current });
+      }
+    }, 1000);
 
     // ── MediaSession action handlers (registered once, never re-registered) ──
     if ('mediaSession' in navigator) {
@@ -219,6 +227,8 @@
     window.addEventListener('offline', () => isOnline.set(false));
 
     if ('audioSession' in navigator) navigator.audioSession.type = 'playback';
+
+    return () => clearInterval(_airPlayPollInterval);
   });
 </script>
 
