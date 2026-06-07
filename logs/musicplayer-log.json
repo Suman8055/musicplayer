@@ -1,109 +1,9 @@
 {
-  "uploadedAt": "2026-06-07T05:07:26.959Z",
+  "uploadedAt": "2026-06-07T05:14:28.050Z",
   "device": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.5 Mobile/15E148 Safari/604.1",
   "entries": [
     {
-      "ts": "2026-06-07T04:36:15.048Z",
-      "level": "INFO",
-      "msg": "Playback started",
-      "data": {
-        "name": "Teri Ni Kararan",
-        "artist": "Lal Chand Yamla Jatt, Diljit Dosanjh, Shashwat Sachdev"
-      }
-    },
-    {
-      "ts": "2026-06-07T04:36:15.049Z",
-      "level": "INFO",
-      "msg": "MediaSession: fetching artwork",
-      "data": {
-        "songId": "IQMFCwXQ",
-        "url": "https://c.saavncdn.com/475/Dhurandhar-Hindi-2025-20260203083204-500x500.jpg"
-      }
-    },
-    {
-      "ts": "2026-06-07T04:36:15.107Z",
-      "level": "INFO",
-      "msg": "MediaSession: artwork set",
-      "data": {
-        "songId": "IQMFCwXQ",
-        "bytes": 136699
-      }
-    },
-    {
-      "ts": "2026-06-07T04:36:24.611Z",
-      "level": "INFO",
-      "msg": "LUFS norm",
-      "data": {
-        "name": "Teri Ni Kararan",
-        "lufs": "-11.3",
-        "gainDb": "-4.7"
-      }
-    },
-    {
-      "ts": "2026-06-07T04:37:01.863Z",
-      "level": "INFO",
-      "msg": "Playback started",
-      "data": {
-        "name": "Run Down The City - Monica",
-        "artist": "Reble, Majrooh Sultanpuri, Asha Bhosle, Shashwat Sachdev, R.D. Burman"
-      }
-    },
-    {
-      "ts": "2026-06-07T04:37:01.864Z",
-      "level": "INFO",
-      "msg": "MediaSession: fetching artwork",
-      "data": {
-        "songId": "3dRWYsos",
-        "url": "https://c.saavncdn.com/475/Dhurandhar-Hindi-2025-20260203083204-500x500.jpg"
-      }
-    },
-    {
-      "ts": "2026-06-07T04:37:01.909Z",
-      "level": "INFO",
-      "msg": "MediaSession: artwork set",
-      "data": {
-        "songId": "3dRWYsos",
-        "bytes": 136699
-      }
-    },
-    {
-      "ts": "2026-06-07T04:47:43.483Z",
-      "level": "INFO",
-      "msg": "App started",
-      "data": {
-        "version": "5.2.9"
-      }
-    },
-    {
-      "ts": "2026-06-07T04:47:43.483Z",
-      "level": "INFO",
-      "msg": "AirPlay initial state",
-      "data": {
-        "active": false,
-        "supported": true,
-        "probeReady": true
-      }
-    },
-    {
-      "ts": "2026-06-07T04:47:44.297Z",
-      "level": "INFO",
-      "msg": "App started",
-      "data": {
-        "version": "5.2.9"
-      }
-    },
-    {
-      "ts": "2026-06-07T04:47:44.297Z",
-      "level": "INFO",
-      "msg": "AirPlay initial state",
-      "data": {
-        "active": false,
-        "supported": true,
-        "probeReady": true
-      }
-    },
-    {
-      "ts": "2026-06-07T04:47:53.531Z",
+      "ts": "2026-06-07T05:12:31.783Z",
       "level": "WARN",
       "msg": "fetchFeaturedPlaylists failed",
       "data": {
@@ -112,169 +12,25 @@
       }
     },
     {
-      "ts": "2026-06-07T04:48:03.398Z",
-      "level": "INFO",
-      "msg": "AudioContext created",
-      "data": {
-        "sampleRate": 48000
-      }
-    },
-    {
-      "ts": "2026-06-07T04:48:04.405Z",
-      "level": "INFO",
-      "msg": "Playback started",
-      "data": {
-        "name": "Chand Mera Dil (Title Track)",
-        "artist": "Amitabh Bhattacharya, Sachin-Jigar, Faheem Abdullah"
-      }
-    },
-    {
-      "ts": "2026-06-07T04:48:13.966Z",
-      "level": "INFO",
-      "msg": "LUFS norm",
-      "data": {
-        "name": "Chand Mera Dil (Title Track)",
-        "lufs": "-13.0",
-        "gainDb": "-3.0"
-      }
-    },
-    {
-      "ts": "2026-06-07T04:48:30.839Z",
-      "level": "INFO",
-      "msg": "App started",
-      "data": {
-        "version": "5.2.9"
-      }
-    },
-    {
-      "ts": "2026-06-07T04:48:30.839Z",
-      "level": "INFO",
-      "msg": "AirPlay initial state",
-      "data": {
-        "active": false,
-        "supported": true,
-        "probeReady": true
-      }
-    },
-    {
-      "ts": "2026-06-07T04:48:31.473Z",
-      "level": "INFO",
-      "msg": "App started",
-      "data": {
-        "version": "5.2.9"
-      }
-    },
-    {
-      "ts": "2026-06-07T04:48:31.473Z",
-      "level": "INFO",
-      "msg": "AirPlay initial state",
-      "data": {
-        "active": false,
-        "supported": true,
-        "probeReady": true
-      }
-    },
-    {
-      "ts": "2026-06-07T04:48:36.382Z",
+      "ts": "2026-06-07T05:12:37.913Z",
       "level": "WARN",
       "msg": "fetchFeaturedPlaylists failed",
       "data": {
-        "language": "hindi",
+        "language": "telugu",
         "err": "HTTP 404"
       }
     },
     {
-      "ts": "2026-06-07T04:48:38.685Z",
-      "level": "INFO",
-      "msg": "AudioContext created",
-      "data": {
-        "sampleRate": 48000
-      }
-    },
-    {
-      "ts": "2026-06-07T04:48:38.918Z",
-      "level": "INFO",
-      "msg": "Playback started",
-      "data": {
-        "name": "Chand Mera Dil (Title Track)",
-        "artist": "Amitabh Bhattacharya, Sachin-Jigar, Faheem Abdullah"
-      }
-    },
-    {
-      "ts": "2026-06-07T04:48:48.481Z",
-      "level": "INFO",
-      "msg": "LUFS norm",
-      "data": {
-        "name": "Chand Mera Dil (Title Track)",
-        "lufs": "-6.2",
-        "gainDb": "-6.0"
-      }
-    },
-    {
-      "ts": "2026-06-07T04:49:26.777Z",
-      "level": "INFO",
-      "msg": "Playback started",
-      "data": {
-        "name": "Teen Baan Ke Dhari",
-        "artist": "Chotu Singh Rawna"
-      }
-    },
-    {
-      "ts": "2026-06-07T04:49:29.480Z",
-      "level": "INFO",
-      "msg": "Playback started",
-      "data": {
-        "name": "Sitaare (From &quot;Ikkis&quot;)",
-        "artist": "Amitabh Bhattacharya, Arijit Singh, Sachin-Jigar"
-      }
-    },
-    {
-      "ts": "2026-06-07T04:49:30.367Z",
-      "level": "INFO",
-      "msg": "Playback started",
-      "data": {
-        "name": "Udi Udi",
-        "artist": "Sarkar, Hruday, Aneesh"
-      }
-    },
-    {
-      "ts": "2026-06-07T04:49:32.224Z",
-      "level": "INFO",
-      "msg": "Playback started",
-      "data": {
-        "name": "Chunnari Chunnari - Let’s Go! (From &quot;Hai Jawani Toh Ishq Hona Hai&quot;)",
-        "artist": "Anu Malik, IP Singh, Sameer Anjaan, Akshay &amp; IP, Jonita Gandhi, Asees Kaur, Sudhir Yaduvanshi, Anuradha Sriram"
-      }
-    },
-    {
-      "ts": "2026-06-07T05:06:09.008Z",
-      "level": "INFO",
-      "msg": "App started",
-      "data": {
-        "version": "5.2.10"
-      }
-    },
-    {
-      "ts": "2026-06-07T05:06:09.009Z",
-      "level": "INFO",
-      "msg": "AirPlay initial state",
-      "data": {
-        "active": false,
-        "supported": true,
-        "probeReady": true
-      }
-    },
-    {
-      "ts": "2026-06-07T05:06:16.351Z",
+      "ts": "2026-06-07T05:12:37.962Z",
       "level": "WARN",
       "msg": "fetchFeaturedPlaylists failed",
       "data": {
-        "language": "hindi",
+        "language": "telugu",
         "err": "HTTP 404"
       }
     },
     {
-      "ts": "2026-06-07T05:06:18.432Z",
+      "ts": "2026-06-07T05:12:41.185Z",
       "level": "INFO",
       "msg": "AudioContext created",
       "data": {
@@ -282,95 +38,69 @@
       }
     },
     {
-      "ts": "2026-06-07T05:06:19.778Z",
+      "ts": "2026-06-07T05:12:42.170Z",
       "level": "INFO",
       "msg": "Playback started",
       "data": {
-        "name": "Chand Mera Dil (Title Track)",
-        "artist": "Amitabh Bhattacharya, Sachin-Jigar, Faheem Abdullah"
+        "name": "Gira Gira Gingiraagirey",
+        "artist": "Mickey J. Meyer, Ram Miriyala, Kasarla Shyam"
       }
     },
     {
-      "ts": "2026-06-07T05:06:29.353Z",
+      "ts": "2026-06-07T05:12:51.736Z",
       "level": "INFO",
       "msg": "LUFS norm",
       "data": {
-        "name": "Chand Mera Dil (Title Track)",
-        "lufs": "-29.4",
+        "name": "Gira Gira Gingiraagirey",
+        "lufs": "-19.1",
         "gainDb": "2.0"
       }
     },
     {
-      "ts": "2026-06-07T05:06:44.801Z",
+      "ts": "2026-06-07T05:13:25.322Z",
       "level": "INFO",
       "msg": "Playback started",
       "data": {
-        "name": "Teen Baan Ke Dhari",
-        "artist": "Chotu Singh Rawna"
+        "name": "Peddi Reddy",
+        "artist": "Mamatha Ramesh"
       }
     },
     {
-      "ts": "2026-06-07T05:06:46.777Z",
-      "level": "INFO",
-      "msg": "Playback started",
-      "data": {
-        "name": "Sitaare (From &quot;Ikkis&quot;)",
-        "artist": "Amitabh Bhattacharya, Arijit Singh, Sachin-Jigar"
-      }
-    },
-    {
-      "ts": "2026-06-07T05:06:48.415Z",
-      "level": "INFO",
-      "msg": "Playback started",
-      "data": {
-        "name": "Udi Udi",
-        "artist": "Sarkar, Hruday, Aneesh"
-      }
-    },
-    {
-      "ts": "2026-06-07T05:06:50.682Z",
-      "level": "INFO",
-      "msg": "Playback started",
-      "data": {
-        "name": "Chunnari Chunnari - Let’s Go! (From &quot;Hai Jawani Toh Ishq Hona Hai&quot;)",
-        "artist": "Anu Malik, IP Singh, Sameer Anjaan, Akshay &amp; IP, Jonita Gandhi, Asees Kaur, Sudhir Yaduvanshi, Anuradha Sriram"
-      }
-    },
-    {
-      "ts": "2026-06-07T05:07:00.244Z",
+      "ts": "2026-06-07T05:13:34.887Z",
       "level": "INFO",
       "msg": "LUFS norm",
       "data": {
-        "name": "Chunnari Chunnari - Let’s Go! (From &quot;Hai Jawani Toh Ishq Hona Hai&quot;)",
-        "lufs": "-14.4",
-        "gainDb": "-1.6"
+        "name": "Peddi Reddy",
+        "lufs": "-16.8",
+        "gainDb": "0.8"
       }
     },
     {
-      "ts": "2026-06-07T05:07:13.948Z",
+      "ts": "2026-06-07T05:13:40.567Z",
       "level": "INFO",
       "msg": "Playback started",
       "data": {
-        "name": "Chand Mera Dil (Title Track)",
-        "artist": "Amitabh Bhattacharya, Sachin-Jigar, Faheem Abdullah"
+        "name": "Bayilone Ballipalike",
+        "artist": "Mangli"
       }
     },
     {
-      "ts": "2026-06-07T05:07:13.948Z",
+      "ts": "2026-06-07T05:13:43.929Z",
       "level": "INFO",
-      "msg": "MediaSession: fetching artwork",
+      "msg": "Playback started",
       "data": {
-        "songId": "glW6y4jX",
-        "url": "https://c.saavncdn.com/549/Chand-Mera-Dil-Hindi-2026-20260518102642-500x500.jpg"
+        "name": "Niluvanivvade",
+        "artist": "Vijai Bulganin"
       }
     },
     {
-      "ts": "2026-06-07T05:07:14.057Z",
+      "ts": "2026-06-07T05:13:53.503Z",
       "level": "INFO",
-      "msg": "MediaSession: artwork set",
+      "msg": "LUFS norm",
       "data": {
-        "songId": "glW6y4jX",
-        "bytes": 97159
+        "name": "Niluvanivvade",
+        "lufs": "-18.4",
+        "gainDb": "2.0"
       }
     }
   ]
