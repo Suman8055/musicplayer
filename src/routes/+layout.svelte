@@ -41,6 +41,25 @@
   $: if ($nowSong?.image) extractAndApplyAccent($nowSong.image, $nowSong.id);
 
   onMount(() => {
+    // ── Single-instance lock (prevents double-audio when iOS opens a second PWA tab) ──
+    // When a new instance loads it broadcasts TAKE_OVER; any older tab hears it and
+    // immediately pauses audio. This eliminates the "double sound" bug seen in logs
+    // where two App-started events appear within ~1s of each other.
+    const _tabId = Math.random().toString(36).slice(2);
+    let _bc = null;
+    try {
+      _bc = new BroadcastChannel('mbx_tab_lock');
+      _bc.onmessage = (e) => {
+        if (e.data?.type === 'TAKE_OVER' && e.data.id !== _tabId) {
+          // Another tab took over — stop audio in this (now background) instance
+          if (!audioEl.paused) { audioEl.pause(); userPaused.set(true); }
+          airPlayProbeEl?.pause();
+        }
+      };
+      // Announce this instance as the new active tab
+      _bc.postMessage({ type: 'TAKE_OVER', id: _tabId });
+    } catch {}
+
     // Hand audio elements to playback store and audio engine
     setAudioElement(audioEl);
     setAirPlayProbeElement(airPlayProbeEl);
@@ -304,7 +323,7 @@
 
     if ('audioSession' in navigator) navigator.audioSession.type = 'playback';
 
-    return () => clearInterval(_airPlayPollInterval);
+    return () => { clearInterval(_airPlayPollInterval); try { _bc?.close(); } catch {} };
   });
 </script>
 

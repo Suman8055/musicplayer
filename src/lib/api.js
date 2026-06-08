@@ -3,7 +3,7 @@
 import { decodeHtml, bestImg } from './utils.js';
 import { Log } from './logger.js';
 
-export const APP_VERSION = '5.2.22';
+export const APP_VERSION = '5.2.23';
 export const STORE_KEY   = 'mbx_v2';
 export const ENV_KEY     = 'mbx_env';
 export const DES_KEY     = '38346591';
