@@ -46,14 +46,23 @@
     // immediately pauses audio. This eliminates the "double sound" bug seen in logs
     // where two App-started events appear within ~1s of each other.
     const _tabId = Math.random().toString(36).slice(2);
+    let _isActiveTab = true;
     let _bc = null;
     try {
       _bc = new BroadcastChannel('mbx_tab_lock');
       _bc.onmessage = (e) => {
         if (e.data?.type === 'TAKE_OVER' && e.data.id !== _tabId) {
-          // Another tab took over — stop audio in this (now background) instance
+          // Another tab took over — this instance is now a background zombie.
+          // 1. Stop any current audio immediately.
+          // 2. Override audioEl.play so future play() calls in this instance silently no-op.
+          //    This prevents the background instance from responding to the same user tap
+          //    that the new foreground instance also receives.
+          _isActiveTab = false;
           if (!audioEl.paused) { audioEl.pause(); userPaused.set(true); }
           airPlayProbeEl?.pause();
+          const _noop = () => Promise.resolve();
+          audioEl.play = _noop;
+          if (airPlayProbeEl) airPlayProbeEl.play = _noop;
         }
       };
       // Announce this instance as the new active tab
