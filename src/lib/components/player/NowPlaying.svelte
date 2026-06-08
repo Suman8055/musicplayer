@@ -155,7 +155,7 @@
           <div id="np-quality" class="visible">{$nowSong.quality}</div>
         {/if}
         {#if $airPlayDspWarn}
-          <div id="np-airplay-dsp-warn">EQ unavailable on AirPlay</div>
+          <div id="np-airplay-dsp-warn">All filters bypassed on AirPlay</div>
         {/if}
       </div>
       <button id="np-like" class:liked={isLiked} on:click={toggleLike}>

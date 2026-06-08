@@ -73,6 +73,7 @@ let _cfGainR           = null;
 let _bgKeepAliveTimer  = null;
 let _rewiring          = false;
 let _airPlayActive     = false;
+let _airPlayEqSnapshot = null; // { eqOn, eqGains } saved on AirPlay/CarPlay activate, restored on deactivate
 
 // ── EQ constants ──────────────────────────────────────────────────────────────
 export const EQ_BANDS = [
@@ -347,7 +348,18 @@ export function setAirPlayMode(active) {
     if (_audioEl) _audioEl.volume = 1;
     // Longer compressor release: AirPlay buffer depth (300–2000ms) makes fast release audible
     if (_limiterCompressor) _limiterCompressor.release.value = 0.5;
-    if (_callbacks.onLog) _callbacks.onLog('info', 'AirPlay engine: DSP chain disconnected', {
+
+    // Bypass all audio filters: snapshot current EQ state, then zero all bands.
+    // External DAC (AirPlay receiver or CarPlay head unit) receives the raw stream —
+    // no EQ/limiter/bass exciter should color the signal. The _mediaSource disconnect
+    // already removes the Web Audio tap, but zeroing gains ensures clean state on restore.
+    _airPlayEqSnapshot = { eqOn: _eqOn, eqGains: [..._eqGains] };
+    _eqOn = false;
+    _eqNodes.forEach(n => { n.gain.value = 0; });
+    if (_limiterCompressor) _limiterCompressor.threshold.value = 0; // effectively bypass
+    _pushEqState();
+
+    if (_callbacks.onLog) _callbacks.onLog('info', 'AirPlay engine: DSP chain disconnected, filters bypassed', {
       ctxState: _audioCtx?.state
     });
   } else {
@@ -357,7 +369,18 @@ export function setAirPlayMode(active) {
       try { if (_lufsKw1) _gainNode.connect(_lufsKw1); } catch {}
       if (_audioEl) _audioEl.volume = 1;
       if (_limiterCompressor) _limiterCompressor.release.value = 0.2;
-      if (_callbacks.onLog) _callbacks.onLog('info', 'AirPlay engine: DSP chain restored', {
+
+      // Restore EQ state that was active before AirPlay/CarPlay activated
+      if (_airPlayEqSnapshot) {
+        _eqOn   = _airPlayEqSnapshot.eqOn;
+        _eqGains = [..._airPlayEqSnapshot.eqGains];
+        _airPlayEqSnapshot = null;
+        if (_limiterCompressor) _limiterCompressor.threshold.value = -3; // restore normal ceiling
+        _applyEqGains();
+        _pushEqState();
+      }
+
+      if (_callbacks.onLog) _callbacks.onLog('info', 'AirPlay engine: DSP chain restored, filters re-enabled', {
         ctxState: _audioCtx?.state
       });
     } else {
