@@ -93,6 +93,8 @@
 
     // Expose debug hook in dev
     window._mbxAudio = audioEngine.getDebugInfo;
+    // Test hook: window._mbxSetAirPlay(true/false) simulates AirPlay activation without hardware
+    window._mbxSetAirPlay = audioEngine.setAirPlayMode;
 
     // ── Audio element event listeners ─────────────────────────────────────────
     audioEl.addEventListener('play', () => {
