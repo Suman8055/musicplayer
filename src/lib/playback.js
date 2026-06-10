@@ -85,7 +85,7 @@ export async function play(song, newQueue, idx) {
       audioEngine.resumeAudioCtx().catch(() => {});
       audio.src = blobUrl;
       const _probe1 = getAirPlayProbeElement();
-      if (_probe1) { _probe1.crossOrigin = null; _probe1.src = blobUrl; }
+      if (_probe1) { _probe1.crossOrigin = null; _probe1.src = blobUrl; _probe1.volume = 0; }
       await audio.play().catch(e => Log.warn('Offline play failed', { err: e.message }));
       // Start probe immediately after main audio — must be playing for AirPlay detection
       if (_probe1) _probe1.play().catch(() => {});
@@ -118,7 +118,7 @@ export async function play(song, newQueue, idx) {
       if (prev) { try { URL.revokeObjectURL(prev); } catch {} offlineBlobUrl.set(null); }
       audio.src = stream.url;
       const _probe2 = getAirPlayProbeElement();
-      if (_probe2) { _probe2.crossOrigin = 'anonymous'; _probe2.src = stream.url; }
+      if (_probe2) { _probe2.crossOrigin = 'anonymous'; _probe2.src = stream.url; _probe2.volume = 0; }
       await audio.play().catch(e => Log.warn('Play failed', { err: e.message }));
       // Start probe immediately after main audio — must be playing for AirPlay detection
       if (_probe2) _probe2.play().catch(() => {});

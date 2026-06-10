@@ -365,6 +365,7 @@
   playsinline
   webkit-playsinline
   x-webkit-airplay="allow"
+  muted
   style="visibility:hidden;position:absolute;width:0;height:0;pointer-events:none"
 ></audio>
 
