@@ -1,5 +1,6 @@
 <script>
   import { onMount } from 'svelte';
+  import { get } from 'svelte/store';
   import * as audioEngine from '$lib/audioEngine.js';
   import { extractAndApplyAccent } from '$lib/colorEngine.js';
   import { gateToken } from '$lib/stores/gate.js';
@@ -255,8 +256,11 @@
     // External AirPlay pause guard — hardware remote/HomePod tap pauses audioEl
     // without firing the MediaSession 'pause' action, so userPaused stays false.
     // Detect it via _airPlayPollState and treat as user pause to stop bgKeepAlive.
+    // CRITICAL: use get(userPaused) not $userPaused — the $ reactive variable lags
+    // by one microtask tick inside plain JS event listeners, causing a false-positive
+    // "external pause" detection when the user pauses from the app UI.
     audioEl.addEventListener('pause', () => {
-      if ($userPaused) return;
+      if (get(userPaused)) return;
       if (_airPlayPollState) {
         userPaused.set(true);
         audioEngine.onUserPaused();
