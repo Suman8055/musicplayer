@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { get } from 'svelte/store';
+  import { base } from '$app/paths';
   import * as audioEngine from '$lib/audioEngine.js';
   import { extractAndApplyAccent } from '$lib/colorEngine.js';
   import { gateToken } from '$lib/stores/gate.js';
@@ -185,43 +186,34 @@
     });
 
     // ── AirPlay / CarPlay detection ───────────────────────────────────────────
-    // ARCHITECTURE (confirmed via WebKit source research):
-    // - createMediaElementSource() installs an MTAudioProcessingTap which permanently
-    //   breaks webkitCurrentPlaybackTargetIsWireless on audioEl — always false.
-    // - Probe must be ACTIVELY PLAYING for webkitCurrentPlaybackTargetIsWireless to
-    //   reflect real routing state (works for both AirPlay and CarPlay).
-    // - iOS ignores element.volume=0 (hardware-controlled) and muted breaks AVAudioSession.
-    // SOLUTION: probe plays always, but its audio is routed through a dedicated
-    //   AudioContext with a gain=0 GainNode — true DSP silence, not volume property.
-    //   A separate AudioContext is used so it does NOT interfere with the main audio engine.
-    let _probeCtx = null;
-    let _probeGain = null;
-    function _initProbeCtx() {
-      if (_probeCtx) return;
-      try {
-        _probeCtx = new (window.AudioContext || window.webkitAudioContext)();
-        const src = _probeCtx.createMediaElementSource(airPlayProbeEl);
-        _probeGain = _probeCtx.createGain();
-        _probeGain.gain.value = 0; // true DSP silence — iOS cannot override this
-        src.connect(_probeGain);
-        _probeGain.connect(_probeCtx.destination);
-        _probeCtx.resume().catch(() => {});
-      } catch (e) {
-        Log.warn('Probe AudioContext failed', { err: e?.message });
-        _probeCtx = null;
-      }
-    }
+    // ARCHITECTURE:
+    // - createMediaElementSource() installs an MTAudioProcessingTap on the probe's
+    //   AVPlayerItem audio mix. This forces AVPlayer.allowsExternalPlayback = NO
+    //   permanently, so webkitCurrentPlaybackTargetIsWireless is always false and
+    //   webkitcurrentplaybacktargetiswirelesschanged never fires. DO NOT use
+    //   createMediaElementSource on the probe element under any circumstances.
+    // - iOS element.volume=0 is a no-op (hardware volume only). Setting `muted`
+    //   causes WebKit to demote the AVAudioSession, breaking detection.
+    // - CORRECT SILENCE: give the probe a looping 1-second silent MP3 as its
+    //   permanent src. No AudioContext, no MTAudioProcessingTap, allowsExternalPlayback
+    //   stays YES. The AVPlayer participates in AVAudioSession routing normally,
+    //   so webkitCurrentPlaybackTargetIsWireless reflects the real system route.
+    // - The probe mirrors main audio play/pause so its AVPlayer stays active during
+    //   playback — required for webkitcurrentplaybacktargetiswirelesschanged to
+    //   remain live on an active AirPlay/CarPlay session.
+    // - CarPlay: webkitplaybacktargetavailabilitychanged does NOT fire for CarPlay
+    //   (CarPlay is not enumerated as a discoverable target). Detection works via
+    //   webkitcurrentplaybacktargetiswirelesschanged + the 1s poll regardless.
+    airPlayProbeEl.loop = true;
+    airPlayProbeEl.src = `${base}/silence.mp3`;
+    airPlayProbeEl.load();
 
-    // probe mirrors main audio play/pause/seek so its AVPlayer stays in sync
+    // probe mirrors main audio play/pause so its AVPlayer stays in sync with the session
     audioEl.addEventListener('play', () => {
-      if (!airPlayProbeEl?.src) return;
-      _initProbeCtx();
-      airPlayProbeEl.currentTime = audioEl.currentTime;
       airPlayProbeEl.play().catch(() => {});
     });
     audioEl.addEventListener('pause',  () => { airPlayProbeEl?.pause(); });
-    audioEl.addEventListener('seeked', () => { if (airPlayProbeEl) airPlayProbeEl.currentTime = audioEl.currentTime; });
-    audioEl.addEventListener('emptied',() => { airPlayProbeEl?.load(); });
+    // No seeked/emptied mirroring needed — probe plays its own silent loop, not the main src
 
     let _airPlayPollState = false;
 
@@ -371,14 +363,17 @@
   webkit-playsinline
   style="visibility:hidden;position:absolute;width:0;height:0;pointer-events:none"
 ></audio>
-<!-- AirPlay probe: never connected to Web Audio graph so webkitCurrentPlaybackTargetIsWireless works.
-     MUST NOT use display:none — iOS Safari suspends the AVPlayer for display:none elements,
-     preventing webkitCurrentPlaybackTargetIsWireless from updating.
-     Use visibility:hidden + zero size so it stays in the layout tree with an active AVPlayer. -->
+<!-- AirPlay probe: NEVER pass to createMediaElementSource — MTAudioProcessingTap
+     permanently sets allowsExternalPlayback=NO on the AVPlayer, breaking detection.
+     Silence is achieved via a looping silent MP3 (src set in onMount), NOT via
+     muted (kills AVAudioSession) or volume=0 (iOS ignores it) or AudioContext tap.
+     MUST NOT use display:none — iOS Safari suspends the AVPlayer for display:none
+     elements, preventing webkitCurrentPlaybackTargetIsWireless from updating.
+     loop is set in onMount; preload=auto ensures the silent src is ready immediately. -->
 <audio
   id="audio-airplay-probe"
   bind:this={airPlayProbeEl}
-  preload="metadata"
+  preload="auto"
   playsinline
   webkit-playsinline
   x-webkit-airplay="allow"
