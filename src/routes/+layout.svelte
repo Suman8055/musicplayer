@@ -198,11 +198,14 @@
     // silent; iOS AVAudioSession still sees it as an active session and routes to
     // AirPlay, enabling webkitCurrentPlaybackTargetIsWireless to update correctly).
 
-    airPlayProbeEl.volume = 0; // silent locally; AVAudioSession still active
+    // NOTE: iOS ignores element.volume = 0 (hardware-controlled only).
+    // Probe is only started when an AirPlay device is nearby (_airPlayAvailable=true).
+    // When no AirPlay device is present the probe stays paused → no dual sound on phone speaker.
+    let _airPlayAvailable = false;
 
-    // probe mirrors main audio play/pause/seek so its AVPlayer stays in sync
+    // probe mirrors main audio play/pause/seek — only when AirPlay device is nearby
     audioEl.addEventListener('play', () => {
-      if (!airPlayProbeEl?.src) return;
+      if (!airPlayProbeEl?.src || !_airPlayAvailable) return;
       airPlayProbeEl.currentTime = audioEl.currentTime;
       airPlayProbeEl.play().catch(() => {});
     });
@@ -232,8 +235,17 @@
     // ── Device availability (show/hide the AirPlay button) ────────────────────
     airPlayProbeEl.addEventListener('webkitplaybacktargetavailabilitychanged', (e) => {
       const avail = e.availability === 'available';
+      _airPlayAvailable = avail;
       airPlayAvailable.set(avail);
       Log.info('AirPlay availability changed', { available: avail });
+      // Start probe playing now that a device is nearby (so detection works)
+      // or stop it when no devices remain (eliminates dual-sound on phone speaker).
+      if (avail && airPlayProbeEl.src && audioEl && !audioEl.paused) {
+        airPlayProbeEl.currentTime = audioEl.currentTime;
+        airPlayProbeEl.play().catch(() => {});
+      } else if (!avail) {
+        airPlayProbeEl?.pause();
+      }
     });
 
     Log.info('AirPlay initial state', {
