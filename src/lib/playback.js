@@ -97,14 +97,29 @@ export async function play(song, newQueue, idx) {
 
     } else {
       // ── Network stream path ──────────────────────────────────────────────
-      // Fetch URL first — async work done BEFORE touching audio element
-      const stream = await apiStream(song.id);
-      if (get(nowSong)?.id !== song.id) return;
-
-      // Update metadata from stream response
-      if (stream.image || stream.quality) {
-        nowSong.update(s => ({ ...s, image: stream.image || s.image, quality: stream.quality || s.quality }));
+      // If the preload element already buffered this song's URL, reuse it directly —
+      // skips the apiStream() round-trip and the browser serves from its buffer cache,
+      // eliminating the 1-2s stutter at the start of every Next tap.
+      let streamUrl;
+      const preloadEl = _preloadEl;
+      if (
+        preloadEl &&
+        preloadEl !== audio &&
+        preloadEl.src &&
+        preloadEl.readyState >= 2 // HAVE_CURRENT_DATA — has buffered enough to play
+      ) {
+        streamUrl = preloadEl.src;
+        Log.info('play(): using preloaded URL', { name: song.name, readyState: preloadEl.readyState });
+      } else {
+        const stream = await apiStream(song.id);
+        if (get(nowSong)?.id !== song.id) return;
+        // Update metadata from stream response
+        if (stream.image || stream.quality) {
+          nowSong.update(s => ({ ...s, image: stream.image || s.image, quality: stream.quality || s.quality }));
+        }
+        streamUrl = stream.url;
       }
+      if (get(nowSong)?.id !== song.id) return;
 
       // iOS gesture chain — NOTHING between resumeAudioCtx() and audio.play()
       // resumeAudioCtx is fire-and-forget: awaiting it yields to the event loop,
@@ -116,7 +131,7 @@ export async function play(song, newQueue, idx) {
       const prev = get(offlineBlobUrl);
       if (prev) { try { URL.revokeObjectURL(prev); } catch {} offlineBlobUrl.set(null); }
       transitioningTrack = true;
-      audio.src = stream.url;
+      audio.src = streamUrl;
       const streamPlayErr = await audio.play().catch(e => e);
       transitioningTrack = false;
       if (streamPlayErr instanceof Error) throw streamPlayErr;
@@ -129,7 +144,7 @@ export async function play(song, newQueue, idx) {
       setTimeout(() => { if (get(nowSong)?.id === song.id) audioEngine.measureAndApplyLufs(song); }, 500);
     }
 
-    setTimeout(() => preloadNext(), 1500);
+    setTimeout(() => preloadNext(), 500); // start preloading next song early — reduces Next-tap stutter
     _updateMediaSession(song);
   } catch (e) {
     transitioningTrack = false;
@@ -309,6 +324,11 @@ async function preloadNext() {
     if (_preloadEl && _preloadEl.src !== result.url) {
       _preloadEl.src = result.url;
       _preloadEl.load();
+      // Probe readyState after a tick — if HAVE_NOTHING, nudge with currentTime
+      // to encourage the browser to buffer past the HTTP headers into actual audio data.
+      setTimeout(() => {
+        try { if (_preloadEl && _preloadEl.readyState < 2) _preloadEl.currentTime = 0; } catch {}
+      }, 200);
     }
   } catch {}
 }

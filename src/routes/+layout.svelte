@@ -272,7 +272,7 @@
 <audio
   id="audio-preload"
   bind:this={audioPreloadEl}
-  preload="metadata"
+  preload="auto"
   playsinline
   webkit-playsinline
   style="visibility:hidden;position:absolute;width:0;height:0;pointer-events:none"
