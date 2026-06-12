@@ -228,7 +228,17 @@ export function next() {
     const nextPos = pos + 1;
     if (nextPos >= sq.length) {
       if (rm === 1) { createShuffledQueue(); ni = get(shuffledQueue)[0]; }
-      else { smartQueueFill().then(filled => { if (!filled) playing.set(false); }); return; }
+      else {
+        smartQueueFill().then(filled => {
+          if (!filled) {
+            const audioEl = getAudioElement();
+            if (audioEl && !audioEl.paused) audioEl.pause();
+            playing.set(false);
+            userPaused.set(false);
+          }
+        });
+        return;
+      }
     } else {
       shufflePos.set(nextPos);
       ni = sq[nextPos];
@@ -238,7 +248,19 @@ export function next() {
     ni = idx + 1;
     if (ni >= get(queue).length) {
       if (rm === 1) ni = 0;
-      else { smartQueueFill().then(filled => { if (!filled) playing.set(false); }); return; }
+      else {
+        smartQueueFill().then(filled => {
+          if (!filled) {
+            // No more songs — stop both the store AND the audio element so
+            // the button state matches what is actually playing.
+            const audioEl = getAudioElement();
+            if (audioEl && !audioEl.paused) audioEl.pause();
+            playing.set(false);
+            userPaused.set(false);
+          }
+        });
+        return;
+      }
     }
   }
   qIdx.set(ni);
