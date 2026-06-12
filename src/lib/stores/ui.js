@@ -14,9 +14,6 @@ export const accentH     = writable(187);
 export const accentS     = writable('100%');
 export const accentL     = writable('45%');
 export const moodBadge   = writable(null);
-export const airPlayDspWarn      = writable(false);
-export const airPlayAvailable    = writable(false); // true when AirPlay devices are discoverable
-export const airPlayActive       = writable(false); // true when currently routing to AirPlay
 
 // Sheet store — populated by showSheet()
 export const sheetData = writable({ title: '', actions: [] });

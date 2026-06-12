@@ -72,8 +72,6 @@ let _cfGainL           = null;
 let _cfGainR           = null;
 let _bgKeepAliveTimer  = null;
 let _rewiring          = false;
-let _airPlayActive     = false;
-let _airPlayEqSnapshot = null; // { eqOn, eqGains } saved on AirPlay/CarPlay activate, restored on deactivate
 
 // ── EQ constants ──────────────────────────────────────────────────────────────
 export const EQ_BANDS = [
@@ -219,12 +217,6 @@ function _gainFromLufs(measuredLufs) {
 export async function measureAndApplyLufs(song) {
   if (!_lufsOn) return;
   if (!_audioCtx || !_lufsAnalyser || !_gainNode) return;
-  if (_airPlayActive) {
-    // Audio is routing to AirPlay — analyser reads silence, skip measurement
-    _gainNode.gain.setTargetAtTime(1.0, _audioCtx.currentTime, 0.5);
-    if (_callbacks.onLog) _callbacks.onLog('info', 'LUFS skipped (AirPlay active)', { name: song.name });
-    return;
-  }
   if (_lufsCache.has(song.id)) {
     _gainNode.gain.cancelScheduledValues(_audioCtx.currentTime);
     _gainNode.gain.setValueAtTime(_gainNode.gain.value, _audioCtx.currentTime);
@@ -284,107 +276,26 @@ export function startBgKeepAlive() {
     const cb = _callbacks.getState?.() ?? {};
     if (!cb.playing || cb.userPaused || !_audioCtx) return;
     if (_audioCtx.state === 'suspended') { try { await _audioCtx.resume(); } catch {} }
-    // Never force-resume on AirPlay — external device controls (remote, HomePod tap) pause
-    // audioEl without setting userPaused. Calling play() here would override that hardware pause.
-    if (_audioEl?.paused && !cb.userPaused && cb.nowSong && !_airPlayActive) {
+    if (_audioEl?.paused && !cb.userPaused && cb.nowSong) {
       try { await _audioEl.play(); } catch {}
       return;
     }
-    if (!_airPlayActive) {
-      try {
-        const osc = _audioCtx.createOscillator();
-        const g   = _audioCtx.createGain();
-        g.gain.value = 0;
-        osc.connect(g);
-        g.connect(_audioCtx.destination);
-        osc.start();
-        osc.stop(_audioCtx.currentTime + 0.001);
-        setTimeout(() => { try { osc.disconnect(); g.disconnect(); } catch {} }, 2);
-      } catch {}
-    }
+    try {
+      const osc = _audioCtx.createOscillator();
+      const g   = _audioCtx.createGain();
+      g.gain.value = 0;
+      osc.connect(g);
+      g.connect(_audioCtx.destination);
+      osc.start();
+      osc.stop(_audioCtx.currentTime + 0.001);
+      setTimeout(() => { try { osc.disconnect(); g.disconnect(); } catch {} }, 2);
+    } catch {}
   }, 10000);
 }
 
 export function stopBgKeepAlive() {
   clearInterval(_bgKeepAliveTimer);
   _bgKeepAliveTimer = null;
-}
-
-// ── AirPlay ───────────────────────────────────────────────────────────────────
-// When AirPlay is active, createMediaElementSource() captures the audio on the
-// local device, so the Web Audio graph renders silently to local speakers while
-// the native AVPlayer routes the raw stream to the AirPlay receiver directly.
-// Fix: disconnect _mediaSource from the DSP chain entirely on AirPlay activation.
-// This lets the native <audio> element route the stream to AirPlay without any
-// Web Audio processing tap interfering with AVAudioSession routing.
-export function setAirPlayMode(active) {
-  _airPlayActive = active;
-  if (_callbacks.onLog) _callbacks.onLog('info', 'AirPlay setAirPlayMode', {
-    active,
-    hasMediaSource: !!_mediaSource,
-    ctxState: _audioCtx?.state ?? 'none'
-  });
-  if (_callbacks.onAirPlayModeChange) _callbacks.onAirPlayModeChange(active);
-
-  if (_gainNode && _audioCtx && _audioCtx.state !== 'closed') {
-    _gainNode.gain.cancelScheduledValues(_audioCtx.currentTime);
-    _gainNode.gain.setValueAtTime(_gainNode.gain.value, _audioCtx.currentTime);
-    if (active) {
-      _gainNode.gain.setTargetAtTime(0, _audioCtx.currentTime, 0.1);
-    } else {
-      _gainNode.gain.setTargetAtTime(1.0, _audioCtx.currentTime, 0.1);
-    }
-  }
-
-  // Bypass/restore EQ state regardless of whether AudioContext exists yet.
-  // AirPlay can activate before the user has played a song (probe element triggers it).
-  if (active) {
-    if (!_airPlayEqSnapshot) _airPlayEqSnapshot = { eqOn: _eqOn, eqGains: [..._eqGains] };
-    _eqOn = false;
-    _eqNodes.forEach(n => { n.gain.value = 0; });
-    if (_limiterCompressor) _limiterCompressor.threshold.value = 0;
-    _pushEqState();
-  } else if (_airPlayEqSnapshot) {
-    _eqOn    = _airPlayEqSnapshot.eqOn;
-    _eqGains = [..._airPlayEqSnapshot.eqGains];
-    _airPlayEqSnapshot = null;
-    if (_limiterCompressor) _limiterCompressor.threshold.value = -3;
-    _applyEqGains();
-    _pushEqState();
-  }
-
-  if (!_mediaSource) return;
-
-  if (active) {
-    // Fully disconnect _mediaSource from the Web Audio graph.
-    // This stops the MTAudioProcessingTap from competing with AVAudioSession AirPlay routing.
-    // Also disconnect the LUFS analyser tap — AnalyserNode with smoothing=0 causes
-    // iOS render-thread stall on AVAudioSession route change → AirPlay buffer dropout.
-    try { _mediaSource.disconnect(); } catch {}
-    try { if (_lufsKw1) _gainNode.disconnect(_lufsKw1); } catch {}
-    if (_audioEl) _audioEl.volume = 1;
-    // Longer compressor release: AirPlay buffer depth (300–2000ms) makes fast release audible
-    if (_limiterCompressor) _limiterCompressor.release.value = 0.5;
-    if (_callbacks.onLog) _callbacks.onLog('info', 'AirPlay engine: DSP chain disconnected, filters bypassed', {
-      ctxState: _audioCtx?.state
-    });
-  } else {
-    if (_audioCtx && _audioCtx.state !== 'closed') {
-      // Restore full DSP chain: _mediaSource → _gainNode → EQ → limiter → destination
-      try { _mediaSource.connect(_gainNode); } catch {}
-      try { if (_lufsKw1) _gainNode.connect(_lufsKw1); } catch {}
-      if (_audioEl) _audioEl.volume = 1;
-      if (_limiterCompressor) _limiterCompressor.release.value = 0.2;
-
-      if (_callbacks.onLog) _callbacks.onLog('info', 'AirPlay engine: DSP chain restored, filters re-enabled', {
-        ctxState: _audioCtx?.state
-      });
-    } else {
-      if (_callbacks.onLog) _callbacks.onLog('warn', 'AirPlay engine: ctx closed on restore', {
-        ctxState: _audioCtx?.state
-      });
-    }
-  }
 }
 
 // ── Volume control ────────────────────────────────────────────────────────────

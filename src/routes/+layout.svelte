@@ -1,7 +1,6 @@
 <script>
   import { onMount } from 'svelte';
   import { get } from 'svelte/store';
-  import { base } from '$app/paths';
   import * as audioEngine from '$lib/audioEngine.js';
   import { extractAndApplyAccent } from '$lib/colorEngine.js';
   import { gateToken } from '$lib/stores/gate.js';
@@ -13,9 +12,9 @@
   import { downloadedIds } from '$lib/stores/library.js';
   import {
     playing, userPaused, nowSong, seekProgress, currentTime, duration,
-    loadingUrl, offlineBlobUrl, seeking, setAudioElement, getAudioElement, setAirPlayProbeElement
+    loadingUrl, offlineBlobUrl, seeking, setAudioElement, getAudioElement
   } from '$lib/stores/playback.js';
-  import { toast, airPlayDspWarn, airPlayAvailable, airPlayActive, isOnline, updateAvailable, elderView } from '$lib/stores/ui.js';
+  import { toast, isOnline, updateAvailable, elderView } from '$lib/stores/ui.js';
   import PasscodeGate from '$lib/components/gate/PasscodeGate.svelte';
   import NetworkBanner from '$lib/components/layout/NetworkBanner.svelte';
   import StagingBanner from '$lib/components/layout/StagingBanner.svelte';
@@ -34,7 +33,6 @@
   // ── Audio element bindings — NEVER re-mount these ─────────────────────────
   let audioEl;
   let audioPreloadEl;
-  let airPlayProbeEl; // never passed to Web Audio — keeps webkitCurrentPlaybackTargetIsWireless working
 
   // Derived: is gate unlocked?
   $: unlocked = $gateToken === '278b0ebf70ec6ed8b4c6480de49a1650ace8d513d277e1374801564e49186d37';
@@ -61,19 +59,16 @@
           //    that the new foreground instance also receives.
           _isActiveTab = false;
           if (!audioEl.paused) { audioEl.pause(); userPaused.set(true); }
-          airPlayProbeEl?.pause();
           const _noop = () => Promise.resolve();
           audioEl.play = _noop;
-          if (airPlayProbeEl) airPlayProbeEl.play = _noop;
         }
       };
       // Announce this instance as the new active tab
       _bc.postMessage({ type: 'TAKE_OVER', id: _tabId });
     } catch {}
 
-    // Hand audio elements to playback store and audio engine
+    // Hand audio element to playback store and audio engine
     setAudioElement(audioEl);
-    setAirPlayProbeElement(airPlayProbeEl);
 
     // Init logger first so all subsequent events are captured
     Log.init(APP_VERSION);
@@ -89,10 +84,6 @@
       }),
       onCorsUnavailable: () => {
         toast('Enhanced audio unavailable — EQ disabled for this stream');
-      },
-      onAirPlayModeChange: (active) => {
-        airPlayDspWarn.set(active);
-        airPlayActive.set(active);
       },
       onLog: (level, msg, data) => {
         if (level === 'warn') { Log.warn(msg, data ?? null); console.warn('[Engine]', msg, data ?? ''); }
@@ -124,8 +115,6 @@
     // Expose debug hook in dev
     window._mbxAudio = audioEngine.getDebugInfo;
     // Test hook: window._mbxSetAirPlay(true/false) simulates AirPlay activation without hardware
-    window._mbxSetAirPlay = audioEngine.setAirPlayMode;
-
     // ── Audio element event listeners ─────────────────────────────────────────
     audioEl.addEventListener('play', () => {
       playing.set(true);
@@ -183,94 +172,6 @@
         message: err?.message ?? null,
         src:     audioEl.src ? audioEl.src.slice(0, 120) : null,
       });
-    });
-
-    // ── AirPlay / CarPlay detection ───────────────────────────────────────────
-    // ARCHITECTURE:
-    // - createMediaElementSource() installs an MTAudioProcessingTap on the probe's
-    //   AVPlayerItem audio mix. This forces AVPlayer.allowsExternalPlayback = NO
-    //   permanently, so webkitCurrentPlaybackTargetIsWireless is always false and
-    //   webkitcurrentplaybacktargetiswirelesschanged never fires. DO NOT use
-    //   createMediaElementSource on the probe element under any circumstances.
-    // - iOS element.volume=0 is a no-op (hardware volume only). Setting `muted`
-    //   causes WebKit to demote the AVAudioSession, breaking detection.
-    // - CORRECT SILENCE: give the probe a looping 1-second silent MP3 as its
-    //   permanent src. No AudioContext, no MTAudioProcessingTap, allowsExternalPlayback
-    //   stays YES. The AVPlayer participates in AVAudioSession routing normally,
-    //   so webkitCurrentPlaybackTargetIsWireless reflects the real system route.
-    // - The probe mirrors main audio play/pause so its AVPlayer stays active during
-    //   playback — required for webkitcurrentplaybacktargetiswirelesschanged to
-    //   remain live on an active AirPlay/CarPlay session.
-    // - CarPlay: webkitplaybacktargetavailabilitychanged does NOT fire for CarPlay
-    //   (CarPlay is not enumerated as a discoverable target). Detection works via
-    //   webkitcurrentplaybacktargetiswirelesschanged + the 1s poll regardless.
-    airPlayProbeEl.loop = true;
-    airPlayProbeEl.src = `${base}/silence.mp3`;
-    airPlayProbeEl.load();
-
-    // probe mirrors main audio play/pause so its AVPlayer stays in sync with the session
-    audioEl.addEventListener('play', () => {
-      airPlayProbeEl.play().catch(() => {});
-    });
-    audioEl.addEventListener('pause',  () => { airPlayProbeEl?.pause(); });
-    // No seeked/emptied mirroring needed — probe plays its own silent loop, not the main src
-
-    let _airPlayPollState = false;
-
-    function _onAirPlayActive(active, source) {
-      if (_airPlayPollState === active) return; // dedupe
-      _airPlayPollState = active;
-      airPlayActive.set(active);
-      audioEngine.setAirPlayMode(active);
-      Log.info('AirPlay route changed', { active, source,
-        probeWireless: airPlayProbeEl?.webkitCurrentPlaybackTargetIsWireless ?? 'n/a'
-      });
-    }
-
-    // ── Primary: webkit event on probe (only reliable signal) ─────────────────
-    // Fires when the AVPlayer's wireless target changes — requires probe to be playing.
-    airPlayProbeEl.addEventListener('webkitcurrentplaybacktargetiswirelesschanged', () => {
-      const active = airPlayProbeEl.webkitCurrentPlaybackTargetIsWireless === true;
-      _onAirPlayActive(active, 'webkit-event');
-    });
-
-    // ── Device availability (show/hide the AirPlay button) ────────────────────
-    airPlayProbeEl.addEventListener('webkitplaybacktargetavailabilitychanged', (e) => {
-      const avail = e.availability === 'available';
-      airPlayAvailable.set(avail);
-      Log.info('AirPlay availability changed', { available: avail });
-    });
-
-    Log.info('AirPlay initial state', {
-      supported: 'webkitCurrentPlaybackTargetIsWireless' in airPlayProbeEl,
-      probeReady: !!airPlayProbeEl
-    });
-
-    // ── Fallback: poll webkitCurrentPlaybackTargetIsWireless on probe ──────────
-    // Belt-and-suspenders in case the event fires but is missed (e.g. if probe
-    // wasn't playing at the exact moment AirPlay activated).
-    const _airPlayPollInterval = setInterval(() => {
-      try {
-        const current = airPlayProbeEl?.webkitCurrentPlaybackTargetIsWireless === true;
-        if (current !== _airPlayPollState) _onAirPlayActive(current, 'poll');
-      } catch (err) {
-        Log.warn('AirPlay poll error', { error: err?.message });
-      }
-    }, 1000);
-
-    // External AirPlay pause guard — hardware remote/HomePod tap pauses audioEl
-    // without firing the MediaSession 'pause' action, so userPaused stays false.
-    // Detect it via _airPlayPollState and treat as user pause to stop bgKeepAlive.
-    // CRITICAL: use get(userPaused) not $userPaused — the $ reactive variable lags
-    // by one microtask tick inside plain JS event listeners, causing a false-positive
-    // "external pause" detection when the user pauses from the app UI.
-    audioEl.addEventListener('pause', () => {
-      if (get(userPaused)) return;
-      if (_airPlayPollState) {
-        userPaused.set(true);
-        audioEngine.onUserPaused();
-        Log.info('AirPlay external pause — userPaused set');
-      }
     });
 
     // ── MediaSession action handlers (registered once, never re-registered) ──
@@ -341,7 +242,7 @@
 
     if ('audioSession' in navigator) navigator.audioSession.type = 'playback';
 
-    return () => { clearInterval(_airPlayPollInterval); try { _bc?.close(); } catch {} };
+    return () => { try { _bc?.close(); } catch {} };
   });
 </script>
 
@@ -353,7 +254,6 @@
   preload="metadata"
   playsinline
   webkit-playsinline
-  x-webkit-airplay="allow"
 ></audio>
 <audio
   id="audio-preload"
@@ -361,22 +261,6 @@
   preload="metadata"
   playsinline
   webkit-playsinline
-  style="visibility:hidden;position:absolute;width:0;height:0;pointer-events:none"
-></audio>
-<!-- AirPlay probe: NEVER pass to createMediaElementSource — MTAudioProcessingTap
-     permanently sets allowsExternalPlayback=NO on the AVPlayer, breaking detection.
-     Silence is achieved via a looping silent MP3 (src set in onMount), NOT via
-     muted (kills AVAudioSession) or volume=0 (iOS ignores it) or AudioContext tap.
-     MUST NOT use display:none — iOS Safari suspends the AVPlayer for display:none
-     elements, preventing webkitCurrentPlaybackTargetIsWireless from updating.
-     loop is set in onMount; preload=auto ensures the silent src is ready immediately. -->
-<audio
-  id="audio-airplay-probe"
-  bind:this={airPlayProbeEl}
-  preload="auto"
-  playsinline
-  webkit-playsinline
-  x-webkit-airplay="allow"
   style="visibility:hidden;position:absolute;width:0;height:0;pointer-events:none"
 ></audio>
 

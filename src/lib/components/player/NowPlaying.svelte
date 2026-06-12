@@ -1,6 +1,6 @@
 <script>
-  import { nowSong, playing, loadingUrl, seekProgress, currentTime, duration, seeking, shuffleOn, repeatMode, userPaused, getAudioElement, getAirPlayProbeElement } from '$lib/stores/playback.js';
-  import { npOpen, eqSheetOpen, queueOpen, airPlayDspWarn, airPlayAvailable, airPlayActive, showSheet, toast } from '$lib/stores/ui.js';
+  import { nowSong, playing, loadingUrl, seekProgress, currentTime, duration, seeking, shuffleOn, repeatMode, userPaused } from '$lib/stores/playback.js';
+  import { npOpen, eqSheetOpen, queueOpen, showSheet, toast } from '$lib/stores/ui.js';
   import { whyChip } from '$lib/stores/smartplay.js';
   import { liked, playlists, downloadedIds } from '$lib/stores/library.js';
   import { togglePlay, prev, next, seek } from '$lib/playback.js';
@@ -97,23 +97,6 @@
     ]);
   }
 
-  function showAirPlayPicker() {
-    const probe = getAirPlayProbeElement();
-    const audio = getAudioElement();
-    const el = probe || audio;
-    // webkit proprietary API (all iOS Safari versions)
-    if (el?.webkitShowPlaybackTargetPicker) {
-      el.webkitShowPlaybackTargetPicker();
-      return;
-    }
-    // W3C Remote Playback API fallback (standards-track, also works on iOS Safari 13+)
-    if (el?.remote?.prompt) {
-      el.remote.prompt().catch(() => {});
-      return;
-    }
-    toast('AirPlay not supported on this device');
-  }
-
   const REPEAT_ICONS = [
     `<polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>`,
     `<polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/><text x="12" y="14" text-anchor="middle" font-size="7" fill="currentColor" stroke="none">1</text>`,
@@ -153,9 +136,6 @@
         <div id="np-artist">{$nowSong?.artist || '—'}</div>
         {#if $nowSong?.quality}
           <div id="np-quality" class="visible">{$nowSong.quality}</div>
-        {/if}
-        {#if $airPlayDspWarn}
-          <div id="np-airplay-dsp-warn">All filters bypassed on AirPlay</div>
         {/if}
       </div>
       <button id="np-like" class:liked={isLiked} on:click={toggleLike}>
@@ -239,20 +219,6 @@
           <line x1="14" y1="18" x2="14" y2="4"/><line x1="19" y1="18" x2="19" y2="12"/>
         </svg>EQ
       </button>
-      <!-- svelte-ignore a11y-click-events-have-key-events -->
-      <button
-        class="np-foot"
-        class:accent={$airPlayActive}
-        class:airplay-unavailable={!$airPlayAvailable}
-        id="np-airplay-btn"
-        on:click={showAirPlayPicker}
-        title={$airPlayActive ? 'AirPlay active — EQ bypassed' : $airPlayAvailable ? 'Stream to AirPlay device' : 'No AirPlay devices found'}
-      >
-        <svg width="15" height="15" viewBox="0 0 24 24" fill={$airPlayActive ? 'currentColor' : 'none'} stroke="currentColor" stroke-width="2.2">
-          <path d="M5 17H3a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h18a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-2"/>
-          <polygon points="12 15 17 21 7 21"/>
-        </svg>{$airPlayActive ? 'AirPlay ✓' : 'AirPlay'}
-      </button>
     </div>
   </div>
 </div>
@@ -321,9 +287,6 @@
   #np-artist { font-size: 15px; color: var(--fg3); }
   #np-quality { font-size: 10px; color: var(--accent); display: none; }
   #np-quality.visible { display: block; }
-  #np-airplay-dsp-warn { font-size: 10px; color: rgba(255,180,0,.8); }
-  #np-airplay-btn.airplay-unavailable { opacity: 0.35; pointer-events: none; }
-  #np-airplay-btn.accent svg { filter: drop-shadow(0 0 4px var(--accent)); }
   #np-like { font-size: 22px; color: var(--fg3); padding: 4px 8px; }
   #np-like.liked { color: #ef4444; }
   #np-seek-wrap { margin: 4px 0 8px; }
