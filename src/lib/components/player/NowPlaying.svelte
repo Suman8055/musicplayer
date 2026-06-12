@@ -26,7 +26,9 @@
       const { SIGMA_API, apiFetch } = await import('$lib/api.js');
       const r = await apiFetch(`${SIGMA_API}/lyrics?id=${encodeURIComponent($nowSong.id)}`, { timeout: 6000, retries: 0 });
       const data = await r.json();
-      lyricsText = data?.data?.lyrics || data?.lyrics || 'Lyrics not available';
+      // Strip all HTML tags from API response before rendering with {@html} — prevents XSS
+      const raw = data?.data?.lyrics || data?.lyrics || 'Lyrics not available';
+      lyricsText = String(raw).replace(/<[^>]*>/g, '');
     } catch { lyricsText = 'Lyrics not available'; }
     finally { lyricsLoading = false; }
   }

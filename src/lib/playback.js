@@ -52,12 +52,6 @@ export async function play(song, newQueue, idx) {
   npOpen.set(true);
   loadingUrl.set(true);
   Log.info('play() called', {
-    name:       song.name,
-    songId:     song.id,
-    queueLen:   get(queue).length,
-    queueIdx:   get(qIdx),
-    shuffle:    get(shuffleOn),
-    repeat:     get(repeatMode),
     name:     song.name,
     songId:   song.id,
     queueLen: get(queue).length,
@@ -123,7 +117,7 @@ export async function play(song, newQueue, idx) {
       setTimeout(() => { if (get(nowSong)?.id === song.id) audioEngine.measureAndApplyLufs(song); }, 500);
     }
 
-    setTimeout(() => preloadNext(audio), 1500);
+    setTimeout(() => preloadNext(), 1500);
     _updateMediaSession(song);
   } catch (e) {
     toast('Stream unavailable — try another song');
@@ -170,7 +164,15 @@ export function prev() {
     return;
   }
   const idx = get(qIdx);
-  if (idx > 0) { qIdx.set(idx - 1); play(get(queue)[idx - 1]); }
+  // Guard: idx === 0 means we're at the start — restart current song instead of play(undefined)
+  if (idx > 0) {
+    const prevSong = get(queue)[idx - 1];
+    if (!prevSong) return;
+    qIdx.set(idx - 1);
+    play(prevSong);
+  } else if (audio) {
+    audio.currentTime = 0;
+  }
 }
 
 export function next() {
@@ -198,7 +200,11 @@ export function next() {
 
   const rm = get(repeatMode);
   if (rm === 2) {
-    if (audio) { audio.currentTime = 0; audio.play().catch(() => {}); }
+    // repeat-one: restart current track
+    const audioEl = getAudioElement();
+    if (!audioEl) return;
+    audioEl.currentTime = 0;
+    audioEl.play().catch(() => {});
     return;
   }
 
@@ -234,15 +240,21 @@ export function onEnded() {
 
 export function seek(ratio) {
   const audio = getAudioElement();
-  if (audio && audio.duration) audio.currentTime = ratio * audio.duration;
+  if (!audio || !audio.duration || isNaN(ratio)) return;
+  const clamped = Math.max(0, Math.min(1, ratio));
+  audio.currentTime = clamped * audio.duration;
 }
 
 export function setVolume(v) {
   audioEngine.setVolume(v);
 }
 
-async function preloadNext(audio) {
-  const q   = get(queue);
+// preloadEl is set by +layout.svelte via setPreloadElement() — avoids fragile DOM query
+let _preloadEl = null;
+export function setPreloadElement(el) { _preloadEl = el; }
+
+async function preloadNext() {
+  const q = get(queue);
   if (!q.length) return;
   let nextIdx;
   if (get(shuffleOn)) {
@@ -255,13 +267,12 @@ async function preloadNext(audio) {
     nextIdx = idx + 1;
   }
   const nextSong = q[nextIdx];
-  if (!nextSong) return;
+  if (!nextSong || !_preloadEl) return;
   try {
     const result = await apiStream(nextSong.id);
-    const audioPreload = document.getElementById('audio-preload');
-    if (audioPreload && audioPreload.src !== result.url) {
-      audioPreload.src = result.url;
-      audioPreload.load();
+    if (_preloadEl && _preloadEl.src !== result.url) {
+      _preloadEl.src = result.url;
+      _preloadEl.load();
     }
   } catch {}
 }
@@ -271,9 +282,9 @@ async function preloadNext(audio) {
 // Two entries let CarPlay pick the sharpest size for each context without upscaling.
 // Raw CDN URLs are rejected by Tesla/Bluetooth AVRCP firmware (403 outside browser).
 // data: URLs embed bytes directly — the OS passes them over AVRCP without HTTP.
-async function _fetchArtDataUrls(url) {
+async function _fetchArtDataUrls(url, signal) {
   try {
-    const res = await fetch(url);
+    const res = await fetch(url, { signal });
     if (!res.ok) return null;
     const blob = await res.blob();
     return await new Promise(resolve => {
@@ -292,7 +303,11 @@ async function _fetchArtDataUrls(url) {
       img.onerror = () => { URL.revokeObjectURL(objUrl); resolve(null); };
       img.src = objUrl;
     });
-  } catch { return null; }
+  } catch (e) {
+    // Let AbortError bubble — caller checks nowSong.id after await anyway
+    if (e?.name === 'AbortError') return null;
+    return null;
+  }
 }
 
 let _msAbortCtrl = null;
@@ -305,7 +320,6 @@ async function _updateMediaSession(song) {
 
   // Set title/artist immediately — lock screen shows something while artwork fetches.
   // NOTE: iOS Safari WebKit bug — setting both `artist` and `album` causes `album` to be
-  // silently dropped. We omit `album` to ensure `artist` always renders on CarPlay/lock screen.
   // silently dropped. Omit `album` to ensure `artist` always renders on CarPlay/lock screen.
   try {
     navigator.mediaSession.metadata = new MediaMetadata({
@@ -323,7 +337,7 @@ async function _updateMediaSession(song) {
   _msAbortCtrl = new AbortController();
   const imgUrl = song.image.replace(/\d+x\d+/, '500x500');
   Log.info('MediaSession: fetching artwork', { songId, url: imgUrl });
-  const art = await _fetchArtDataUrls(imgUrl);
+  const art = await _fetchArtDataUrls(imgUrl, _msAbortCtrl.signal);
   _msAbortCtrl = null;
 
   if (!art) { Log.warn('MediaSession: artwork fetch returned null', { songId, url: imgUrl }); return; }

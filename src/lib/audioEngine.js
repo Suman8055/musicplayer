@@ -27,7 +27,7 @@ const AC = (typeof window !== 'undefined')
 
 // ── LUFS normalization constants ──────────────────────────────────────────────
 const NORM_VOLUME       = 1.0;
-const LUFS_TARGET       = -16;
+const LUFS_TARGET       = -13; // target −13 LUFS (louder than Spotify −14, Apple −16)
 const LUFS_MAX_BOOST_DB =  2;
 const LUFS_MAX_CUT_DB   =  6;
 const LUFS_KEY          = 'mbx_lufs_v1_on';
@@ -379,10 +379,10 @@ function _detectPreset() {
 
 function _buildLimiterChain(ctx) {
   _limiterCompressor = ctx.createDynamicsCompressor();
-  _limiterCompressor.threshold.value = -3;
-  _limiterCompressor.knee.value      =  3;
+  _limiterCompressor.threshold.value = -2;  // aligned with waveshaper CEIL (0.794 = −2dBFS)
+  _limiterCompressor.knee.value      =  2;
   _limiterCompressor.ratio.value     = 10;
-  _limiterCompressor.attack.value    = 0.003;
+  _limiterCompressor.attack.value    = 0.003; // ≥ 48kHz render quantum (2.67ms) — prevents CarPlay zipper
   _limiterCompressor.release.value   = 0.2;
   _limiterWaveshaper = ctx.createWaveShaper();
   _limiterWaveshaper.oversample = '4x';
@@ -537,7 +537,7 @@ function _buildStereoWidener(ctx) {
   _airShelf = ctx.createBiquadFilter();
   _airShelf.type = 'highshelf';
   _airShelf.frequency.value = 14000;
-  _airShelf.gain.value = 0; // transparent passthrough
+  _airShelf.gain.value = 2.0; // +2dB air shelf — adds presence/openness above 14kHz
   _merger.connect(_airShelf);
 }
 

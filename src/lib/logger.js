@@ -37,11 +37,27 @@ export const Log = {
   count()             { return this._store.length; },
 };
 
+// PAT stored in sessionStorage (not localStorage) — cleared on tab close, never persists
+// across sessions. Reduces XSS credential-theft window vs localStorage.
 export function getGhCfg() {
-  try { return JSON.parse(localStorage.getItem(GH_CFG_KEY) || '{}'); } catch { return {}; }
+  try {
+    // Migrate any PAT left in localStorage from prior versions
+    const legacy = localStorage.getItem(GH_CFG_KEY);
+    if (legacy) {
+      sessionStorage.setItem(GH_CFG_KEY, legacy);
+      localStorage.removeItem(GH_CFG_KEY);
+    }
+    return JSON.parse(sessionStorage.getItem(GH_CFG_KEY) || '{}');
+  } catch { return {}; }
 }
 export function saveGhCfg(cfg) {
-  try { localStorage.setItem(GH_CFG_KEY, JSON.stringify(cfg)); } catch {}
+  try {
+    // PAT lives in sessionStorage only — non-PAT state (lastUpload, lastStatus) is safe in localStorage
+    const { pat, ...meta } = cfg;
+    if (pat) sessionStorage.setItem(GH_CFG_KEY, JSON.stringify(cfg));
+    else sessionStorage.setItem(GH_CFG_KEY, JSON.stringify({ ...JSON.parse(sessionStorage.getItem(GH_CFG_KEY) || '{}'), ...meta }));
+    localStorage.removeItem(GH_CFG_KEY); // ensure old key is always cleared
+  } catch {}
 }
 
 export async function uploadLogsToGithub(silent = false, toastFn) {

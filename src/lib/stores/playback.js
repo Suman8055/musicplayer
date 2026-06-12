@@ -8,7 +8,7 @@ export const userPaused  = writable(false);
 export const shuffleOn   = writable(false);
 export const shuffledQueue = writable([]);
 export const shufflePos  = writable(0);
-export const repeatMode  = writable(0);   // 0=off 1=one 2=all
+export const repeatMode  = writable(0);   // 0=off 1=all 2=one  (cycleRepeat in NowPlaying: 0→1→2→0)
 export const seeking     = writable(false);
 export const loadingUrl  = writable(false);
 export const seekProgress = writable(0);  // 0.0–1.0

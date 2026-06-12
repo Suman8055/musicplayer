@@ -4,7 +4,7 @@
   import * as audioEngine from '$lib/audioEngine.js';
   import { extractAndApplyAccent } from '$lib/colorEngine.js';
   import { gateToken } from '$lib/stores/gate.js';
-  import { onEnded, next, prev } from '$lib/playback.js';
+  import { onEnded, next, prev, setPreloadElement } from '$lib/playback.js';
   import { Log } from '$lib/logger.js';
   import { APP_VERSION } from '$lib/api.js';
   import { intelPrune } from '$lib/smartPlay.js';
@@ -67,8 +67,9 @@
       _bc.postMessage({ type: 'TAKE_OVER', id: _tabId });
     } catch {}
 
-    // Hand audio element to playback store and audio engine
+    // Hand audio elements to playback store and audio engine
     setAudioElement(audioEl);
+    setPreloadElement(audioPreloadEl);
 
     // Init logger first so all subsequent events are captured
     Log.init(APP_VERSION);

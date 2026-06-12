@@ -17,6 +17,10 @@
     <link rel="icon" href="%sveltekit.assets%/icon-192.png" />
     <link rel="manifest" href="%sveltekit.assets%/manifest.json" />
 
+    <!-- Preconnect: eliminates DNS+TLS round-trip on first API call (~300-800ms on mobile) -->
+    <link rel="preconnect" href="https://jiosaavn-api-sigma-sandy.vercel.app" />
+    <link rel="dns-prefetch" href="https://jiosaavn-api-sigma-sandy.vercel.app" />
+
     %sveltekit.head%
   </head>
   <body data-sveltekit-preload-data="hover">

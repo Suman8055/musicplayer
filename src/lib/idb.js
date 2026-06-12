@@ -131,7 +131,11 @@ export async function removeDownload(song, toastFn, currentBlobUrl) {
   await idbDelete(song.id);
   const { downloadedIds } = await import('./stores/library.js');
   downloadedIds.update(s => { s.delete(song.id); return new Set(s); });
-  if (currentBlobUrl) { try { URL.revokeObjectURL(currentBlobUrl); } catch {} }
+  if (currentBlobUrl) {
+    // Delay revoke by 500ms — revoking a blob URL while audio.src still points to it
+    // causes immediate silence on Chrome/Firefox. Audio ends naturally within the delay window.
+    setTimeout(() => { try { URL.revokeObjectURL(currentBlobUrl); } catch {} }, 500);
+  }
   Log.info('Download removed', { id: song.id });
   toastFn('Download removed');
 }

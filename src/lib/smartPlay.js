@@ -2,11 +2,16 @@
 // Zero DOM dependencies. All UI updates go through Svelte stores.
 import { get } from 'svelte/store';
 import { queue, qIdx, shuffleOn } from './stores/playback.js';
-import { smartQueueActive, injectedIds, whyChip, moodBadgeText } from './stores/smartplay.js';
+import { smartQueueActive, smartPlayOn, injectedIds, whyChip, moodBadgeText } from './stores/smartplay.js';
 import { toast } from './stores/ui.js';
 import { searchSongs, fetchArtistSongs, filterByLanguage } from './api.js';
 
 const INTEL_KEY = 'mbx_intel_v2';
+
+// ── In-memory intel cache — avoids JSON.parse on every tracking event ─────────
+// Write-through: every intelSave() updates both _intelCache and localStorage.
+// Reads always use _intelCache when populated; cold start loads from localStorage once.
+let _intelCache = null;
 
 // ── Session state (not stores — concurrency flags) ────────────────────────────
 let _sessionStreak         = 0;
@@ -20,25 +25,32 @@ let _forYouRenderPending   = false;
 let _intelPruned           = false;
 
 // ── Intel persistence ─────────────────────────────────────────────────────────
+function _validateIntel(d) {
+  if (!d || typeof d !== 'object') return { artists: {}, languages: {}, songs: {}, flows: {}, streaks: {} };
+  d.artists   = (d.artists   && typeof d.artists   === 'object') ? d.artists   : {};
+  d.songs     = (d.songs     && typeof d.songs     === 'object') ? d.songs     : {};
+  d.languages = (d.languages && typeof d.languages === 'object') ? d.languages : {};
+  d.flows     = (d.flows     && typeof d.flows     === 'object') ? d.flows     : {};
+  d.streaks   = (d.streaks   && typeof d.streaks   === 'object') ? d.streaks   : {};
+  return d;
+}
+
 function intelLoad() {
+  // Return in-memory cache on all calls after the first load — avoids JSON.parse on every track event
+  if (_intelCache) return _intelCache;
   try {
     const s = localStorage.getItem(INTEL_KEY);
     if (s) {
-      const d = JSON.parse(s);
-      if (d && typeof d === 'object') {
-        d.artists   = (d.artists   && typeof d.artists   === 'object') ? d.artists   : {};
-        d.songs     = (d.songs     && typeof d.songs     === 'object') ? d.songs     : {};
-        d.languages = (d.languages && typeof d.languages === 'object') ? d.languages : {};
-        d.flows     = (d.flows     && typeof d.flows     === 'object') ? d.flows     : {};
-        d.streaks   = (d.streaks   && typeof d.streaks   === 'object') ? d.streaks   : {};
-        return d;
-      }
+      _intelCache = _validateIntel(JSON.parse(s));
+      return _intelCache;
     }
   } catch {}
-  return { artists: {}, languages: {}, songs: {}, flows: {}, streaks: {} };
+  _intelCache = { artists: {}, languages: {}, songs: {}, flows: {}, streaks: {} };
+  return _intelCache;
 }
 
 function intelSave(d) {
+  _intelCache = d; // write-through: keep memory in sync before localStorage write
   try {
     localStorage.setItem(INTEL_KEY, JSON.stringify(d));
   } catch (e) {
@@ -257,6 +269,7 @@ export function intelGetStats() {
 
 export function intelReset() {
   localStorage.removeItem(INTEL_KEY);
+  _intelCache  = null;
   _forYouCache = null;
 }
 
@@ -276,7 +289,6 @@ function _flowNextArtist() {
 
 // ── Smart inject / fill / radio ────────────────────────────────────────────────
 export async function smartInjectAhead() {
-  const { smartPlayOn } = await import('./stores/smartplay.js');
   if (!get(smartPlayOn)) return;
   if (_smartInjectPending || _queueWritePending) return;
   const q = get(queue), idx = get(qIdx);
@@ -311,7 +323,6 @@ export async function smartInjectAhead() {
 }
 
 export async function smartQueueFill() {
-  const { smartPlayOn } = await import('./stores/smartplay.js');
   if (!get(smartPlayOn) || _queueWritePending) return false;
   const flowResult = _flowNextArtist();
   const d = intelLoad();
@@ -416,34 +427,59 @@ function _buildRediscoverRow() {
   return { type: 'rediscover', label: 'Rediscover', reason: 'Songs you loved a while ago', songs };
 }
 
+// Concurrency limiter: prevents saturating the browser connection pool (max 6 per origin)
+// when buildForYouRows fires up to 12 fetches simultaneously on Browse open.
+async function _limited(tasks, concurrency = 4) {
+  const results = [];
+  let i = 0;
+  async function worker() {
+    while (i < tasks.length) {
+      const idx = i++;
+      results[idx] = await tasks[idx]().catch(e => ({ status: 'rejected', reason: e }));
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, tasks.length) }, worker));
+  return results;
+}
+
 export async function buildForYouRows() {
+  if (_forYouRenderPending) return _forYouCache?.rows ?? [];
   if (_forYouCache && (Date.now() - _forYouCache.ts) < 30 * 60 * 1000) return _forYouCache.rows;
-  const topArtists = intelGetTopArtists(3, false, true);
-  if (!topArtists.length) return [];
-  const played = intelPlayedIds();
-  const excludeIds = new Set(played);
-  const rows = [];
-  const slotRow = await _buildSlotRow(played);
-  if (slotRow) { slotRow.songs.forEach(s => excludeIds.add(s.id)); rows.push(slotRow); }
-  await Promise.allSettled(topArtists.map(async artist => {
-    const isBecause = artist.score >= 15 && artist.plays >= 3;
-    let songs;
-    if (isBecause) {
-      songs = await _fetchBecauseYouLiked(artist.name, excludeIds, 10);
-    } else {
-      songs = filterByLanguage(await fetchArtistSongs(artist.name, 30))
-        .filter(s => s.id && !excludeIds.has(s.id)).sort(() => Math.random() - 0.5).slice(0, 10);
-    }
-    if (songs.length >= 2) {
-      songs.forEach(s => excludeIds.add(s.id));
-      rows.push({ type: isBecause ? 'because' : 'more', label: isBecause ? `Because you love ${artist.name}` : `More from ${artist.name}`, reason: isBecause ? `${artist.plays} songs played` : 'Based on your listening', artist, songs });
-    }
-  }));
-  const rediscoverRow = _buildRediscoverRow();
-  if (rediscoverRow) rows.push(rediscoverRow);
-  rows.sort((a, b) => { const O = { slot: 0, because: 1, more: 2, rediscover: 3 }; return (O[a.type] ?? 9) - (O[b.type] ?? 9); });
-  _forYouCache = { rows, ts: Date.now() };
-  return rows;
+  _forYouRenderPending = true;
+  try {
+    const topArtists = intelGetTopArtists(3, false, true);
+    if (!topArtists.length) return [];
+    const played = intelPlayedIds();
+    const excludeIds = new Set(played);
+    const rows = [];
+    const slotRow = await _buildSlotRow(played);
+    if (slotRow) { slotRow.songs.forEach(s => excludeIds.add(s.id)); rows.push(slotRow); }
+
+    // Cap to 4 concurrent fetches — prevents connection pool starvation on slow 3G
+    const artistTasks = topArtists.map(artist => async () => {
+      const isBecause = artist.score >= 15 && artist.plays >= 3;
+      let songs;
+      if (isBecause) {
+        songs = await _fetchBecauseYouLiked(artist.name, excludeIds, 10);
+      } else {
+        songs = filterByLanguage(await fetchArtistSongs(artist.name, 30))
+          .filter(s => s.id && !excludeIds.has(s.id)).sort(() => Math.random() - 0.5).slice(0, 10);
+      }
+      if (songs.length >= 2) {
+        songs.forEach(s => excludeIds.add(s.id));
+        rows.push({ type: isBecause ? 'because' : 'more', label: isBecause ? `Because you love ${artist.name}` : `More from ${artist.name}`, reason: isBecause ? `${artist.plays} songs played` : 'Based on your listening', artist, songs });
+      }
+    });
+    await _limited(artistTasks, 4);
+
+    const rediscoverRow = _buildRediscoverRow();
+    if (rediscoverRow) rows.push(rediscoverRow);
+    rows.sort((a, b) => { const O = { slot: 0, because: 1, more: 2, rediscover: 3 }; return (O[a.type] ?? 9) - (O[b.type] ?? 9); });
+    _forYouCache = { rows, ts: Date.now() };
+    return rows;
+  } finally {
+    _forYouRenderPending = false;
+  }
 }
 
 export function invalidateForYouCache() { _forYouCache = null; }
