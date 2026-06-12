@@ -7,7 +7,7 @@
 //   4. skipWaiting only after shell cache succeeds — prevents blank screen on partial cache
 
 const BASE  = self.registration.scope.replace(/\/$/, '');
-const CACHE = 'mbx-sk-v5.2.29';
+const CACHE = 'mbx-sk-v5.2.30';
 
 // Shell files — updated by inject-sw-shell.js after build with current chunk hashes
 const SHELL = [

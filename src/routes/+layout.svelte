@@ -184,28 +184,38 @@
       });
     });
 
-    // ── AirPlay detection ────────────────────────────────────────────────────
+    // ── AirPlay / CarPlay detection ───────────────────────────────────────────
     // ARCHITECTURE (confirmed via WebKit source research):
     // - createMediaElementSource() installs an MTAudioProcessingTap which permanently
-    //   breaks webkitCurrentPlaybackTargetIsWireless AND the W3C RemotePlayback API
-    //   on audioEl — both always return false/disconnected.
-    // - W3C RemotePlayback 'connect' event NEVER fires on a silent/volume=0 probe
-    //   because iOS requires actual audio to route to the device before state→connected.
-    // - ONLY working signal: webkitcurrentplaybacktargetiswirelesschanged on a probe
-    //   that is ACTIVELY PLAYING (not muted, not volume=0 only — must have a playing
-    //   AVPlayer with a currentItem routed to the AirPlay device).
-    // SOLUTION: probe plays the same stream silently (volume=0 keeps local speaker
-    // silent; iOS AVAudioSession still sees it as an active session and routes to
-    // AirPlay, enabling webkitCurrentPlaybackTargetIsWireless to update correctly).
+    //   breaks webkitCurrentPlaybackTargetIsWireless on audioEl — always false.
+    // - Probe must be ACTIVELY PLAYING for webkitCurrentPlaybackTargetIsWireless to
+    //   reflect real routing state (works for both AirPlay and CarPlay).
+    // - iOS ignores element.volume=0 (hardware-controlled) and muted breaks AVAudioSession.
+    // SOLUTION: probe plays always, but its audio is routed through a dedicated
+    //   AudioContext with a gain=0 GainNode — true DSP silence, not volume property.
+    //   A separate AudioContext is used so it does NOT interfere with the main audio engine.
+    let _probeCtx = null;
+    let _probeGain = null;
+    function _initProbeCtx() {
+      if (_probeCtx) return;
+      try {
+        _probeCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const src = _probeCtx.createMediaElementSource(airPlayProbeEl);
+        _probeGain = _probeCtx.createGain();
+        _probeGain.gain.value = 0; // true DSP silence — iOS cannot override this
+        src.connect(_probeGain);
+        _probeGain.connect(_probeCtx.destination);
+        _probeCtx.resume().catch(() => {});
+      } catch (e) {
+        Log.warn('Probe AudioContext failed', { err: e?.message });
+        _probeCtx = null;
+      }
+    }
 
-    // NOTE: iOS ignores element.volume = 0 (hardware-controlled only).
-    // Probe is only started when an AirPlay device is nearby (_airPlayAvailable=true).
-    // When no AirPlay device is present the probe stays paused → no dual sound on phone speaker.
-    let _airPlayAvailable = false;
-
-    // probe mirrors main audio play/pause/seek — only when AirPlay device is nearby
+    // probe mirrors main audio play/pause/seek so its AVPlayer stays in sync
     audioEl.addEventListener('play', () => {
-      if (!airPlayProbeEl?.src || !_airPlayAvailable) return;
+      if (!airPlayProbeEl?.src) return;
+      _initProbeCtx();
       airPlayProbeEl.currentTime = audioEl.currentTime;
       airPlayProbeEl.play().catch(() => {});
     });
@@ -235,17 +245,8 @@
     // ── Device availability (show/hide the AirPlay button) ────────────────────
     airPlayProbeEl.addEventListener('webkitplaybacktargetavailabilitychanged', (e) => {
       const avail = e.availability === 'available';
-      _airPlayAvailable = avail;
       airPlayAvailable.set(avail);
       Log.info('AirPlay availability changed', { available: avail });
-      // Start probe playing now that a device is nearby (so detection works)
-      // or stop it when no devices remain (eliminates dual-sound on phone speaker).
-      if (avail && airPlayProbeEl.src && audioEl && !audioEl.paused) {
-        airPlayProbeEl.currentTime = audioEl.currentTime;
-        airPlayProbeEl.play().catch(() => {});
-      } else if (!avail) {
-        airPlayProbeEl?.pause();
-      }
     });
 
     Log.info('AirPlay initial state', {
