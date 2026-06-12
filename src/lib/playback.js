@@ -18,6 +18,9 @@ import { smartInjectAhead, smartQueueFill, intelTrackPlay, _artistKey } from './
 
 // Per-session state (not stores — concurrency flags, not reactive UI)
 let _pendingNext      = false;
+// True while play() is in the middle of assigning a new src — suppresses the
+// spurious 'pause' event that the browser fires on src reassignment.
+export let transitioningTrack = false;
 let _intelNaturalEnd  = false;
 let _intelPlayStartTs = 0;
 let _sessionSkipStreak = 0;
@@ -77,8 +80,10 @@ export async function play(song, newQueue, idx) {
       audioEngine.ensureAudioCtx();
       if ('audioSession' in navigator) navigator.audioSession.type = 'playback';
       audioEngine.resumeAudioCtx().catch(() => {});
+      transitioningTrack = true;
       audio.src = blobUrl;
       await audio.play().catch(e => Log.warn('Offline play failed', { err: e.message }));
+      transitioningTrack = false;
 
       if (get(nowSong)?.id !== song.id) return;
       playing.set(true);
@@ -106,8 +111,10 @@ export async function play(song, newQueue, idx) {
       audioEngine.resumeAudioCtx().catch(() => {});
       const prev = get(offlineBlobUrl);
       if (prev) { try { URL.revokeObjectURL(prev); } catch {} offlineBlobUrl.set(null); }
+      transitioningTrack = true;
       audio.src = stream.url;
       await audio.play().catch(e => Log.warn('Play failed', { err: e.message }));
+      transitioningTrack = false;
 
       if (get(nowSong)?.id !== song.id) return;
       playing.set(true);
@@ -120,6 +127,7 @@ export async function play(song, newQueue, idx) {
     setTimeout(() => preloadNext(), 1500);
     _updateMediaSession(song);
   } catch (e) {
+    transitioningTrack = false;
     toast('Stream unavailable — try another song');
     playing.set(false);
     if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'none';

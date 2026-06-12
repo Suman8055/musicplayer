@@ -4,7 +4,7 @@
   import * as audioEngine from '$lib/audioEngine.js';
   import { extractAndApplyAccent } from '$lib/colorEngine.js';
   import { gateToken } from '$lib/stores/gate.js';
-  import { onEnded, next, prev, setPreloadElement } from '$lib/playback.js';
+  import { onEnded, next, prev, setPreloadElement, transitioningTrack } from '$lib/playback.js';
   import { Log } from '$lib/logger.js';
   import { APP_VERSION } from '$lib/api.js';
   import { intelPrune } from '$lib/smartPlay.js';
@@ -124,6 +124,8 @@
     });
 
     audioEl.addEventListener('pause', () => {
+      // Suppress spurious pause fired by browser when audio.src is reassigned during track transition
+      if (transitioningTrack) return;
       playing.set(false);
       audioEngine.onPlaybackPaused();
     });
