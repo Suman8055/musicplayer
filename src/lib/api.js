@@ -3,10 +3,10 @@
 import { decodeHtml, bestImg } from './utils.js';
 import { Log } from './logger.js';
 
-export const APP_VERSION = '5.2.35';
+export const APP_VERSION = '5.2.36';
 export const STORE_KEY   = 'mbx_v2';
 export const ENV_KEY     = 'mbx_env';
-export const DES_KEY     = '38346591';
+// DES-ECB key removed — was dead code from the old SAAVN stream URL decryption path.
 
 const ENVS = {
   production: { sigma: 'https://jiosaavn-api-sigma-sandy.vercel.app', saavn: 'https://saavn.8man.dev' },
@@ -118,6 +118,7 @@ async function _searchFallback(q, limit = 20) {
   const r = await proxyFetch(
     `https://www.jiosaavn.com/api.php?__call=autocomplete.get&query=${encodeURIComponent(q)}&_format=json&_marker=0&ctx=wap6dot0`
   );
+  if (!r.ok) return [];
   const data = await r.json();
   return (data?.songs?.data || []).slice(0, limit).map(s => ({
     id:       s.id,
@@ -230,6 +231,9 @@ export async function fetchArtistMeta(artistId) {
 
 // ── Stream URL ────────────────────────────────────────────────────────────────
 const streamCache = new Map();
+// In-flight deduplication: if two callers request the same id concurrently,
+// both await the same Promise instead of firing duplicate network requests.
+const _streamInflight = new Map();
 const QUALITY_RANK = { '320kbps': 5, '160kbps': 4, '96kbps': 3, '48kbps': 2, '12kbps': 1 };
 
 export function getNetworkQuality() {
@@ -258,7 +262,8 @@ async function fetchStream(id) {
 export async function apiStream(id) {
   if (streamCache.has(id)) {
     const cached = streamCache.get(id);
-    if (Date.now() - (cached._fetchedAt || 0) < 25 * 60 * 1000) {
+    // TTL: 12 min — safely under the ~15 min CDN URL expiry window
+    if (Date.now() - (cached._fetchedAt || 0) < 12 * 60 * 1000) {
       // LRU: re-insert to make this entry the most recently used
       streamCache.delete(id);
       streamCache.set(id, cached);
@@ -266,22 +271,28 @@ export async function apiStream(id) {
     }
     streamCache.delete(id);
   }
-  let lastErr;
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    try {
-      const result = await fetchStream(id);
-      result._fetchedAt = Date.now();
-      streamCache.set(id, result);
-      // LRU eviction: delete the least recently used (first) entry
-      if (streamCache.size > 15) streamCache.delete(streamCache.keys().next().value);
-      return result;
-    } catch (e) {
-      lastErr = e;
-      Log.warn('Stream attempt failed', { id, attempt, err: e.message });
-      if (attempt < 2) await new Promise(r => setTimeout(r, attempt * 1000));
+  // Return the existing in-flight Promise for this id to deduplicate concurrent callers
+  if (_streamInflight.has(id)) return _streamInflight.get(id);
+  const p = (async () => {
+    let lastErr;
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const result = await fetchStream(id);
+        result._fetchedAt = Date.now();
+        streamCache.set(id, result);
+        // LRU eviction: keep at most 15 entries (evict before inserting the 16th)
+        if (streamCache.size > 15) streamCache.delete(streamCache.keys().next().value);
+        return result;
+      } catch (e) {
+        lastErr = e;
+        Log.warn('Stream attempt failed', { id, attempt, err: e.message });
+        if (attempt < 2) await new Promise(r => setTimeout(r, attempt * 1000));
+      }
     }
-  }
-  throw lastErr;
+    throw lastErr;
+  })().finally(() => _streamInflight.delete(id));
+  _streamInflight.set(id, p);
+  return p;
 }
 
 // ── Browse / Modules ──────────────────────────────────────────────────────────

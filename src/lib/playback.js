@@ -20,7 +20,10 @@ import { smartInjectAhead, smartQueueFill, intelTrackPlay, _artistKey } from './
 let _pendingNext      = false;
 // True while play() is in the middle of assigning a new src — suppresses the
 // spurious 'pause' event that the browser fires on src reassignment.
-export let transitioningTrack = false;
+// Exposed as a getter (not a raw export let) to guarantee bundlers don't inline
+// a stale false copy when tree-shaking or chunking the module.
+let transitioningTrack = false;
+export function isTransitioningTrack() { return transitioningTrack; }
 let _intelNaturalEnd  = false;
 let _intelPlayStartTs = 0;
 let _sessionSkipStreak = 0;
@@ -82,8 +85,9 @@ export async function play(song, newQueue, idx) {
       audioEngine.resumeAudioCtx().catch(() => {});
       transitioningTrack = true;
       audio.src = blobUrl;
-      await audio.play().catch(e => Log.warn('Offline play failed', { err: e.message }));
+      const offlinePlayErr = await audio.play().catch(e => e);
       transitioningTrack = false;
+      if (offlinePlayErr instanceof Error) throw offlinePlayErr;
 
       if (get(nowSong)?.id !== song.id) return;
       playing.set(true);
@@ -113,8 +117,9 @@ export async function play(song, newQueue, idx) {
       if (prev) { try { URL.revokeObjectURL(prev); } catch {} offlineBlobUrl.set(null); }
       transitioningTrack = true;
       audio.src = stream.url;
-      await audio.play().catch(e => Log.warn('Play failed', { err: e.message }));
+      const streamPlayErr = await audio.play().catch(e => e);
       transitioningTrack = false;
+      if (streamPlayErr instanceof Error) throw streamPlayErr;
 
       if (get(nowSong)?.id !== song.id) return;
       playing.set(true);
@@ -248,7 +253,7 @@ export function onEnded() {
 
 export function seek(ratio) {
   const audio = getAudioElement();
-  if (!audio || !audio.duration || isNaN(ratio)) return;
+  if (!audio || !audio.duration || !isFinite(audio.duration) || isNaN(ratio)) return;
   const clamped = Math.max(0, Math.min(1, ratio));
   audio.currentTime = clamped * audio.duration;
 }
@@ -276,6 +281,7 @@ async function preloadNext() {
   }
   const nextSong = q[nextIdx];
   if (!nextSong || !_preloadEl) return;
+  if (_preloadEl === getAudioElement()) { Log.error('preloadNext: _preloadEl is main audio element — aborting'); return; }
   try {
     const result = await apiStream(nextSong.id);
     if (_preloadEl && _preloadEl.src !== result.url) {

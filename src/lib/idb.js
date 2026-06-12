@@ -47,6 +47,7 @@ export async function idbSave(record) {
     if (blob) tx.objectStore(IDB_BLOBS).put({ id: meta.id, blob });
     tx.oncomplete = res;
     tx.onerror    = () => rej(tx.error);
+    tx.onabort    = () => rej(tx.error || new Error('transaction_aborted'));
   });
 }
 
@@ -58,6 +59,7 @@ export async function idbDelete(id) {
     tx.objectStore(IDB_BLOBS).delete(id);
     tx.oncomplete = res;
     tx.onerror    = () => rej(tx.error);
+    tx.onabort    = () => rej(tx.error || new Error('transaction_aborted'));
   });
 }
 
@@ -78,10 +80,11 @@ export async function idbClear() {
     tx.objectStore(IDB_BLOBS).clear();
     tx.oncomplete = res;
     tx.onerror    = () => rej(tx.error);
+    tx.onabort    = () => rej(tx.error || new Error('transaction_aborted'));
   });
 }
 
-export async function downloadSong(song, toastFn, apiStreamFn) {
+export async function downloadSong(song, toastFn, apiStreamFn, signal) {
   const { downloadedIds } = await import('./stores/library.js');
   const { get } = await import('svelte/store');
   if (get(downloadedIds).has(song.id)) { toastFn('Already downloaded'); return; }
@@ -99,7 +102,7 @@ export async function downloadSong(song, toastFn, apiStreamFn) {
       try {
         const stream = await apiStreamFn(song.id);
         lastStream = stream;
-        const resp = await fetch(stream.url);
+        const resp = await fetch(stream.url, signal ? { signal } : undefined);
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const total = parseInt(resp.headers.get('content-length') || '0');
         const reader = resp.body.getReader();

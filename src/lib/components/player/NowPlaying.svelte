@@ -28,7 +28,11 @@
       const data = await r.json();
       // Strip all HTML tags from API response before rendering with {@html} — prevents XSS
       const raw = data?.data?.lyrics || data?.lyrics || 'Lyrics not available';
-      lyricsText = String(raw).replace(/<[^>]*>/g, '');
+      // Sanitize via DOM textContent assignment — escapes <, >, &, and HTML entities,
+      // making the result safe for {@html} rendering with <br> line breaks.
+      const _tmp = document.createElement('div');
+      _tmp.textContent = String(raw);
+      lyricsText = _tmp.innerHTML;
     } catch { lyricsText = 'Lyrics not available'; }
     finally { lyricsLoading = false; }
   }
@@ -184,7 +188,7 @@
       </button>
       <button class="ctl" class:accent={$repeatMode > 0} class:dim={$repeatMode === 0} id="np-repeat-btn" on:click={cycleRepeat}>
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          {@html REPEAT_ICONS[$repeatMode]}
+          {@html REPEAT_ICONS[$repeatMode % REPEAT_ICONS.length] ?? ''}
         </svg>
       </button>
     </div>
@@ -239,7 +243,7 @@
     {#if lyricsLoading}
       <div class="lyrics-loading"><div class="spinner"></div></div>
     {:else}
-      <div class="lyrics-body">{@html lyricsText.replace(/\n/g, '<br/>')}</div>
+      <div class="lyrics-body">{@html lyricsText.replace(/\n/g, '<br/>')}</div><!-- lyricsText is DOM-escaped via textContent — safe for {@html} -->
     {/if}
   </div>
 {/if}

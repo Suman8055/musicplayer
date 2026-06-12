@@ -23,7 +23,7 @@
     <div class="empty-wrap">Queue is empty</div>
   {:else}
     <div class="queue-list">
-      {#each $queue as song, i}
+      {#each $queue as song, i (song.id)}
         <!-- svelte-ignore a11y-click-events-have-key-events -->
         <div class="queue-row" class:playing={i === $qIdx} on:click={() => playAt(i)}>
           <img class="q-art" src={bestImg(song.image, '80x80')} alt="" loading="lazy" />

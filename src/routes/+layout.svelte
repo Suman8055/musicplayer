@@ -4,7 +4,7 @@
   import * as audioEngine from '$lib/audioEngine.js';
   import { extractAndApplyAccent } from '$lib/colorEngine.js';
   import { gateToken } from '$lib/stores/gate.js';
-  import { onEnded, next, prev, setPreloadElement, transitioningTrack } from '$lib/playback.js';
+  import { onEnded, next, prev, setPreloadElement, isTransitioningTrack } from '$lib/playback.js';
   import { Log } from '$lib/logger.js';
   import { APP_VERSION } from '$lib/api.js';
   import { intelPrune } from '$lib/smartPlay.js';
@@ -37,8 +37,13 @@
   // Derived: is gate unlocked?
   $: unlocked = $gateToken === '278b0ebf70ec6ed8b4c6480de49a1650ace8d513d277e1374801564e49186d37';
 
-  // Track accent color updates from nowSong changes
-  $: if ($nowSong?.image) extractAndApplyAccent($nowSong.image, $nowSong.id);
+  // Track accent color updates from nowSong changes — guard by id to avoid double-fire
+  // (play() updates nowSong twice: once at start, again when stream metadata arrives)
+  let _lastAccentId = null;
+  $: if ($nowSong?.image && $nowSong.id !== _lastAccentId) {
+    _lastAccentId = $nowSong.id;
+    extractAndApplyAccent($nowSong.image, $nowSong.id);
+  }
 
   onMount(() => {
     // ── Single-instance lock (prevents double-audio when iOS opens a second PWA tab) ──
@@ -58,9 +63,8 @@
           //    This prevents the background instance from responding to the same user tap
           //    that the new foreground instance also receives.
           _isActiveTab = false;
-          if (!audioEl.paused) { audioEl.pause(); userPaused.set(true); }
-          const _noop = () => Promise.resolve();
-          audioEl.play = _noop;
+          if (audioEl && !audioEl.paused) { audioEl.pause(); userPaused.set(true); }
+          if (audioEl) audioEl.play = () => Promise.resolve();
         }
       };
       // Announce this instance as the new active tab
@@ -95,19 +99,6 @@
     // Apply elder view if saved from previous session
     if ($elderView) document.body.classList.add('elder-view');
 
-    // Smart update — only notify when SW version is genuinely newer than current
-    window.addEventListener('sw-update-ready', e => {
-      const { waiting, newVersion } = e.detail;
-      // Compare semantic versions extracted from cache keys (e.g. mbx-sk-v5.2.7-abc1234)
-      const _parseVer = s => { const m = s?.match(/v(\d+)\.(\d+)\.(\d+)/); return m ? [+m[1],+m[2],+m[3]] : [0,0,0]; };
-      const [nm,ni,np] = _parseVer(newVersion);
-      const [cm,ci,cp] = _parseVer(APP_VERSION);
-      const isNewer = nm > cm || (nm===cm && ni > ci) || (nm===cm && ni===ci && np > cp);
-      if (newVersion && isNewer) {
-        updateAvailable.set({ waiting, newVersion });
-      }
-    });
-
     // Hydrate downloaded IDs from IDB (metadata only — no blobs)
     idbGetAll().then(records => {
       downloadedIds.set(new Set(records.map(r => r.id)));
@@ -125,7 +116,7 @@
 
     audioEl.addEventListener('pause', () => {
       // Suppress spurious pause fired by browser when audio.src is reassigned during track transition
-      if (transitioningTrack) return;
+      if (isTransitioningTrack()) return;
       playing.set(false);
       audioEngine.onPlaybackPaused();
     });
@@ -188,7 +179,13 @@
     }
 
     // ── Visibility / page lifecycle ──────────────────────────────────────────
-    document.addEventListener('visibilitychange', () => {
+    // Collect all window/document listeners so they can be removed on destroy
+    // (prevents HMR double-registration and ensures clean teardown)
+    const _listeners = [];
+    function _on(target, type, fn) { target.addEventListener(type, fn); _listeners.push([target, type, fn]); }
+
+    _on(document, 'visibilitychange', () => {
+      if (!_isActiveTab) return;
       if (document.hidden) {
         audioEngine.startBgKeepAlive();
         if ('mediaSession' in navigator && $playing && !$userPaused)
@@ -209,8 +206,8 @@
       })();
     });
 
-    window.addEventListener('pageshow', (e) => {
-      if (!e.persisted) return;
+    _on(window, 'pageshow', (e) => {
+      if (!_isActiveTab || !e.persisted) return;
       (async () => {
         const info = audioEngine.getDebugInfo();
         if (info?.audioCtx?.state === 'suspended') { try { await info.audioCtx.resume(); } catch {} }
@@ -218,19 +215,20 @@
       })();
     });
 
-    window.addEventListener('pagehide', () => {
+    _on(window, 'pagehide', () => {
       if ($playing && !$userPaused && 'mediaSession' in navigator)
         navigator.mediaSession.playbackState = 'playing';
       const blobUrl = $offlineBlobUrl;
       if (blobUrl) { try { URL.revokeObjectURL(blobUrl); } catch {} offlineBlobUrl.set(null); }
     });
 
-    document.addEventListener('freeze', () => {
+    _on(document, 'freeze', () => {
       if ($playing && !$userPaused && 'mediaSession' in navigator)
         navigator.mediaSession.playbackState = 'playing';
     });
 
-    document.addEventListener('resume', () => {
+    _on(document, 'resume', () => {
+      if (!_isActiveTab) return;
       (async () => {
         const info = audioEngine.getDebugInfo();
         if (info?.audioCtx?.state === 'suspended') { try { await info.audioCtx.resume(); } catch {} }
@@ -240,12 +238,25 @@
 
     // ── Network status ────────────────────────────────────────────────────────
     isOnline.set(navigator.onLine);
-    window.addEventListener('online',  () => isOnline.set(true));
-    window.addEventListener('offline', () => isOnline.set(false));
+    _on(window, 'online',  () => isOnline.set(true));
+    _on(window, 'offline', () => isOnline.set(false));
+
+    // ── SW update ─────────────────────────────────────────────────────────────
+    _on(window, 'sw-update-ready', e => {
+      const { waiting, newVersion } = e.detail;
+      const _parseVer = s => { const m = s?.match(/v(\d+)\.(\d+)\.(\d+)/); return m ? [+m[1],+m[2],+m[3]] : [0,0,0]; };
+      const [nm,ni,np] = _parseVer(newVersion);
+      const [cm,ci,cp] = _parseVer(APP_VERSION);
+      const isNewer = nm > cm || (nm===cm && ni > ci) || (nm===cm && ni===ci && np > cp);
+      if (newVersion && isNewer) updateAvailable.set({ waiting, newVersion });
+    });
 
     if ('audioSession' in navigator) navigator.audioSession.type = 'playback';
 
-    return () => { try { _bc?.close(); } catch {} };
+    return () => {
+      try { _bc?.close(); } catch {}
+      _listeners.forEach(([t, type, fn]) => t.removeEventListener(type, fn));
+    };
   });
 </script>
 

@@ -40,7 +40,7 @@
 <style>
   #mini {
     position: fixed;
-    bottom: var(--tab-h);
+    bottom: calc(var(--tab-h) + env(safe-area-inset-bottom));
     left: 0; right: 0;
     height: var(--mini-h);
     z-index: 35;

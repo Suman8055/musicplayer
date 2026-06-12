@@ -41,7 +41,8 @@ let   _lufsKw2          = null;
 
 // ── AudioContext state ────────────────────────────────────────────────────────
 let _audioCtx    = null;
-let _gainNode    = null;
+let _gainNode    = null;  // LUFS correction gain only — never write from setVolume()
+let _volumeGain  = null;  // user volume control — separate from LUFS gain to avoid clobbering automation
 let _mediaSource = null;
 let _ctxFailed   = false;
 let _corsAvailable = false;
@@ -154,7 +155,10 @@ export function ensureAudioCtx() {
     });
 
     _gainNode = _audioCtx.createGain();
-    _gainNode.gain.value = NORM_VOLUME;
+    _gainNode.gain.value = NORM_VOLUME; // LUFS correction starts at 1.0
+
+    _volumeGain = _audioCtx.createGain();
+    _volumeGain.gain.value = NORM_VOLUME; // user volume control
 
     // K-weighted LUFS measurement path (ITU-R BS.1770-4 — measurement only, not in playback)
     _lufsKw1 = _audioCtx.createBiquadFilter();
@@ -174,9 +178,11 @@ export function ensureAudioCtx() {
     _lufsKw2.connect(_lufsAnalyser);
 
     // Route <audio> through Web Audio for DSP chain
+    // Signal path: mediaSource → gainNode (LUFS) → volumeGain (user vol) → DSP chain
     try {
       _mediaSource = _audioCtx.createMediaElementSource(_audioEl);
       _mediaSource.connect(_gainNode);
+      _gainNode.connect(_volumeGain);
       _audioEl.volume = 1;
       _corsAvailable = true;
       _corsAvailableStore.set(true);
@@ -226,7 +232,7 @@ export async function measureAndApplyLufs(song) {
   _gainNode.gain.cancelScheduledValues(_audioCtx.currentTime);
   const WARMUP = 8;
   const FRAMES = 28;
-  const ABS_GATE_RMS = Math.pow(10, (-70 - 0.691) / 20);
+  const ABS_GATE_RMS = Math.pow(10, (-70 + 0.691) / 20);
   let sumSq = 0, frameCount = 0;
   // fftSize is 16384 → 341ms buffer per BS.1770-4 (nearest valid power-of-2 to 400ms)
   const buf = new Float32Array(_lufsAnalyser.fftSize);
@@ -300,8 +306,10 @@ export function stopBgKeepAlive() {
 
 // ── Volume control ────────────────────────────────────────────────────────────
 export function setVolume(v) {
-  if (_corsAvailable && _gainNode) {
-    _gainNode.gain.value = v;
+  if (_corsAvailable && _volumeGain) {
+    // Write to _volumeGain only — _gainNode.gain is reserved for LUFS automation
+    // and must not be overwritten by volume changes (cancels setTargetAtTime ramp).
+    _volumeGain.gain.value = v;
   } else if (_audioEl) {
     _audioEl.volume = v;
   }
@@ -431,7 +439,7 @@ function _buildBassExciter(ctx) {
   // FIX: DC-blocking HPF after half-wave rectifier — prevents DC offset in mix bus
   _bassExciterDcHpf = ctx.createBiquadFilter();
   _bassExciterDcHpf.type = 'highpass';
-  _bassExciterDcHpf.frequency.value = 20;
+  _bassExciterDcHpf.frequency.value = 5; // 5Hz — blocks DC without attenuating 30-40Hz bass
   _bassExciterDcHpf.Q.value = 0.707;
   _bassExciterGain = ctx.createGain();
   _bassExciterGain.gain.value = 0.12;
@@ -565,9 +573,12 @@ function _rewireAudio() {
     _teardownCrossfeed();
     _teardownStereoWidener();
     _gainNode.disconnect();
-    // Reconnect K-weighted LUFS measurement tap after gainNode disconnect
+    // NOTE: _gainNode.disconnect() only severs _gainNode's outputs — the upstream
+    // _mediaSource→_gainNode edge is never broken, so we must NOT reconnect it here
+    // or each rewire stacks a duplicate +6dB connection.
     if (_lufsKw1) { try { _gainNode.connect(_lufsKw1); } catch {} }
-    if (_mediaSource) _mediaSource.connect(_gainNode);
+    // Re-wire gainNode→volumeGain in case volumeGain was also disconnected
+    if (_volumeGain) { try { _gainNode.connect(_volumeGain); } catch {} }
 
     _buildBassExciter(_audioCtx);
     _buildEqChain(_audioCtx);
@@ -577,8 +588,9 @@ function _rewireAudio() {
 
     _preMixGain = _audioCtx.createGain();
     _preMixGain.gain.value = 1.0;
-    _gainNode.connect(_preMixGain);
-    if (_bassExciterIn) _gainNode.connect(_bassExciterIn);
+    // DSP chain input is volumeGain (post-LUFS), not gainNode directly
+    _volumeGain.connect(_preMixGain);
+    if (_bassExciterIn) _volumeGain.connect(_bassExciterIn);
     if (_bassExciterGain) _bassExciterGain.connect(_preMixGain);
 
     _eqHeadroomGain = _audioCtx.createGain();

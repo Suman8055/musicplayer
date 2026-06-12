@@ -220,6 +220,13 @@ export function intelTrackPlay(song, completionRatio, isFastSkip = false) {
       const existing = d.flows[_prevFullPlayArtistKey][key];
       const prevCount = typeof existing === 'number' ? existing : (existing?.count || 0);
       d.flows[_prevFullPlayArtistKey][key] = { count: prevCount + 1, lastPlayed: Date.now() };
+      // Cap flow map to top-20 entries by count to prevent unbounded localStorage growth
+      const flowMap = d.flows[_prevFullPlayArtistKey];
+      const entries = Object.entries(flowMap);
+      if (entries.length > 20) {
+        entries.sort(([, a], [, b]) => (b?.count || 0) - (a?.count || 0));
+        d.flows[_prevFullPlayArtistKey] = Object.fromEntries(entries.slice(0, 20));
+      }
     }
     _prevFullPlayArtistKey = key;
   } else if (completionRatio >= 0.3) {
@@ -324,6 +331,9 @@ export async function smartInjectAhead() {
 
 export async function smartQueueFill() {
   if (!get(smartPlayOn) || _queueWritePending) return false;
+  // Acquire lock immediately — before any async work — to prevent double-fill race
+  // where two concurrent callers both pass the guard before either sets the flag.
+  _queueWritePending = true;
   const flowResult = _flowNextArtist();
   const d = intelLoad();
   let artist, whyReason;
@@ -334,13 +344,12 @@ export async function smartQueueFill() {
     whyReason = `Follows your ${fromName} session (${flowResult.count}x)`;
   } else {
     const topArtists = intelGetTopArtists(1, true, true);
-    if (!topArtists.length) return false;
+    if (!topArtists.length) { _queueWritePending = false; return false; }
     artist = topArtists[0];
     const slotLabel = { morning: 'Morning mix', afternoon: 'Afternoon mix', evening: 'Evening mix', night: 'Night mix' }[_timeSlot()];
     whyReason = `${slotLabel} · ${artist.name}`;
   }
   smartQueueActive.set(true);
-  _queueWritePending = true;
   try {
     const played = intelPlayedIds();
     const allSongs = filterByLanguage(await fetchArtistSongs(artist.name, 30));
@@ -487,6 +496,7 @@ export function invalidateForYouCache() { _forYouCache = null; }
 export function suppressArtist(song) {
   const key = _artistKey(song);
   if (key && key !== 'n:') {
+    _expireSuppressions(); // clean up stale entries unconditionally before adding
     _sessionSuppressed.add(key);
     _suppressedAt.set(key, Date.now());
     _forYouCache = null;

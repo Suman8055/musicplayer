@@ -7,7 +7,7 @@
 //   4. skipWaiting only after shell cache succeeds — prevents blank screen on partial cache
 
 const BASE  = self.registration.scope.replace(/\/$/, '');
-const CACHE = 'mbx-sk-v5.2.35';
+const CACHE = 'mbx-sk-v5.2.36';
 
 // Shell files — updated by inject-sw-shell.js after build with current chunk hashes
 const SHELL = [
@@ -41,6 +41,10 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('message', e => {
+  // Only honour messages from the same origin — prevents cross-origin iframes
+  // or compromised third-party scripts from forcing premature SW activation.
+  const allowedOrigin = new URL(self.registration.scope).origin;
+  if (e.origin && e.origin !== allowedOrigin) return;
   if (e.data?.type === 'SKIP_WAITING') self.skipWaiting();
   if (e.data?.type === 'GET_VERSION') {
     e.source?.postMessage({ type: 'SW_VERSION', version: CACHE });
