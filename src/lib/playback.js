@@ -82,7 +82,9 @@ export async function play(song, newQueue, idx) {
       // iOS gesture chain — NOTHING between resumeAudioCtx() and audio.play()
       // resumeAudioCtx is fire-and-forget: awaiting it yields to the event loop,
       // which terminates iOS Safari's user-gesture transient activation → NotAllowedError.
-      audio.crossOrigin = null;
+      // Do NOT set crossOrigin for blob URLs — they are same-origin by definition,
+      // and toggling crossOrigin forces the browser to reset the media pipeline,
+      // causing a 1-2s audio stall immediately after play() on the new src.
       audioEngine.ensureAudioCtx();
       if ('audioSession' in navigator) navigator.audioSession.type = 'playback';
       audioEngine.resumeAudioCtx().catch(() => {});
