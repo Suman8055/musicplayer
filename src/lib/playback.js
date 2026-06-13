@@ -68,10 +68,13 @@ export async function play(song, newQueue, idx) {
 
   try {
     // ── Offline blob path ────────────────────────────────────────────────────
-    const offline = await idbGet(song.id);
-    if (offline?.blob) {
-      if (get(nowSong)?.id !== song.id) return;
-      const blobUrl = URL.createObjectURL(offline.blob);
+    // Use pre-created blob URL if preloadNext() already fetched the blob for this song.
+    // Falls back to idbGet() if the preload missed (first tap, shuffle reorder, etc.).
+    const preloadedBlobUrl = consumePreloadedBlobUrl(song.id);
+    const offline = preloadedBlobUrl ? { blob: true } : await idbGet(song.id);
+    if (preloadedBlobUrl || offline?.blob) {
+      if (get(nowSong)?.id !== song.id) { if (preloadedBlobUrl) try { URL.revokeObjectURL(preloadedBlobUrl); } catch {} return; }
+      const blobUrl = preloadedBlobUrl || URL.createObjectURL(offline.blob);
       const prev = get(offlineBlobUrl);
       if (prev) { try { URL.revokeObjectURL(prev); } catch {} }
       offlineBlobUrl.set(blobUrl);
@@ -238,8 +241,10 @@ export function next() {
 
   let ni;
   if (get(shuffleOn)) {
+    let sq = get(shuffledQueue);
+    // If shuffledQueue is empty (shuffle toggled before any queue built), create it now
+    if (!sq.length) { createShuffledQueue(); sq = get(shuffledQueue); }
     const pos = get(shufflePos);
-    const sq  = get(shuffledQueue);
     const nextPos = pos + 1;
     if (nextPos >= sq.length) {
       if (rm === 1) { createShuffledQueue(); ni = get(shuffledQueue)[0]; }
@@ -303,6 +308,20 @@ export function setVolume(v) {
 let _preloadEl = null;
 export function setPreloadElement(el) { _preloadEl = el; }
 
+// Pre-created blob URL for the next offline song — avoids idbGet() round-trip on Next tap
+let _preloadBlobUrl   = null;
+let _preloadBlobSongId = null;
+
+export function consumePreloadedBlobUrl(songId) {
+  if (_preloadBlobSongId === songId && _preloadBlobUrl) {
+    const url = _preloadBlobUrl;
+    _preloadBlobUrl    = null;
+    _preloadBlobSongId = null;
+    return url;
+  }
+  return null;
+}
+
 async function preloadNext() {
   const q = get(queue);
   if (!q.length) return;
@@ -317,9 +336,23 @@ async function preloadNext() {
     nextIdx = idx + 1;
   }
   const nextSong = q[nextIdx];
-  if (!nextSong || !_preloadEl) return;
+  if (!nextSong) return;
   if (_preloadEl === getAudioElement()) { Log.error('preloadNext: _preloadEl is main audio element — aborting'); return; }
+
   try {
+    // Check IDB first — if offline, pre-create blob URL to eliminate idbGet() latency on Next tap
+    const offline = await idbGet(nextSong.id);
+    if (offline?.blob) {
+      if (_preloadBlobSongId !== nextSong.id) {
+        // Revoke any stale blob URL from a previous preload
+        if (_preloadBlobUrl) { try { URL.revokeObjectURL(_preloadBlobUrl); } catch {} }
+        _preloadBlobUrl    = URL.createObjectURL(offline.blob);
+        _preloadBlobSongId = nextSong.id;
+      }
+      return; // offline song doesn't need network preload
+    }
+
+    if (!_preloadEl) return;
     const result = await apiStream(nextSong.id);
     if (_preloadEl && _preloadEl.src !== result.url) {
       _preloadEl.src = result.url;

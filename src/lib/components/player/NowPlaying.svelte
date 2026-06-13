@@ -3,7 +3,7 @@
   import { npOpen, eqSheetOpen, queueOpen, showSheet, toast } from '$lib/stores/ui.js';
   import { whyChip } from '$lib/stores/smartplay.js';
   import { liked, playlists, downloadedIds } from '$lib/stores/library.js';
-  import { togglePlay, prev, next, seek } from '$lib/playback.js';
+  import { togglePlay, prev, next, seek, createShuffledQueue } from '$lib/playback.js';
   import { intelTrackLike } from '$lib/smartPlay.js';
   import { fmt, esc } from '$lib/utils.js';
   import { get } from 'svelte/store';
@@ -62,7 +62,13 @@
     }
   }
 
-  function cycleShuffle() { shuffleOn.update(v => !v); }
+  function cycleShuffle() {
+    shuffleOn.update(v => {
+      const next = !v;
+      if (next) createShuffledQueue(); // build shuffled order immediately so Next works right away
+      return next;
+    });
+  }
   function cycleRepeat()  { repeatMode.update(v => (v + 1) % 3); }
 
   function addToPlaylist(song) {
