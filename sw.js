@@ -7,7 +7,7 @@
 //   4. skipWaiting only after shell cache succeeds — prevents blank screen on partial cache
 
 const BASE  = self.registration.scope.replace(/\/$/, '');
-const CACHE = 'mbx-sk-v5.2.40-b1ebb07';
+const CACHE = 'mbx-sk-v5.2.43-ee41955';
 
 // Shell files — updated by inject-sw-shell.js after build with current chunk hashes
 const SHELL = [
@@ -18,15 +18,15 @@ const SHELL = [
   BASE + '/icon-192.png',
   BASE + '/icon-512.png',
   BASE + '/apple-touch-icon.png',
-  BASE + '/_app/immutable/entry/start.BwVONpTy.js',
-  BASE + '/_app/immutable/chunks/Bjs3g90s.js',
+  BASE + '/_app/immutable/entry/start.BlsmMY0p.js',
+  BASE + '/_app/immutable/chunks/C2wsI34z.js',
   BASE + '/_app/immutable/chunks/BSw_KR7x.js',
   BASE + '/_app/immutable/chunks/C6MFgNCR.js',
-  BASE + '/_app/immutable/entry/app.DQTPLNk9.js',
+  BASE + '/_app/immutable/entry/app.DLfzt5d1.js',
   BASE + '/_app/immutable/chunks/CmsKOCeN.js',
   BASE + '/_app/immutable/chunks/-In5gsl0.js',
-  BASE + '/_app/immutable/nodes/0.2tYRcpWR.js',
-  BASE + '/_app/immutable/chunks/CVcIKy9p.js',
+  BASE + '/_app/immutable/nodes/0.Cyn4KLzm.js',
+  BASE + '/_app/immutable/chunks/tVyY5lS6.js',
   BASE + '/_app/immutable/assets/0.C_u_Kvl2.css',
 ];
 
