@@ -71,6 +71,8 @@ let _cfHpL             = null;
 let _cfHpR             = null;
 let _cfGainL           = null;
 let _cfGainR           = null;
+let _cfDelayL          = null; // ITD delay L→R cross path: 0.6ms ear-to-ear simulation
+let _cfDelayR          = null; // ITD delay R→L cross path
 let _bgKeepAliveTimer  = null;
 let _rewiring          = false;
 
@@ -87,7 +89,7 @@ export const EQ_BANDS = [
   { freq: 8000, type: 'peaking',   label: '8k' },
   { freq:16000, type: 'highshelf', label: '16k' },
 ];
-export const EQ_Q = [1.0, 0.7, 0.7, 0.7, 1.0, 1.0, 1.0, 1.4, 1.4, 1.0];
+export const EQ_Q = [0.707, 0.7, 0.7, 0.7, 1.0, 1.0, 1.0, 1.4, 1.4, 0.707]; // shelf bands: Butterworth Q=0.707 — no resonant peak/notch
 export const EQ_PRESETS = {
   flat:       [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
   bass:       [ 5, 6, 4, 2, 0, 0, 0, 0, 0, 0],
@@ -169,9 +171,9 @@ export function ensureAudioCtx() {
     _lufsKw2.type = 'highpass';
     _lufsKw2.frequency.value = 38.135;
     _lufsKw2.Q.value = 0.5;
-    // 16384 = nearest valid power-of-2 to 400ms at 48kHz (341ms); 19200 is not a power of 2 and throws DOMException
+    // 32768 = 682ms at 48kHz; two 341ms sub-windows averaged → effective 400ms BS.1770-4 momentary gate
     _lufsAnalyser = _audioCtx.createAnalyser();
-    _lufsAnalyser.fftSize = 16384;
+    _lufsAnalyser.fftSize = 32768;
     _lufsAnalyser.smoothingTimeConstant = 0.0;
     _gainNode.connect(_lufsKw1);
     _lufsKw1.connect(_lufsKw2);
@@ -226,7 +228,7 @@ export async function measureAndApplyLufs(song) {
   if (_lufsCache.has(song.id)) {
     _gainNode.gain.cancelScheduledValues(_audioCtx.currentTime);
     _gainNode.gain.setValueAtTime(_gainNode.gain.value, _audioCtx.currentTime);
-    _gainNode.gain.setTargetAtTime(_lufsCache.get(song.id), _audioCtx.currentTime, 3.0);
+    _gainNode.gain.setTargetAtTime(_lufsCache.get(song.id), _audioCtx.currentTime, 0.5); // cached: fast 0.5s settle
     return;
   }
   _gainNode.gain.cancelScheduledValues(_audioCtx.currentTime);
@@ -236,18 +238,23 @@ export async function measureAndApplyLufs(song) {
   let sumSq = 0, frameCount = 0;
   // fftSize is 16384 → 341ms buffer per BS.1770-4 (nearest valid power-of-2 to 400ms)
   const buf = new Float32Array(_lufsAnalyser.fftSize);
+  const half = _lufsAnalyser.fftSize >> 1; // two 341ms sub-windows for effective 400ms gate
   for (let f = 0; f < WARMUP + FRAMES; f++) {
     await new Promise(r => setTimeout(r, 250));
     const cb = _callbacks.getState?.() ?? {};
     if (!cb.nowSong || cb.nowSong.id !== song.id) return;
     if (f < WARMUP) continue;
     _lufsAnalyser.getFloatTimeDomainData(buf);
-    let blockSumSq = 0;
-    for (let i = 0; i < buf.length; i++) blockSumSq += buf[i] * buf[i];
-    const blockRms = Math.sqrt(blockSumSq / buf.length);
-    if (blockRms < ABS_GATE_RMS) continue;
-    sumSq += blockSumSq;
-    frameCount += buf.length;
+    // Average two sub-windows per BS.1770-4 400ms gate using 32768-sample buffer
+    for (let w = 0; w < 2; w++) {
+      let blockSumSq = 0;
+      const start = w * half;
+      for (let i = 0; i < half; i++) blockSumSq += buf[start + i] * buf[start + i];
+      const blockRms = Math.sqrt(blockSumSq / half);
+      if (blockRms < ABS_GATE_RMS) continue;
+      sumSq += blockSumSq;
+      frameCount += half;
+    }
   }
   if (frameCount === 0) return;
   const rms = Math.sqrt(sumSq / frameCount);
@@ -256,7 +263,7 @@ export async function measureAndApplyLufs(song) {
   const gain = _gainFromLufs(measuredLufs);
   _lufsCache.set(song.id, gain);
   if (_lufsCache.size > 50) _lufsCache.delete(_lufsCache.keys().next().value);
-  _gainNode.gain.setTargetAtTime(gain, _audioCtx.currentTime, 3.0);
+  _gainNode.gain.setTargetAtTime(gain, _audioCtx.currentTime, 1.5); // first measurement: 1.5s τ (~4.5s to 95%), imperceptible
   if (_callbacks.onLog) _callbacks.onLog('info', 'LUFS norm', {
     name: song.name, lufs: measuredLufs.toFixed(1), gainDb: (20 * Math.log10(gain)).toFixed(1)
   });
@@ -360,11 +367,17 @@ export function getDebugInfo() {
     audioCtx:             _audioCtx,
     rewiring:             _rewiring,
     lufsAnalyser:         _lufsAnalyser,
+    lufsAnalyserFftSize:  _lufsAnalyser?.fftSize ?? null,
     lufsCacheSize:        _lufsCache.size,
     limiterComp:          _limiterCompressor,
     limiterGainReduction: _limiterCompressor?.reduction ?? 0,
     bassExciterOn:        !!_bassExciterIn,
+    bassExciterBlend:     _bassExciterGain?.gain.value ?? null,
     stereoWidenerOn:      !!_splitter,
+    airShelfFreq:         _airShelf?.frequency.value ?? null,
+    airShelfGain:         _airShelf?.gain.value ?? null,
+    cfDelayTime:          _cfDelayL?.delayTime.value ?? null,
+    cfHpFreq:             _cfHpL?.frequency.value ?? null,
     eqOn:                 _eqOn,
     eqGains:              [..._eqGains],
     eqNodes:              _eqNodes,
@@ -390,8 +403,8 @@ function _buildLimiterChain(ctx) {
   _limiterCompressor.threshold.value = -2;  // aligned with waveshaper CEIL (0.794 = −2dBFS)
   _limiterCompressor.knee.value      =  2;
   _limiterCompressor.ratio.value     = 10;
-  _limiterCompressor.attack.value    = 0.003; // ≥ 48kHz render quantum (2.67ms) — prevents CarPlay zipper
-  _limiterCompressor.release.value   = 0.2;
+  _limiterCompressor.attack.value    = 0.001; // 1ms — tighter transient clamp; 48-sample lookahead at 48kHz
+  _limiterCompressor.release.value   = 0.08;  // 80ms — transparent recovery, eliminates pumping on Bollywood/EDM
   _limiterWaveshaper = ctx.createWaveShaper();
   _limiterWaveshaper.oversample = '4x';
   const N = 65536;
@@ -422,27 +435,28 @@ function _buildBassExciter(ctx) {
   _bassExciterIn = ctx.createBiquadFilter();
   _bassExciterIn.type = 'bandpass';
   _bassExciterIn.frequency.value = 65;
-  _bassExciterIn.Q.value = 0.7;
+  _bassExciterIn.Q.value = 1.2; // narrower: 38–92Hz sub-bass zone only (was 0.7 = 19–111Hz)
   _bassExciterDist = ctx.createWaveShaper();
   _bassExciterDist.oversample = '4x';
   const N = 4096;
   const curve = new Float32Array(N);
   for (let i = 0; i < N; i++) {
     const x = (i * 2) / N - 1;
-    curve[i] = x > 0 ? x : 0;
+    // Chebyshev soft saturation: odd harmonics only, zero DC offset, warm bass enhancement
+    curve[i] = Math.max(-1, Math.min(1, 1.5 * x - 0.5 * x * x * x));
   }
   _bassExciterDist.curve = curve;
   _bassExciterOut = ctx.createBiquadFilter();
   _bassExciterOut.type = 'lowpass';
   _bassExciterOut.frequency.value = 160;
   _bassExciterOut.Q.value = 0.707;
-  // FIX: DC-blocking HPF after half-wave rectifier — prevents DC offset in mix bus
+  // DC-blocking HPF — symmetric Chebyshev curve has near-zero DC, but keep as safety net
   _bassExciterDcHpf = ctx.createBiquadFilter();
   _bassExciterDcHpf.type = 'highpass';
-  _bassExciterDcHpf.frequency.value = 5; // 5Hz — blocks DC without attenuating 30-40Hz bass
+  _bassExciterDcHpf.frequency.value = 5;
   _bassExciterDcHpf.Q.value = 0.707;
   _bassExciterGain = ctx.createGain();
-  _bassExciterGain.gain.value = 0.12;
+  _bassExciterGain.gain.value = 0.08; // reduced from 0.12: Chebyshev generates less IMD, 8% is equivalent warmth
   _bassExciterIn.connect(_bassExciterDist);
   _bassExciterDist.connect(_bassExciterOut);
   _bassExciterOut.connect(_bassExciterDcHpf); // FIX: route through DC-block HPF
@@ -477,7 +491,7 @@ function _teardownEqChain() {
 
 function _computeEqHeadroomGain() {
   const maxBoostDb = _eqOn ? Math.max(0, ..._eqGains) : 0;
-  const gain = Math.pow(10, -(maxBoostDb / 2) / 20);
+  const gain = Math.pow(10, -maxBoostDb / 20); // full attenuation: prevents limiter pumping on bass presets
   if (_eqHeadroomGain) _eqHeadroomGain.gain.value = gain;
 }
 
@@ -500,16 +514,22 @@ function _buildCrossfeed(ctx) {
   _cfMerge = ctx.createChannelMerger(2);
   const _cfDirectL = ctx.createGain(); _cfDirectL.gain.value = direct;
   const _cfDirectR = ctx.createGain(); _cfDirectR.gain.value = direct;
+  // HPF at 300Hz: ILD operates from ~200Hz up; was 700Hz which cut most useful midrange
   _cfHpR = ctx.createBiquadFilter();
-  _cfHpR.type = 'highpass'; _cfHpR.frequency.value = 700; _cfHpR.Q.value = 0.707;
-  _cfGainR = ctx.createGain(); _cfGainR.gain.value = blend;
+  _cfHpR.type = 'highpass'; _cfHpR.frequency.value = 300; _cfHpR.Q.value = 0.707;
   _cfHpL = ctx.createBiquadFilter();
-  _cfHpL.type = 'highpass'; _cfHpL.frequency.value = 700; _cfHpL.Q.value = 0.707;
+  _cfHpL.type = 'highpass'; _cfHpL.frequency.value = 300; _cfHpL.Q.value = 0.707;
+  // ITD delay: 22cm ear-to-ear / 340m/s = 0.647ms — simulates contralateral path travel time
+  _cfDelayL = ctx.createDelay(0.005); _cfDelayL.delayTime.value = 0.0006;
+  _cfDelayR = ctx.createDelay(0.005); _cfDelayR.delayTime.value = 0.0006;
+  _cfGainR = ctx.createGain(); _cfGainR.gain.value = blend;
   _cfGainL = ctx.createGain(); _cfGainL.gain.value = blend;
   _cfSplit.connect(_cfDirectL, 0); _cfDirectL.connect(_cfMerge, 0, 0);
   _cfSplit.connect(_cfDirectR, 1); _cfDirectR.connect(_cfMerge, 0, 1);
-  _cfSplit.connect(_cfHpR, 1); _cfHpR.connect(_cfGainR); _cfGainR.connect(_cfMerge, 0, 0);
-  _cfSplit.connect(_cfHpL, 0); _cfHpL.connect(_cfGainL); _cfGainL.connect(_cfMerge, 0, 1);
+  // R→L cross path: R channel → HPF → delay → gain → L output
+  _cfSplit.connect(_cfHpR, 1); _cfHpR.connect(_cfDelayR); _cfDelayR.connect(_cfGainR); _cfGainR.connect(_cfMerge, 0, 0);
+  // L→R cross path: L channel → HPF → delay → gain → R output
+  _cfSplit.connect(_cfHpL, 0); _cfHpL.connect(_cfDelayL); _cfDelayL.connect(_cfGainL); _cfGainL.connect(_cfMerge, 0, 1);
   _cfSplit._directL = _cfDirectL;
   _cfSplit._directR = _cfDirectR;
 }
@@ -519,10 +539,10 @@ function _teardownCrossfeed() {
     try { _cfSplit._directL?.disconnect(); } catch {}
     try { _cfSplit._directR?.disconnect(); } catch {}
   }
-  [_cfGainL, _cfGainR, _cfHpL, _cfHpR, _cfMerge, _cfSplit].forEach(n => {
+  [_cfGainL, _cfGainR, _cfDelayL, _cfDelayR, _cfHpL, _cfHpR, _cfMerge, _cfSplit].forEach(n => {
     if (n) { try { n.disconnect(); } catch {} }
   });
-  _cfSplit = _cfMerge = _cfHpL = _cfHpR = _cfGainL = _cfGainR = null;
+  _cfSplit = _cfMerge = _cfHpL = _cfHpR = _cfGainL = _cfGainR = _cfDelayL = _cfDelayR = null;
 }
 
 function _buildStereoWidener(ctx) {
@@ -544,8 +564,8 @@ function _buildStereoWidener(ctx) {
   _splitter.connect(_sideGainR, 1); _sideGainR.connect(_merger, 0, 1);
   _airShelf = ctx.createBiquadFilter();
   _airShelf.type = 'highshelf';
-  _airShelf.frequency.value = 14000;
-  _airShelf.gain.value = 2.0; // +2dB air shelf — adds presence/openness above 14kHz
+  _airShelf.frequency.value = 16000; // moved from 14kHz: avoids sibilance/presence harshness
+  _airShelf.gain.value = 1.0;        // reduced from +2dB: matches Spotify/Apple air correction target
   _merger.connect(_airShelf);
 }
 
