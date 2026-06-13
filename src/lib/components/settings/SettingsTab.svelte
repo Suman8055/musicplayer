@@ -20,6 +20,13 @@
     toast(lufsOn ? 'Volume normalisation on' : 'Volume normalisation off');
   }
 
+  let cfOn = audioEngine.getDebugInfo().crossfeedOn ?? false;
+  function toggleCrossfeed() {
+    cfOn = !cfOn;
+    audioEngine.setCrossfeedEnabled(cfOn);
+    toast(cfOn ? 'Headphone crossfeed on' : 'Headphone crossfeed off');
+  }
+
   let ghPat = getGhCfg().pat || '';
   let logFilter = 'ALL';
   $: void $logTick; // track logTick as dependency
@@ -114,6 +121,15 @@
             <div class="seq-band-label">{band.label}</div>
           </div>
         {/each}
+      </div>
+      <div class="settings-row" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+        <div>
+          <div style="font-size:14px">🎧 Headphone Crossfeed</div>
+          <div style="font-size:11px;color:var(--fg3);margin-top:2px">Reduces ear fatigue — makes headphones sound like speakers</div>
+        </div>
+        <button class="toggle-btn" class:on={cfOn} on:click={toggleCrossfeed} aria-label="Toggle headphone crossfeed">
+          <span class="toggle-knob"></span>
+        </button>
       </div>
     </div>
   </div>
