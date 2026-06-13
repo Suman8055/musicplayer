@@ -2,7 +2,7 @@
   import { activeTab, toast, updateAvailable, elderView } from '$lib/stores/ui.js';
   import { eqState } from '$lib/stores/eq.js';
   import * as audioEngine from '$lib/audioEngine.js';
-  import { EQ_BANDS, EQ_PRESETS } from '$lib/audioEngine.js';
+  import { EQ_BANDS, EQ_PRESETS, crossfeedOn } from '$lib/audioEngine.js';
   import { Log, logTick, getGhCfg, saveGhCfg, uploadLogsToGithub } from '$lib/logger.js';
   import { APP_VERSION, getEnv, setEnv, isStaging } from '$lib/api.js';
   import { idbGetAll, idbClear } from '$lib/idb.js';
@@ -20,11 +20,9 @@
     toast(lufsOn ? 'Volume normalisation on' : 'Volume normalisation off');
   }
 
-  let cfOn = audioEngine.getDebugInfo().crossfeedOn ?? false;
   function toggleCrossfeed() {
-    cfOn = !cfOn;
-    audioEngine.setCrossfeedEnabled(cfOn);
-    toast(cfOn ? 'Headphone crossfeed on' : 'Headphone crossfeed off');
+    audioEngine.setCrossfeedEnabled(!$crossfeedOn);
+    toast(!$crossfeedOn ? 'Headphone crossfeed on' : 'Headphone crossfeed off');
   }
 
   let ghPat = getGhCfg().pat || '';
@@ -127,7 +125,7 @@
           <div style="font-size:14px">🎧 Headphone Crossfeed</div>
           <div style="font-size:11px;color:var(--fg3);margin-top:2px">Reduces ear fatigue — makes headphones sound like speakers</div>
         </div>
-        <button class="toggle-btn" class:on={cfOn} on:click={toggleCrossfeed} aria-label="Toggle headphone crossfeed">
+        <button id="cf-toggle" class="toggle-btn" class:on={$crossfeedOn} on:click={toggleCrossfeed} aria-label="Toggle headphone crossfeed">
           <span class="toggle-knob"></span>
         </button>
       </div>

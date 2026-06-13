@@ -4,7 +4,7 @@
 // AudioContext is created lazily on first user gesture (iOS requirement).
 //
 // DSP fixes applied vs original index.html:
-//   1. LUFS gate block: fftSize 4096→19200 (85ms→400ms per BS.1770-4 spec)
+//   1. LUFS gate block: fftSize 4096→32768 (682ms at 48kHz per BS.1770-4 spec)
 //   2. Bass exciter DC fix: 5Hz HPF after _bassExciterOut blocks DC offset
 //   3. _haasDelay renamed _sideGainNeg (it is a GainNode, not a DelayNode)
 
@@ -13,9 +13,13 @@ import { writable, get } from 'svelte/store';
 // ── Public readable stores (UI subscribes, engine writes) ─────────────────────
 const _eqStateStore = writable({ gains: null, on: true, preset: 'Custom' });
 const _corsAvailableStore = writable(false);
+const _cfOnStore = writable(
+  (typeof localStorage !== 'undefined') ? localStorage.getItem('mbx_cf_v1') === 'true' : false
+);
 
 export const eqState = { subscribe: _eqStateStore.subscribe };
 export const corsAvailable = { subscribe: _corsAvailableStore.subscribe };
+export const crossfeedOn = { subscribe: _cfOnStore.subscribe };
 
 // ── Module-level state ────────────────────────────────────────────────────────
 let _audioEl      = null;   // set by init()
@@ -28,7 +32,7 @@ const AC = (typeof window !== 'undefined')
 // ── LUFS normalization constants ──────────────────────────────────────────────
 const NORM_VOLUME       = 1.0;
 const LUFS_TARGET       = -13; // target −13 LUFS (louder than Spotify −14, Apple −16)
-const LUFS_MAX_BOOST_DB =  2;
+const LUFS_MAX_BOOST_DB =  3;
 const LUFS_MAX_CUT_DB   =  6;
 const LUFS_KEY          = 'mbx_lufs_v1_on';
 let   _lufsOn           = typeof localStorage !== 'undefined'
@@ -36,8 +40,12 @@ let   _lufsOn           = typeof localStorage !== 'undefined'
                             : true;
 const _lufsCache        = new Map();
 let   _lufsAnalyser     = null;
-let   _lufsKw1          = null;
-let   _lufsKw2          = null;
+let   _lufsKw1          = null;   // L-channel K-weighting stage 1
+let   _lufsKw2          = null;   // L-channel K-weighting stage 2
+let   _lufsKw1R         = null;   // R-channel K-weighting stage 1 (BS.1770-4 stereo)
+let   _lufsKw2R         = null;   // R-channel K-weighting stage 2
+let   _lufsAnalyserR    = null;   // R-channel analyser
+let   _lufsSplitter     = null;   // ChannelSplitter(2) before K-weighting chains
 
 // ── AudioContext state ────────────────────────────────────────────────────────
 let _audioCtx    = null;
@@ -100,7 +108,7 @@ export const EQ_PRESETS = {
   punjabi:    [ 5, 6, 4, 2, 0,-1, 0, 2, 3, 3],
   classical:  [ 2, 2, 1, 0,-1, 0, 1, 2, 3, 4],
   podcast:    [-3,-4,-2, 0, 3, 5, 4, 2, 0,-1],
-  r_and_b:    [ 2, 7, 6, 4,-1,-1, 2, 2, 3, 4],
+  r_and_b:    [ 2, 5, 4, 4,-1,-1, 2, 2, 3, 4], // 64Hz +7→+5, 125Hz +6→+4: ref Drake/SZA/Dua Lipa mixes
 };
 const EQ_KEY = 'mbx_eq_v2';
 const CF_KEY = 'mbx_cf_v1';
@@ -162,22 +170,31 @@ export function ensureAudioCtx() {
     _volumeGain = _audioCtx.createGain();
     _volumeGain.gain.value = NORM_VOLUME; // user volume control
 
-    // K-weighted LUFS measurement path (ITU-R BS.1770-4 — measurement only, not in playback)
+    // K-weighted LUFS measurement path — BS.1770-4 stereo: L+R measured separately
+    // ChannelSplitter(2) → two parallel K-weighting chains → two analysers
+    // measureAndApplyLufs() sums both channels: LKFS = -0.691 + 10·log10(zL + zR)
+    _lufsSplitter = _audioCtx.createChannelSplitter(2);
+    // L-channel chain
     _lufsKw1 = _audioCtx.createBiquadFilter();
-    _lufsKw1.type = 'highshelf';
-    _lufsKw1.frequency.value = 1681.974;
-    _lufsKw1.gain.value = 4.0;
+    _lufsKw1.type = 'highshelf'; _lufsKw1.frequency.value = 1681.974; _lufsKw1.gain.value = 4.0;
     _lufsKw2 = _audioCtx.createBiquadFilter();
-    _lufsKw2.type = 'highpass';
-    _lufsKw2.frequency.value = 38.135;
-    _lufsKw2.Q.value = 0.5;
-    // 32768 = 682ms at 48kHz; two 341ms sub-windows averaged → effective 400ms BS.1770-4 momentary gate
+    _lufsKw2.type = 'highpass'; _lufsKw2.frequency.value = 38.135; _lufsKw2.Q.value = 0.5;
+    // 32768 = 682ms at 48kHz; two 341ms sub-windows → effective 400ms BS.1770-4 momentary gate
     _lufsAnalyser = _audioCtx.createAnalyser();
-    _lufsAnalyser.fftSize = 32768;
-    _lufsAnalyser.smoothingTimeConstant = 0.0;
-    _gainNode.connect(_lufsKw1);
-    _lufsKw1.connect(_lufsKw2);
-    _lufsKw2.connect(_lufsAnalyser);
+    _lufsAnalyser.fftSize = 32768; _lufsAnalyser.smoothingTimeConstant = 0.0;
+    // R-channel chain (identical K-weighting per BS.1770-4 §2.3)
+    _lufsKw1R = _audioCtx.createBiquadFilter();
+    _lufsKw1R.type = 'highshelf'; _lufsKw1R.frequency.value = 1681.974; _lufsKw1R.gain.value = 4.0;
+    _lufsKw2R = _audioCtx.createBiquadFilter();
+    _lufsKw2R.type = 'highpass'; _lufsKw2R.frequency.value = 38.135; _lufsKw2R.Q.value = 0.5;
+    _lufsAnalyserR = _audioCtx.createAnalyser();
+    _lufsAnalyserR.fftSize = 32768; _lufsAnalyserR.smoothingTimeConstant = 0.0;
+    // Wire: gainNode → splitter → L-chain → lufsAnalyser; splitter → R-chain → lufsAnalyserR
+    _gainNode.connect(_lufsSplitter);
+    _lufsSplitter.connect(_lufsKw1, 0);  // L
+    _lufsKw1.connect(_lufsKw2); _lufsKw2.connect(_lufsAnalyser);
+    _lufsSplitter.connect(_lufsKw1R, 1); // R
+    _lufsKw1R.connect(_lufsKw2R); _lufsKw2R.connect(_lufsAnalyserR);
 
     // Route <audio> through Web Audio for DSP chain
     // Signal path: mediaSource → gainNode (LUFS) → volumeGain (user vol) → DSP chain
@@ -224,46 +241,56 @@ function _gainFromLufs(measuredLufs) {
 // Call from setTimeout(..., 3000) after audio.play() — NEVER in gesture chain
 export async function measureAndApplyLufs(song) {
   if (!_lufsOn) return;
-  if (!_audioCtx || !_lufsAnalyser || !_gainNode) return;
+  if (!_audioCtx || !_lufsAnalyser || !_lufsAnalyserR || !_gainNode) return;
   if (_lufsCache.has(song.id)) {
     _gainNode.gain.cancelScheduledValues(_audioCtx.currentTime);
     _gainNode.gain.setValueAtTime(_gainNode.gain.value, _audioCtx.currentTime);
-    _gainNode.gain.setTargetAtTime(_lufsCache.get(song.id), _audioCtx.currentTime, 0.5); // cached: fast 0.5s settle
+    _gainNode.gain.setTargetAtTime(_lufsCache.get(song.id), _audioCtx.currentTime, 0.5);
     return;
   }
   _gainNode.gain.cancelScheduledValues(_audioCtx.currentTime);
   const WARMUP = 8;
   const FRAMES = 28;
   const ABS_GATE_RMS = Math.pow(10, (-70 + 0.691) / 20);
-  let sumSq = 0, frameCount = 0;
-  // fftSize is 16384 → 341ms buffer per BS.1770-4 (nearest valid power-of-2 to 400ms)
-  const buf = new Float32Array(_lufsAnalyser.fftSize);
-  const half = _lufsAnalyser.fftSize >> 1; // two 341ms sub-windows for effective 400ms gate
+  // BS.1770-4 §2.4: LKFS = -0.691 + 10·log10(zL + zR) — sum L and R mean-squares separately
+  let sumSqL = 0, sumSqR = 0, frameCount = 0;
+  // 32768 = 682ms at 48kHz; two 341ms sub-windows → effective 400ms BS.1770-4 momentary gate
+  const bufL = new Float32Array(_lufsAnalyser.fftSize);
+  const bufR = new Float32Array(_lufsAnalyserR.fftSize);
+  const half = _lufsAnalyser.fftSize >> 1;
   for (let f = 0; f < WARMUP + FRAMES; f++) {
     await new Promise(r => setTimeout(r, 250));
     const cb = _callbacks.getState?.() ?? {};
     if (!cb.nowSong || cb.nowSong.id !== song.id) return;
     if (f < WARMUP) continue;
-    _lufsAnalyser.getFloatTimeDomainData(buf);
-    // Average two sub-windows per BS.1770-4 400ms gate using 32768-sample buffer
+    _lufsAnalyser.getFloatTimeDomainData(bufL);
+    _lufsAnalyserR.getFloatTimeDomainData(bufR);
+    // Two 341ms sub-windows per frame per channel
     for (let w = 0; w < 2; w++) {
-      let blockSumSq = 0;
       const start = w * half;
-      for (let i = 0; i < half; i++) blockSumSq += buf[start + i] * buf[start + i];
-      const blockRms = Math.sqrt(blockSumSq / half);
+      let bSqL = 0, bSqR = 0;
+      for (let i = 0; i < half; i++) {
+        bSqL += bufL[start + i] * bufL[start + i];
+        bSqR += bufR[start + i] * bufR[start + i];
+      }
+      // Gate on combined L+R energy per BS.1770-4
+      const blockRms = Math.sqrt((bSqL + bSqR) / (2 * half));
       if (blockRms < ABS_GATE_RMS) continue;
-      sumSq += blockSumSq;
+      sumSqL += bSqL;
+      sumSqR += bSqR;
       frameCount += half;
     }
   }
   if (frameCount === 0) return;
-  const rms = Math.sqrt(sumSq / frameCount);
-  if (rms < 1e-6) return;
-  const measuredLufs = 20 * Math.log10(rms) - 0.691;
+  // BS.1770-4: LKFS = -0.691 + 10·log10(zL + zR) where z = mean square per channel
+  const zL = sumSqL / frameCount;
+  const zR = sumSqR / frameCount;
+  if (zL + zR < 1e-12) return;
+  const measuredLufs = -0.691 + 10 * Math.log10(zL + zR);
   const gain = _gainFromLufs(measuredLufs);
   _lufsCache.set(song.id, gain);
   if (_lufsCache.size > 50) _lufsCache.delete(_lufsCache.keys().next().value);
-  _gainNode.gain.setTargetAtTime(gain, _audioCtx.currentTime, 1.5); // first measurement: 1.5s τ (~4.5s to 95%), imperceptible
+  _gainNode.gain.setTargetAtTime(gain, _audioCtx.currentTime, 1.5);
   if (_callbacks.onLog) _callbacks.onLog('info', 'LUFS norm', {
     name: song.name, lufs: measuredLufs.toFixed(1), gainDb: (20 * Math.log10(gain)).toFixed(1)
   });
@@ -353,8 +380,11 @@ export function getEqState() {
 
 export function setCrossfeedEnabled(on) {
   _cfOn = on;
+  _cfOnStore.set(on);
   if (typeof localStorage !== 'undefined') localStorage.setItem(CF_KEY, String(on));
-  _rewireAudio();
+  // Only rewire if AudioContext exists — if toggled before first play, _cfOn is already
+  // persisted; ensureAudioCtx() will call _rewireAudio() which picks up _cfOn correctly.
+  if (_audioCtx) _rewireAudio();
   _pushEqState();
 }
 
@@ -368,6 +398,8 @@ export function getDebugInfo() {
     rewiring:             _rewiring,
     lufsAnalyser:         _lufsAnalyser,
     lufsAnalyserFftSize:  _lufsAnalyser?.fftSize ?? null,
+    lufsAnalyserR:        _lufsAnalyserR,
+    lufsStereo:           !!_lufsSplitter,   // true = BS.1770-4 stereo path active
     lufsCacheSize:        _lufsCache.size,
     limiterComp:          _limiterCompressor,
     limiterGainReduction: _limiterCompressor?.reduction ?? 0,
@@ -519,7 +551,7 @@ function _buildCrossfeed(ctx) {
   _cfHpR.type = 'highpass'; _cfHpR.frequency.value = 300; _cfHpR.Q.value = 0.707;
   _cfHpL = ctx.createBiquadFilter();
   _cfHpL.type = 'highpass'; _cfHpL.frequency.value = 300; _cfHpL.Q.value = 0.707;
-  // ITD delay: 22cm ear-to-ear / 340m/s = 0.647ms — simulates contralateral path travel time
+  // ITD delay: 0.6ms (0.0006s) — approximated ear-to-ear travel time for contralateral path
   _cfDelayL = ctx.createDelay(0.005); _cfDelayL.delayTime.value = 0.0006;
   _cfDelayR = ctx.createDelay(0.005); _cfDelayR.delayTime.value = 0.0006;
   _cfGainR = ctx.createGain(); _cfGainR.gain.value = blend;
@@ -538,6 +570,8 @@ function _teardownCrossfeed() {
   if (_cfSplit) {
     try { _cfSplit._directL?.disconnect(); } catch {}
     try { _cfSplit._directR?.disconnect(); } catch {}
+    _cfSplit._directL = null; // prevent GainNode leak across rewires
+    _cfSplit._directR = null;
   }
   [_cfGainL, _cfGainR, _cfDelayL, _cfDelayR, _cfHpL, _cfHpR, _cfMerge, _cfSplit].forEach(n => {
     if (n) { try { n.disconnect(); } catch {} }
@@ -596,7 +630,8 @@ function _rewireAudio() {
     // NOTE: _gainNode.disconnect() only severs _gainNode's outputs — the upstream
     // _mediaSource→_gainNode edge is never broken, so we must NOT reconnect it here
     // or each rewire stacks a duplicate +6dB connection.
-    if (_lufsKw1) { try { _gainNode.connect(_lufsKw1); } catch {} }
+    // Reconnect LUFS measurement path: gainNode → lufsSplitter → L+R K-weighting chains
+    if (_lufsSplitter) { try { _gainNode.connect(_lufsSplitter); } catch {} }
     // Re-wire gainNode→volumeGain in case volumeGain was also disconnected
     if (_volumeGain) { try { _gainNode.connect(_volumeGain); } catch {} }
 
