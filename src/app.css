@@ -15,13 +15,30 @@
   --bg3:   #111827;
   --fg:    #ffffff;
   --fg2:   rgba(255,255,255,0.70);
-  --fg3:   rgba(255,255,255,0.40);
+  --fg3:   rgba(255,255,255,0.60);   /* D3: raised from 0.40 → 0.60 for WCAG AA ≥4.5:1 */
+  --fg3-sub: rgba(255,255,255,0.40); /* D3: decorative-only variant (eq-bars, progress track) */
+  --border: rgba(255,255,255,0.10);  /* D19: divider token — was undefined, causing silent render fail */
 
   --radius:  14px;
   --radius2: 20px;
   --tab-h:   56px;
   --mini-h:  64px;
   --np-dur:  0.38s;
+
+  /* D15: type scale tokens */
+  --fs-2xs: 9px;
+  --fs-xs:  10px;
+  --fs-sm:  11px;
+  --fs-md:  13px;
+  --fs-base: 14px;
+  --fs-lg:  15px;
+  --fs-xl:  16px;
+  --fs-2xl: 18px;
+  --fs-3xl: 20px;
+  --fs-4xl: 22px;
+
+  /* D27: section label letter-spacing token */
+  --ls-section: 0.05em;
 
   color-scheme: dark;
 }
@@ -33,13 +50,15 @@ html, body {
   overflow: hidden;
   background: var(--bg);
   color: var(--fg);
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif; /* D29: removed inert 'SF Pro Text' */
+  line-height: 1.4; /* D16: base line-height for comfortable reading */
   -webkit-tap-highlight-color: transparent;
   -webkit-touch-callout: none;
   user-select: none;
 }
 
-button { background: none; border: none; cursor: pointer; color: inherit; font: inherit; }
+/* D10: touch-action: manipulation eliminates 300ms iOS tap delay globally */
+button { background: none; border: none; cursor: pointer; color: inherit; font: inherit; touch-action: manipulation; }
 input, textarea { font: inherit; color: inherit; background: none; border: none; outline: none; }
 img { display: block; }
 a { color: inherit; text-decoration: none; }
@@ -68,9 +87,20 @@ a { color: inherit; text-decoration: none; }
 .eq-bars.active span:nth-child(3) { animation: eq-bar3 0.6s ease-in-out infinite; }
 .eq-bars:not(.active) span { height: 4px; }
 
-/* Reduced motion */
+/* D6: Reduced motion — reduce, not remove. Keep navigation transitions at near-zero duration
+   so spatial context (panel slides) is preserved for vestibular disorder users. */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation: none !important; transition: none !important; }
+  /* Remove decorative spinning / pulsing animations */
+  .spinner, .eq-bars span { animation: none !important; }
+  /* Artwork scale pulse */
+  #np-art { transition: none !important; }
+  /* Skeleton shimmer (Sprint 4) */
+  .skeleton-shimmer { animation: none !important; }
+  /* Preserve panel/navigation transitions but make them near-instant */
+  #np, #pl-view, #browse-detail, #browse-artist-detail, #browse-album-from-artist,
+  #queue-panel, #eq-sheet, #action-sheet, #prompt-modal, .update-banner {
+    transition-duration: 0.001s !important;
+  }
 }
 
 /* App shell */
@@ -81,9 +111,11 @@ a { color: inherit; text-decoration: none; }
 }
 #content {
   flex: 1; overflow-y: auto; overflow-x: hidden;
+  /* D22: env-banner-h set by NetworkBanner/StagingBanner when visible */
   padding-top: calc(env(safe-area-inset-top) + var(--env-banner-h, 0px));
-  padding-bottom: calc(var(--tab-h) + var(--mini-h));
-  -webkit-overflow-scrolling: touch;
+  /* D21: --mini-visible (0 or 1) set by +layout.svelte reactively — no dead gap when no song loaded */
+  padding-bottom: calc(var(--tab-h) + calc(var(--mini-h) * var(--mini-visible, 0)));
+  /* D28: removed deprecated -webkit-overflow-scrolling: touch (no-op since iOS 13) */
 }
 
 /* Tab panes — use CSS visibility to preserve state across tab switches */

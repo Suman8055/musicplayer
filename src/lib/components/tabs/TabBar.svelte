@@ -2,6 +2,7 @@
   import { activeTab } from '$lib/stores/ui.js';
   import { nowSong, playing } from '$lib/stores/playback.js';
 
+  // D23: internal id is 'browse' but user-facing label is 'Discover' — keep id stable for activeTab store
   const tabs = [
     { id: 'search',   label: 'Search',   icon: `<circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>` },
     { id: 'browse',   label: 'Discover', icon: `<circle cx="12" cy="12" r="3"/><path d="M2 12h3M19 12h3M12 2v3M12 19v3"/><circle cx="12" cy="12" r="8"/>` },

@@ -99,6 +99,11 @@
     // Apply elder view if saved from previous session
     if ($elderView) document.body.classList.add('elder-view');
 
+    // D21: Drive --mini-visible so #content padding has no dead gap on fresh install
+    const _unsubMini = nowSong.subscribe(s => {
+      document.documentElement.style.setProperty('--mini-visible', s ? '1' : '0');
+    });
+
     // Hydrate downloaded IDs from IDB (metadata only — no blobs)
     idbGetAll().then(records => {
       downloadedIds.set(new Set(records.map(r => r.id)));
@@ -158,7 +163,10 @@
       onEnded();
     });
 
-    audioEl.addEventListener('error', (e) => {
+    // D7: audio error — show toast + auto-retry up to 2 times, then skip to next
+    let _audioErrRetries = 0;
+    let _audioErrSongId  = null;
+    audioEl.addEventListener('error', () => {
       loadingUrl.set(false);
       const err = audioEl.error;
       Log.error('Audio element error', {
@@ -166,6 +174,17 @@
         message: err?.message ?? null,
         src:     audioEl.src ? audioEl.src.slice(0, 120) : null,
       });
+      const curId = get(nowSong)?.id ?? null;
+      if (curId !== _audioErrSongId) { _audioErrRetries = 0; _audioErrSongId = curId; }
+      if (_audioErrRetries < 2) {
+        _audioErrRetries++;
+        toast(`Playback error — retrying (${_audioErrRetries}/2)…`);
+        setTimeout(() => { try { audioEl.load(); audioEl.play().catch(() => {}); } catch {} }, 800);
+      } else {
+        toast('Playback failed — skipping to next track');
+        _audioErrRetries = 0;
+        setTimeout(() => { try { next(); } catch {} }, 500);
+      }
     });
 
     // ── MediaSession action handlers (registered once, never re-registered) ──
@@ -256,6 +275,7 @@
     return () => {
       try { _bc?.close(); } catch {}
       _listeners.forEach(([t, type, fn]) => t.removeEventListener(type, fn));
+      _unsubMini();
     };
   });
 </script>

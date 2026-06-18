@@ -19,7 +19,12 @@
 </script>
 
 <div id="gate">
-  <div id="gate-icon">🎵</div>
+  <!-- D12: emoji → SVG music note -->
+  <div id="gate-icon">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+    </svg>
+  </div>
   <div id="gate-title">MusicPlayer</div>
   <div id="gate-sub">Private access — enter your passcode</div>
   <input
@@ -42,7 +47,7 @@
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     background: var(--bg); gap: 12px; padding: 24px;
   }
-  #gate-icon { font-size: 3rem; }
+  #gate-icon { font-size: 3rem; color: var(--accent); }
   #gate-title { font-size: 1.4rem; font-weight: 700; color: var(--fg); }
   #gate-sub { font-size: 0.85rem; color: var(--fg3); text-align: center; }
   #gate-input {

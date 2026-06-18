@@ -8,6 +8,7 @@
   import { idbGetAll, idbClear } from '$lib/idb.js';
   import { downloadedIds, playlists } from '$lib/stores/library.js';
   import { intelGetStats, intelReset } from '$lib/smartPlay.js';
+  import EQSliders from '$lib/components/player/EQSliders.svelte'; // D26
 
   $: gains  = $eqState?.gains  ?? new Array(10).fill(0);
   $: eqOn   = $eqState?.on     ?? true;
@@ -95,7 +96,12 @@
     <div id="settings-eq-wrap">
       <div class="seq-header">
         <span>10-Band EQ</span>
-        <button id="seq-power" class:active={eqOn} on:click={toggleEq}>⏻</button>
+        <!-- D12: emoji → Lucide power SVG -->
+        <button id="seq-power" class:active={eqOn} on:click={toggleEq} aria-label={eqOn ? 'Disable EQ' : 'Enable EQ'} aria-pressed={eqOn}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/>
+          </svg>
+        </button>
       </div>
       <div class="seq-presets">
         {#each DISPLAY_PRESETS as name}
@@ -104,26 +110,13 @@
           </button>
         {/each}
       </div>
-      <div class="seq-sliders">
-        {#each EQ_BANDS as band, i}
-          <div class="seq-band">
-            <input
-              id="seq-band-{i}"
-              class="seq-band-slider"
-              type="range" min="-12" max="12" step="0.1"
-              value={gains[i] ?? 0}
-              disabled={!eqOn}
-              on:input={(e) => onSliderChange(i, e)}
-              style="writing-mode:vertical-lr;direction:rtl;"
-            />
-            <div class="seq-band-label">{band.label}</div>
-          </div>
-        {/each}
-      </div>
-      <div class="settings-row" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+      <!-- D26: EQSliders extracted to shared component -->
+      <EQSliders {gains} {eqOn} {onSliderChange} />
+      <!-- D25: removed inline styles → CSS classes; D19: --border now defined -->
+      <div class="settings-row settings-row-divider">
         <div>
-          <div style="font-size:14px">🎧 Headphone Crossfeed</div>
-          <div style="font-size:11px;color:var(--fg3);margin-top:2px">Reduces ear fatigue — makes headphones sound like speakers</div>
+          <div class="settings-row-label">Headphone Crossfeed</div>
+          <div class="settings-row-desc">Reduces ear fatigue — makes headphones sound like speakers</div>
         </div>
         <button id="cf-toggle" class="toggle-btn" class:on={$crossfeedOn} on:click={toggleCrossfeed} aria-label="Toggle headphone crossfeed">
           <span class="toggle-knob"></span>
@@ -137,8 +130,8 @@
     <div class="section-label">PLAYBACK</div>
     <div class="settings-row">
       <div>
-        <div style="font-size:14px">Volume Normalisation</div>
-        <div style="font-size:11px;color:var(--fg3);margin-top:2px">Keeps all songs at the same loudness level</div>
+        <div class="settings-row-label">Volume Normalisation</div>
+        <div class="settings-row-desc">Keeps all songs at the same loudness level</div>
       </div>
       <button class="toggle-btn" class:on={lufsOn} on:click={toggleLufs} aria-label="Toggle volume normalisation">
         <span class="toggle-knob"></span>
@@ -151,8 +144,9 @@
     <div class="section-label">ACCESSIBILITY</div>
     <div class="settings-row">
       <div>
-        <div style="font-size:14px">👴 Elder View</div>
-        <div style="font-size:11px;color:var(--fg3);margin-top:2px">Larger text & bolder fonts for easy reading</div>
+        <!-- D12: emoji removed; D25: inline style → CSS class -->
+        <div class="settings-row-label">Elder View</div>
+        <div class="settings-row-desc">Larger text &amp; bolder fonts for easy reading</div>
       </div>
       <button class="toggle-btn" class:on={$elderView} on:click={() => elderView.update(v => !v)} aria-label="Toggle Elder View">
         <span class="toggle-knob"></span>
@@ -168,11 +162,11 @@
     </div>
     <div class="settings-row">
       <div>
-        <div style="font-size:14px">App Update</div>
+        <div class="settings-row-label">App Update</div>
         {#if $updateAvailable}
-          <div style="font-size:11px;color:rgb(99,210,255);margin-top:2px">{parseVersion($updateAvailable.newVersion)} is ready to install</div>
+          <div class="settings-row-desc" style="color:rgb(99,210,255)">{parseVersion($updateAvailable.newVersion)} is ready to install</div>
         {:else}
-          <div style="font-size:11px;color:var(--fg3);margin-top:2px">v{APP_VERSION} — You're up to date</div>
+          <div class="settings-row-desc">v{APP_VERSION} — You're up to date</div>
         {/if}
       </div>
       <button
@@ -284,10 +278,18 @@
   .settings-btn.update-current { background: var(--bg3); color: var(--fg3); cursor: default; opacity: 0.7; }
   .settings-input { width: 100%; background: var(--bg3); border: 1px solid rgba(255,255,255,.12); border-radius: var(--radius); padding: 10px 12px; color: var(--fg); font-size: 14px; margin-top: 4px; }
   .settings-note { font-size: 11px; color: var(--fg3); margin-top: 4px; }
+  /* D25: extracted from inline styles */
+  .settings-row-label { font-size: 14px; }
+  .settings-row-desc  { font-size: 11px; color: var(--fg3); margin-top: 2px; }
+  /* D19: uses --border token defined in app.css */
+  .settings-row-divider { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
   .settings-select { background: var(--bg3); color: var(--fg); border: 1px solid rgba(255,255,255,.12); border-radius: var(--radius); padding: 6px 10px; font-size: 13px; flex: 1; }
+  /* D27: section-label letter-spacing aligned with Browse (.05em) */
+  .section-label { font-size: 11px; font-weight: 700; color: var(--fg3); letter-spacing: .05em; padding: 12px 0 6px; }
   /* Settings EQ */
   .seq-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-  #seq-power { width: 28px; height: 28px; border-radius: 50%; background: rgba(255,255,255,.08); color: var(--fg3); font-size: 14px; }
+  /* D1: #seq-power enlarged from 28px to 44px touch target */
+  #seq-power { width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,.08); color: var(--fg3); font-size: 16px; }
   #seq-power.active { background: var(--accent); color: #fff; }
   .seq-presets { display: flex; gap: 6px; overflow-x: auto; margin-bottom: 10px; }
   .seq-preset-btn { flex-shrink: 0; padding: 4px 10px; border-radius: 20px; font-size: 11px; background: var(--bg3); color: var(--fg3); border: 1px solid rgba(255,255,255,.08); }

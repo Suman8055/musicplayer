@@ -11,6 +11,7 @@
   import { apiStream } from '$lib/api.js';
   import { get } from 'svelte/store';
   import SongRow from '$lib/components/shared/SongRow.svelte';
+  import BackButton from '$lib/components/shared/BackButton.svelte'; // D11
 
   let activeLang = LANG_TILES[0].lang;
   let modules = null;
@@ -18,6 +19,7 @@
   let charts = [];
   let featuredPlaylists = [];
   let loading = true;
+  let browseError = false; // D8: track API load failures
 
   // Detail slide-in state (album / playlist)
   let detailOpen = false;
@@ -42,6 +44,7 @@
 
   async function loadBrowse() {
     loading = true;
+    browseError = false; // D8: reset error state on each attempt
     try {
       [modules, charts, featuredPlaylists, forYouRows] = await Promise.allSettled([
         fetchModules(activeLang),
@@ -49,6 +52,10 @@
         fetchFeaturedPlaylists(activeLang),
         intelTotalPlays() >= 5 ? buildForYouRows() : Promise.resolve([]),
       ]).then(r => r.map(x => x.status === 'fulfilled' ? x.value : null));
+      // D8: if all primary data sources failed, show error state
+      if (!modules && !charts?.length) browseError = true;
+    } catch {
+      browseError = true;
     } finally { loading = false; }
   }
 
@@ -172,6 +179,18 @@
 
   {#if loading}
     <div class="empty-wrap"><div class="spinner"></div></div>
+  {:else if browseError}
+    <!-- D8: API failure error state with retry -->
+    <div class="browse-error-state" data-testid="browse-error">
+      <div class="browse-error-icon">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r="1" fill="currentColor"/>
+        </svg>
+      </div>
+      <div class="browse-error-msg">Couldn't load content</div>
+      <div class="browse-error-sub">Check your connection and try again</div>
+      <button class="browse-retry-btn" on:click={loadBrowse}>Try Again</button>
+    </div>
   {:else}
     <!-- For You section -->
     {#if forYouRows.length}
@@ -256,7 +275,7 @@
             <!-- svelte-ignore a11y-click-events-have-key-events -->
             <div class="content-card" on:click={() => openArtistDetail(artist.id, artist.name)}>
               <img src={artist.image} alt="" class="card-img artist-img" loading="lazy" />
-              <div class="card-name" style="text-align:center">{artist.name}</div>
+              <div class="card-name artist-card-name">{artist.name}</div>
             </div>
           {/each}
         </div>
@@ -300,7 +319,7 @@
   <!-- Browse Detail Slide-in (album / playlist) -->
   <div id="browse-detail" class:open={detailOpen}>
     <div class="pl-view-hdr">
-      <button class="back-btn" on:click={() => detailOpen = false}>‹ Browse</button>
+      <BackButton label="Browse" onClick={() => detailOpen = false} />
       <div class="pl-view-title">{detailTitle}</div>
       <div></div>
     </div>
@@ -317,8 +336,8 @@
 
   <!-- Artist Detail Slide-in -->
   <div id="browse-artist-detail" class:open={artistDetailOpen}>
-    <div class="pl-view-hdr" style="position:sticky;top:0;background:var(--bg);z-index:1">
-      <button class="back-btn" on:click={() => artistDetailOpen = false}>‹ Browse</button>
+    <div class="pl-view-hdr artist-view-hdr">
+      <BackButton label="Browse" onClick={() => artistDetailOpen = false} />
       <div class="pl-view-title">{artistDetailLoading ? '' : (artistMeta?.name || '')}</div>
       <div></div>
     </div>
@@ -335,14 +354,14 @@
         </div>
       {/if}
       {#if artistTopSongs.length}
-        <div class="section-title" style="padding-top:12px">Top Songs</div>
+        <div class="section-title section-title--pt">Top Songs</div>
         {#each artistTopSongs as song, i}
           <SongRow {song} onPlay={() => playSong(song, artistTopSongs, i)} onMore={(s) => onMoreSong(s)} />
         {/each}
       {/if}
       {#if artistAlbums.length}
         <div class="section-title">Albums</div>
-        <div class="h-scroll" style="padding: 8px 16px 16px;">
+        <div class="h-scroll artist-albums-scroll">
           {#each artistAlbums as album}
             <!-- svelte-ignore a11y-click-events-have-key-events -->
             <div class="content-card" on:click={() => openAlbumFromArtist(album.id, album.name)}>
@@ -361,7 +380,7 @@
     <!-- Album from Artist sub-detail -->
     <div id="browse-album-from-artist" class:open={albumFromArtistOpen}>
       <div class="pl-view-hdr">
-        <button class="back-btn" on:click={() => albumFromArtistOpen = false}>‹ {artistMeta?.name || ''}</button>
+        <BackButton label={artistMeta?.name || 'Artist'} onClick={() => albumFromArtistOpen = false} />
         <div class="pl-view-title">{albumFromArtistTitle}</div>
         <div></div>
       </div>
@@ -377,22 +396,33 @@
 </div>
 
 <style>
+  /* D8: Browse error state */
+  .browse-error-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 24px; gap: 10px; }
+  .browse-error-icon { color: var(--fg3); margin-bottom: 4px; }
+  .browse-error-msg { font-size: 16px; font-weight: 600; color: var(--fg); }
+  .browse-error-sub { font-size: 13px; color: var(--fg3); text-align: center; }
+  .browse-retry-btn { margin-top: 8px; background: var(--accent); color: #fff; border-radius: var(--radius); padding: 10px 28px; font-size: 14px; font-weight: 600; }
+  .browse-retry-btn:active { opacity: .8; }
+
   .tab-header { font-size: 22px; font-weight: 700; padding: 16px 16px 8px; display: flex; align-items: baseline; gap: 8px; }
   .greeting { font-size: 13px; font-weight: 400; color: var(--fg3); }
   .lang-pills { display: flex; gap: 6px; padding: 0 16px 12px; overflow-x: auto; }
   .lang-pill { padding: 6px 14px; border-radius: 20px; font-size: 13px; background: var(--bg3); color: var(--fg3); border: 1px solid rgba(255,255,255,.08); white-space: nowrap; }
   .lang-pill.active { background: var(--accent); color: #fff; border-color: transparent; }
-  .section-title { font-size: 13px; font-weight: 600; color: var(--fg3); padding: 10px 16px 4px; text-transform: uppercase; letter-spacing: .05em; }
+  .section-title { font-size: 13px; font-weight: 600; color: var(--fg3); padding: 10px 16px 4px; text-transform: uppercase; letter-spacing: var(--ls-section, .05em); }
   .disc-hd { padding: 10px 16px 2px; }
   .disc-hd-title { font-size: 16px; font-weight: 700; }
   .disc-reason { font-size: 11px; color: var(--fg3); margin-left: 6px; }
   .scroll-fade-wrap { position: relative; }
   .h-scroll { display: flex; gap: 10px; overflow-x: auto; padding: 8px 16px; }
   .h-scroll::-webkit-scrollbar { display: none; }
-  .content-card { flex-shrink: 0; width: 120px; cursor: pointer; }
+  /* D24: card press feedback */
+  .content-card { flex-shrink: 0; width: 120px; cursor: pointer; transition: transform .12s ease, opacity .12s ease; }
+  .content-card:active { transform: scale(0.96); opacity: 0.85; }
   .card-img { width: 120px; height: 120px; border-radius: 10px; object-fit: cover; display: block; }
   .card-name { font-size: 12px; font-weight: 600; margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .card-sub { font-size: 11px; color: var(--fg3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* D30: 11→12px for better legibility */
+  .card-sub { font-size: 12px; color: var(--fg3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .chart-row { display: flex; align-items: center; gap: 12px; padding: 10px 16px; cursor: pointer; }
   .chart-row:active { background: rgba(255,255,255,.05); }
   .chart-img { width: 48px; height: 48px; border-radius: 8px; object-fit: cover; flex-shrink: 0; }
@@ -421,7 +451,7 @@
   }
   #browse-album-from-artist.open { transform: translateX(0); }
   .pl-view-hdr { display: flex; align-items: center; justify-content: space-between; padding: 16px 16px 8px; padding-top: calc(16px + env(safe-area-inset-top)); }
-  .back-btn { font-size: 15px; color: var(--accent); }
+  /* D11: back-btn style in BackButton.svelte */
   .pl-view-title { font-size: 16px; font-weight: 700; text-align: center; flex: 1; }
   .empty-wrap { display: flex; align-items: center; justify-content: center; padding: 60px 16px; color: var(--fg3); font-size: 14px; }
   .artist-img { border-radius: 50% !important; }
@@ -430,4 +460,9 @@
   .artist-hero-overlay { position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,.85) 0%, transparent 50%); display: flex; flex-direction: column; justify-content: flex-end; padding: 16px; }
   .artist-hero-name { font-size: 26px; font-weight: 800; color: #fff; }
   .artist-followers { font-size: 13px; color: rgba(255,255,255,.6); }
+  /* D25: extracted from inline styles */
+  .artist-card-name { text-align: center; }
+  .artist-view-hdr { position: sticky; top: 0; background: var(--bg); z-index: 1; }
+  .section-title--pt { padding-top: 12px; }
+  .artist-albums-scroll { padding: 8px 16px 16px; }
 </style>

@@ -1,9 +1,18 @@
 <script>
   import { isOnline } from '$lib/stores/ui.js';
+  import { onMount } from 'svelte';
+
+  // D22: update --env-banner-h so #content padding shifts down when offline banner shows
+  $: {
+    const h = !$isOnline ? '34px' : '0px';
+    if (typeof document !== 'undefined') {
+      document.documentElement.style.setProperty('--env-banner-h', h);
+    }
+  }
 </script>
 
 {#if !$isOnline}
-  <div id="net-banner">No internet connection — showing offline content</div>
+  <div id="net-banner" role="status" aria-live="polite">No internet connection — showing offline content</div>
 {/if}
 
 <style>

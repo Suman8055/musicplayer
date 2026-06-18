@@ -11,8 +11,8 @@
   $: isNow = $nowSong?.id === song?.id;
 </script>
 
-<!-- svelte-ignore a11y-click-events-have-key-events -->
-<div class="song-item" class:now={isNow} on:click={onPlay}>
+<!-- D9: song-item as button for keyboard nav -->
+<button class="song-item" class:now={isNow} on:click={onPlay} aria-label="Play {song?.name || 'song'}">
   {#if showNum !== null}
     <div class="song-rank" class:top3={showNum <= 3}>{showNum}</div>
   {:else}
@@ -34,14 +34,18 @@
     </div>
   </div>
   {#if onMore}
-    <button class="song-more" on:click|stopPropagation={() => onMore(song)}>•••</button>
+    <!-- D1: song-more enlarged to 44px touch target -->
+    <button class="song-more" on:click|stopPropagation={() => onMore(song)} aria-label="More options for {song?.name || 'song'}">•••</button>
   {/if}
-</div>
+</button>
 
 <style>
+  /* D9: song-item is now a button — needs width:100% and text-align:left */
   .song-item {
     display: flex; align-items: center; gap: 10px;
     padding: 8px 16px; cursor: pointer; transition: background .1s;
+    width: 100%; text-align: left;
+    touch-action: manipulation; /* D10 */
   }
   .song-item:active { background: rgba(255,255,255,.05); }
   .song-art-wrap { position: relative; flex-shrink: 0; width: 44px; height: 44px; }
@@ -58,5 +62,6 @@
   .song-title.now-text { color: var(--accent); }
   .song-meta { font-size: 12px; color: var(--fg3); display: flex; align-items: center; gap: 4px; }
   .dl-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
-  .song-more { color: var(--fg3); padding: 8px; font-size: 16px; letter-spacing: .05em; }
+  /* D1: song-more min 44×44px touch target */
+  .song-more { color: var(--fg3); padding: 12px 14px; font-size: 16px; letter-spacing: .05em; min-height: 44px; }
 </style>

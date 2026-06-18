@@ -9,6 +9,7 @@
   import { apiStream } from '$lib/api.js';
   import { get } from 'svelte/store';
   import SongRow from '$lib/components/shared/SongRow.svelte';
+  import BackButton from '$lib/components/shared/BackButton.svelte'; // D11
 
   // Detail slide-in (album / playlist / artist)
   let detailOpen = false;
@@ -185,12 +186,12 @@
         {#each results.albums as album}
           <!-- svelte-ignore a11y-click-events-have-key-events -->
           <div class="song-item" on:click={() => openDetail(album.id, 'album', album.name)}>
-            <img class="song-art" src={album.image} alt="" style="border-radius:6px;width:44px;height:44px;object-fit:cover;flex-shrink:0"/>
-            <div class="song-info" style="flex:1;min-width:0">
+            <img class="song-art result-thumb" src={album.image} alt="" />
+            <div class="song-info result-info">
               <div class="song-title">{album.name}</div>
               <div class="song-meta">{album.subtitle}</div>
             </div>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--fg3);flex-shrink:0"><path d="M9 18l6-6-6-6"/></svg>
+            <svg class="result-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
           </div>
         {/each}
       {/if}
@@ -200,12 +201,12 @@
         {#each results.artists as artist}
           <!-- svelte-ignore a11y-click-events-have-key-events -->
           <div class="song-item" on:click={() => openDetail(artist.id, 'artist', artist.name)}>
-            <img class="song-art" src={artist.image} alt="" style="border-radius:50%;width:44px;height:44px;object-fit:cover;flex-shrink:0"/>
-            <div class="song-info" style="flex:1;min-width:0">
+            <img class="song-art result-thumb result-thumb--circle" src={artist.image} alt="" />
+            <div class="song-info result-info">
               <div class="song-title">{artist.name}</div>
               <div class="song-meta">{artist.subtitle}</div>
             </div>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--fg3);flex-shrink:0"><path d="M9 18l6-6-6-6"/></svg>
+            <svg class="result-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
           </div>
         {/each}
       {/if}
@@ -215,12 +216,12 @@
         {#each results.playlists as pl}
           <!-- svelte-ignore a11y-click-events-have-key-events -->
           <div class="song-item" on:click={() => openDetail(pl.id, 'playlist', pl.name)}>
-            <img class="song-art" src={pl.image} alt="" style="border-radius:6px;width:44px;height:44px;object-fit:cover;flex-shrink:0"/>
-            <div class="song-info" style="flex:1;min-width:0">
+            <img class="song-art result-thumb" src={pl.image} alt="" />
+            <div class="song-info result-info">
               <div class="song-title">{pl.name}</div>
               <div class="song-meta">{pl.subtitle}</div>
             </div>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--fg3);flex-shrink:0"><path d="M9 18l6-6-6-6"/></svg>
+            <svg class="result-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
           </div>
         {/each}
       {/if}
@@ -230,7 +231,7 @@
   <!-- Detail slide-in (album / playlist / artist) -->
   <div id="search-detail" class:open={detailOpen}>
     <div class="detail-hdr">
-      <button class="back-btn" on:click={() => detailOpen = false}>‹ Search</button>
+      <BackButton label="Search" onClick={() => detailOpen = false} />
       <div class="detail-title">{detailType !== 'artist' ? detailTitle : ''}</div>
       <div></div>
     </div>
@@ -259,7 +260,7 @@
       <!-- Albums -->
       {#if artistAlbums.length}
         <div class="detail-section-title">Albums</div>
-        <div class="h-scroll" style="padding: 0 16px 16px; gap: 10px;">
+        <div class="h-scroll artist-albums-scroll">
           {#each artistAlbums as album}
             <!-- svelte-ignore a11y-click-events-have-key-events -->
             <div class="content-card" on:click={() => openAlbumFromArtist(album.id, album.name)}>
@@ -285,7 +286,7 @@
   <!-- Sub-detail: album from artist view -->
   <div id="search-subdetail" class:open={subDetailOpen}>
     <div class="detail-hdr">
-      <button class="back-btn" on:click={() => subDetailOpen = false}>‹ {detailTitle}</button>
+      <BackButton label={detailTitle || 'Search'} onClick={() => subDetailOpen = false} />
       <div class="detail-title">{subDetailTitle}</div>
       <div></div>
     </div>
@@ -312,7 +313,7 @@
   #search-chips { display: flex; gap: 6px; overflow-x: auto; }
   .chip { padding: 5px 12px; border-radius: 20px; font-size: 12px; background: var(--bg3); color: var(--fg3); border: 1px solid rgba(255,255,255,.08); white-space: nowrap; }
   .chip.active { background: var(--accent); color: #fff; border-color: transparent; }
-  .section-title { font-size: 13px; font-weight: 600; color: var(--fg3); padding: 10px 16px 4px; text-transform: uppercase; letter-spacing: .05em; }
+  .section-title { font-size: 13px; font-weight: 600; color: var(--fg3); padding: 10px 16px 4px; text-transform: uppercase; letter-spacing: var(--ls-section, .05em); }
   .song-item { display: flex; align-items: center; gap: 10px; padding: 8px 16px; cursor: pointer; }
   .song-item:active { background: rgba(255,255,255,.05); }
   .song-title { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -333,10 +334,10 @@
   }
   #search-subdetail.open { transform: translateX(0); }
   .detail-hdr { display: flex; align-items: center; justify-content: space-between; padding: 16px 16px 8px; padding-top: calc(16px + env(safe-area-inset-top)); }
-  .back-btn { font-size: 15px; color: var(--accent); }
+  /* D11: back-btn style in BackButton.svelte */
   .detail-title { font-size: 16px; font-weight: 700; text-align: center; flex: 1; }
   .empty-wrap { display: flex; align-items: center; justify-content: center; padding: 60px 16px; color: var(--fg3); font-size: 14px; }
-  .detail-section-title { font-size: 13px; font-weight: 600; color: var(--fg3); padding: 12px 16px 4px; text-transform: uppercase; letter-spacing: .05em; }
+  .detail-section-title { font-size: 13px; font-weight: 600; color: var(--fg3); padding: 12px 16px 4px; text-transform: uppercase; letter-spacing: var(--ls-section, .05em); }
   .artist-hero { position: relative; width: 100%; aspect-ratio: 1; max-height: 260px; overflow: hidden; }
   .artist-hero-img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .artist-hero-overlay { position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,.85) 0%, transparent 50%); display: flex; flex-direction: column; justify-content: flex-end; padding: 16px; }
@@ -345,8 +346,17 @@
   .artist-hero-text { font-size: 26px; font-weight: 800; padding: 20px 16px 8px; }
   .h-scroll { display: flex; overflow-x: auto; }
   .h-scroll::-webkit-scrollbar { display: none; }
-  .content-card { flex-shrink: 0; width: 120px; cursor: pointer; }
+  /* D24: card press feedback */
+  .content-card { flex-shrink: 0; width: 120px; cursor: pointer; transition: transform .12s ease, opacity .12s ease; }
+  .content-card:active { transform: scale(0.96); opacity: 0.85; }
   .card-img { width: 120px; height: 120px; border-radius: 10px; object-fit: cover; display: block; }
   .card-name { font-size: 12px; font-weight: 600; margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .card-sub { font-size: 11px; color: var(--fg3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* D30: 11→12px for better legibility */
+  .card-sub { font-size: 12px; color: var(--fg3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* D25: extracted from inline styles */
+  .result-thumb { border-radius: 6px; width: 44px; height: 44px; object-fit: cover; flex-shrink: 0; loading: lazy; }
+  .result-thumb--circle { border-radius: 50%; }
+  .result-info { flex: 1; min-width: 0; }
+  .result-chevron { color: var(--fg3); flex-shrink: 0; }
+  .artist-albums-scroll { padding: 0 16px 16px; gap: 10px; }
 </style>
