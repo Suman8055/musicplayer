@@ -98,7 +98,6 @@ export async function play(song, newQueue, idx) {
       playing.set(true);
       userPaused.set(false);
       Log.info('Playback (offline)', { name: song.name });
-      setTimeout(() => { if (get(nowSong)?.id === song.id) audioEngine.measureAndApplyLufs(song); }, 500);
 
     } else {
       // ── Network stream path ──────────────────────────────────────────────
@@ -146,7 +145,6 @@ export async function play(song, newQueue, idx) {
       userPaused.set(false);
       _intelPlayStartTs = Date.now();
       Log.info('Playback started', { name: song.name, artist: song.artist });
-      setTimeout(() => { if (get(nowSong)?.id === song.id) audioEngine.measureAndApplyLufs(song); }, 500);
     }
 
     setTimeout(() => preloadNext(), 500); // start preloading next song early — reduces Next-tap stutter

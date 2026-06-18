@@ -3,7 +3,8 @@
 import { decodeHtml, bestImg } from './utils.js';
 import { Log } from './logger.js';
 
-export const APP_VERSION = '5.2.44';
+
+export const APP_VERSION = '5.2.47';
 export const STORE_KEY   = 'mbx_v2';
 export const ENV_KEY     = 'mbx_env';
 // DES-ECB key removed — was dead code from the old SAAVN stream URL decryption path.

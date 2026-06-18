@@ -14,13 +14,6 @@
   $: eqOn   = $eqState?.on     ?? true;
   $: preset = $eqState?.preset ?? 'Custom';
 
-  let lufsOn = audioEngine.getLufsOn();
-  function toggleLufs() {
-    lufsOn = !lufsOn;
-    audioEngine.setLufsOn(lufsOn);
-    toast(lufsOn ? 'Volume normalisation on' : 'Volume normalisation off');
-  }
-
   function toggleCrossfeed() {
     audioEngine.setCrossfeedEnabled(!$crossfeedOn);
     toast(!$crossfeedOn ? 'Headphone crossfeed on' : 'Headphone crossfeed off');
@@ -122,20 +115,6 @@
           <span class="toggle-knob"></span>
         </button>
       </div>
-    </div>
-  </div>
-
-  <!-- Playback -->
-  <div class="settings-section">
-    <div class="section-label">PLAYBACK</div>
-    <div class="settings-row">
-      <div>
-        <div class="settings-row-label">Volume Normalisation</div>
-        <div class="settings-row-desc">Keeps all songs at the same loudness level</div>
-      </div>
-      <button class="toggle-btn" class:on={lufsOn} on:click={toggleLufs} aria-label="Toggle volume normalisation">
-        <span class="toggle-knob"></span>
-      </button>
     </div>
   </div>
 
