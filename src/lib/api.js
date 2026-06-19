@@ -4,7 +4,7 @@ import { decodeHtml, bestImg } from './utils.js';
 import { Log } from './logger.js';
 
 
-export const APP_VERSION = '5.2.49';
+export const APP_VERSION = '5.2.50';
 export const STORE_KEY   = 'mbx_v2';
 export const ENV_KEY     = 'mbx_env';
 // DES-ECB key removed — was dead code from the old SAAVN stream URL decryption path.
@@ -316,21 +316,75 @@ export async function fetchModules(language = 'hindi') {
   return null;
 }
 
+// Normalise a song from the saavn.8man.dev API format (different schema to sigma)
+function normSaavnSong(s) {
+  const pa = s.artists?.primary || [];
+  const artist = Array.isArray(pa) ? pa.map(a => a.name || '').filter(Boolean).join(', ')
+               : decodeHtml(s.primaryArtists || '');
+  const song = {
+    id:       s.id,
+    name:     decodeHtml(s.name || s.title || ''),
+    artist,
+    album:    decodeHtml(s.album?.name || ''),
+    language: s.language || '',
+    image:    bestImg(s.image, '150x150'),
+    duration: parseInt(s.duration || 0),
+  };
+  song._lang = classifyLanguage(song);
+  return song;
+}
+
+// Fetch real playlist songs via saavn.8man.dev (CORS-blocked directly, routed via proxy)
+async function fetchPlaylistSongsDirect(playlistId) {
+  const url = `https://saavn.8man.dev/api/playlists?id=${encodeURIComponent(playlistId)}&limit=50`;
+  const r = await proxyFetch(url);
+  if (!r.ok) throw new Error('proxy HTTP ' + r.status);
+  const data = await r.json();
+  return (data?.data?.songs || []).map(normSaavnSong);
+}
+
+// Fetch real album songs via saavn.8man.dev (fallback when sigma returns empty)
+async function fetchAlbumSongsDirect(albumId) {
+  const url = `https://saavn.8man.dev/api/albums?id=${encodeURIComponent(albumId)}`;
+  const r = await proxyFetch(url);
+  if (!r.ok) throw new Error('proxy HTTP ' + r.status);
+  const data = await r.json();
+  return (data?.data?.songs || []).map(normSaavnSong);
+}
+
 export async function fetchAlbumSongs(albumId) {
+  // Try sigma first (fast, direct CORS)
   try {
     const r = await apiFetch(`${SIGMA_API}/albums?id=${encodeURIComponent(albumId)}`, { timeout: 8000, retries: 1 });
     const data = await r.json();
-    if (data.status === 'SUCCESS') return (data.data?.songs || []).map(normSigmaSong);
-  } catch (e) { Log.warn('fetchAlbumSongs failed', { albumId, err: e.message }); }
+    if (data.status === 'SUCCESS') {
+      const songs = (data.data?.songs || []).map(normSigmaSong);
+      if (songs.length) return songs;
+    }
+  } catch (e) { Log.warn('fetchAlbumSongs sigma failed', { albumId, err: e.message }); }
+  // Fallback: saavn.8man.dev via proxy (returns real tracks)
+  try {
+    const songs = await fetchAlbumSongsDirect(albumId);
+    if (songs.length) return songs;
+  } catch (e) { Log.warn('fetchAlbumSongs proxy failed', { albumId, err: e.message }); }
   return [];
 }
 
 export async function fetchPlaylistSongs(playlistId) {
+  // Try sigma first (fast, direct CORS) — returns empty for editorial/chart playlists
   try {
     const r = await apiFetch(`${SIGMA_API}/playlists?id=${encodeURIComponent(playlistId)}`, { timeout: 8000, retries: 1 });
     const data = await r.json();
-    if (data.status === 'SUCCESS') return (data.data?.songs || []).map(normSigmaSong);
-  } catch (e) { Log.warn('fetchPlaylistSongs failed', { playlistId, err: e.message }); }
+    if (data.status === 'SUCCESS') {
+      const songs = (data.data?.songs || []).map(normSigmaSong);
+      if (songs.length) return songs;
+    }
+  } catch (e) { Log.warn('fetchPlaylistSongs sigma failed', { playlistId, err: e.message }); }
+  // Fallback: saavn.8man.dev via proxy — returns real songs for ALL playlist types
+  try {
+    const songs = await fetchPlaylistSongsDirect(playlistId);
+    if (songs.length) return songs;
+  } catch (e) { Log.warn('fetchPlaylistSongs proxy failed', { playlistId, err: e.message }); }
   return [];
 }
 

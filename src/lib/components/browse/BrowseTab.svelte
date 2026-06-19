@@ -80,20 +80,16 @@
     detailOpen = true;
     detailLoading = true;
     try {
+      // fetchPlaylistSongs/fetchAlbumSongs now handle sigma→proxy fallback internally
       let songs = type === 'playlist' ? await fetchPlaylistSongs(id) : await fetchAlbumSongs(id);
       let filtered = filterByLanguage(songs, activeLang);
-      // Upstream API returns 0 songs for many English chart playlists — fall back to search
+      if (filtered.length === 0 && songs.length) filtered = songs; // proxy returned songs, wrong lang tag
+      // Last resort: both sigma and proxy failed — search by title
       if (filtered.length === 0 && activeLang) {
         const base = title.replace(/[-–—]\s*(english|hindi|telugu|tamil|punjabi)\s*$/i, '').trim();
-        // Multi-attempt: strip progressively until we get results
-        // Some words like "Streamed", "Hot" cause sigma search to return 0 — remove them
         const NOISE = /\b(most|top|best|all|the|of|streamed|searched|trending|today|international|charts|hot|new|latest|40|20|50)\b/gi;
         const stripped = base.replace(NOISE, '').replace(/\s+/g,' ').trim();
-        const attempts = [
-          base ? `${base} ${activeLang}` : null,
-          stripped ? `${stripped} ${activeLang}` : null,
-          `top ${activeLang} songs`,
-        ].filter(Boolean);
+        const attempts = [base ? `${base} ${activeLang}` : null, stripped ? `${stripped} ${activeLang}` : null, `top ${activeLang} songs`].filter(Boolean);
         for (const q of attempts) {
           const res = await searchSongs(q, 30).catch(() => []);
           filtered = filterByLanguage(res, activeLang);
@@ -184,12 +180,8 @@
   $: trendingSongs = (modules?.trending?.songs ?? []).map(normTrendingItem).filter(s => s.id);
   // Trending albums — separate horizontal row
   $: trendingAlbums = (modules?.trending?.albums ?? []).filter(a => a.type === 'album').slice(0, 10);
-  // New Releases — API mixes song+album types; keep albums, include singles only when <4 proper albums
-  $: newReleases = (() => {
-    const all = modules?.albums ?? [];
-    const albums = all.filter(a => a.type === 'album');
-    return (albums.length >= 4 ? albums : all).slice(0, 15);
-  })();
+  // New Releases — show all 20 items (albums + singles). Reference app shows all, no type filter.
+  $: newReleases = (modules?.albums ?? []).slice(0, 20);
   // Top Artists — from modules.artists array
   $: topArtists = (modules?.artists ?? []).slice(0, 15).map(a => ({
     id:    a.id,
