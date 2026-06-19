@@ -84,12 +84,22 @@
       let filtered = filterByLanguage(songs, activeLang);
       // Upstream API returns 0 songs for many English chart playlists — fall back to search
       if (filtered.length === 0 && activeLang) {
-        // Strip language suffix, keep full title as query (search handles natural language well)
-        const query = title.replace(/[-–—]\s*(english|hindi|telugu|tamil|punjabi)\s*$/i, '').trim();
-        const fallback = await searchSongs(query ? `${query} ${activeLang}` : `top ${activeLang} songs`, 30).catch(() => []);
-        filtered = filterByLanguage(fallback, activeLang);
-        // If filtered is still empty (e.g. all results are wrong lang), relax the language filter
-        if (filtered.length === 0) filtered = fallback.slice(0, 20);
+        const base = title.replace(/[-–—]\s*(english|hindi|telugu|tamil|punjabi)\s*$/i, '').trim();
+        // Multi-attempt: strip progressively until we get results
+        // Some words like "Streamed", "Hot" cause sigma search to return 0 — remove them
+        const NOISE = /\b(most|top|best|all|the|of|streamed|searched|trending|today|international|charts|hot|new|latest|40|20|50)\b/gi;
+        const stripped = base.replace(NOISE, '').replace(/\s+/g,' ').trim();
+        const attempts = [
+          base ? `${base} ${activeLang}` : null,
+          stripped ? `${stripped} ${activeLang}` : null,
+          `top ${activeLang} songs`,
+        ].filter(Boolean);
+        for (const q of attempts) {
+          const res = await searchSongs(q, 30).catch(() => []);
+          filtered = filterByLanguage(res, activeLang);
+          if (filtered.length === 0) filtered = res.slice(0, 20);
+          if (filtered.length > 0) break;
+        }
       }
       detailSongs = filtered;
       cacheSongs(detailSongs);
@@ -174,11 +184,11 @@
   $: trendingSongs = (modules?.trending?.songs ?? []).map(normTrendingItem).filter(s => s.id);
   // Trending albums — separate horizontal row
   $: trendingAlbums = (modules?.trending?.albums ?? []).filter(a => a.type === 'album').slice(0, 10);
-  // New Releases — API mixes song+album types; keep albums, but if list is thin include singles too
+  // New Releases — API mixes song+album types; keep albums, include singles only when <4 proper albums
   $: newReleases = (() => {
     const all = modules?.albums ?? [];
     const albums = all.filter(a => a.type === 'album');
-    return (albums.length >= 6 ? albums : all).slice(0, 15);
+    return (albums.length >= 4 ? albums : all).slice(0, 15);
   })();
   // Top Artists — from modules.artists array
   $: topArtists = (modules?.artists ?? []).slice(0, 15).map(a => ({
