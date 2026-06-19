@@ -20,7 +20,10 @@ export const Log = {
     this.info('App started', { version });
   },
   _write(level, msg, data) {
-    const entry = { ts: new Date().toISOString(), level, msg, data: data || null };
+    // Scrub accidental PAT leakage from any log entry
+    const _scrub = s => typeof s === 'string' ? s.replace(/(ghp_|github_pat_)[A-Za-z0-9_]+/g, '[REDACTED]') : s;
+    const _scrubObj = o => o ? JSON.parse(JSON.stringify(o, (k, v) => _scrub(v))) : o;
+    const entry = { ts: new Date().toISOString(), level, msg: _scrub(msg), data: _scrubObj(data || null) };
     this._store.push(entry);
     if (this._store.length > LOG_MAX) this._store.shift();
     try { localStorage.setItem(LOG_KEY, JSON.stringify(this._store)); } catch {}

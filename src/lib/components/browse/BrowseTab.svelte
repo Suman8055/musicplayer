@@ -54,6 +54,15 @@
       ]).then(r => r.map(x => x.status === 'fulfilled' ? x.value : null));
       // D8: if all primary data sources failed, show error state
       if (!modules && !charts?.length) browseError = true;
+      // /featured-playlists endpoint fails for English — use modules.playlists as fallback
+      if ((!featuredPlaylists || featuredPlaylists.length === 0) && modules?.playlists?.length) {
+        featuredPlaylists = modules.playlists.map(p => ({
+          id:       p.id,
+          name:     decodeHtml(p.title || p.name || ''),
+          subtitle: p.subtitle || (p.songCount ? `${p.songCount} songs` : ''),
+          image:    bestImg(p.image, '150x150'),
+        }));
+      }
     } catch {
       browseError = true;
     } finally { loading = false; }
@@ -75,9 +84,12 @@
       let filtered = filterByLanguage(songs, activeLang);
       // Upstream API returns 0 songs for many English chart playlists — fall back to search
       if (filtered.length === 0 && activeLang) {
+        // Strip language suffix, keep full title as query (search handles natural language well)
         const query = title.replace(/[-–—]\s*(english|hindi|telugu|tamil|punjabi)\s*$/i, '').trim();
-        const fallback = await searchSongs(`${query} ${activeLang}`, 30).catch(() => []);
+        const fallback = await searchSongs(query ? `${query} ${activeLang}` : `top ${activeLang} songs`, 30).catch(() => []);
         filtered = filterByLanguage(fallback, activeLang);
+        // If filtered is still empty (e.g. all results are wrong lang), relax the language filter
+        if (filtered.length === 0) filtered = fallback.slice(0, 20);
       }
       detailSongs = filtered;
       cacheSongs(detailSongs);
@@ -117,6 +129,23 @@
 
   function playSong(song, songs, idx) { play(song, songs, idx); }
 
+  function openNewRelease(item) {
+    if (item.type === 'song') {
+      // Single-track release from modules.albums — play it directly
+      const song = {
+        id: item.id,
+        name: decodeHtml(item.name || ''),
+        artist: Array.isArray(item.primaryArtists) ? item.primaryArtists.map(a => a.name).join(', ') : '',
+        image: bestImg(item.image, '150x150'),
+        duration: 0,
+        _lang: (item.language || '').toLowerCase() || null,
+      };
+      play(song, [song], 0);
+    } else {
+      openDetail(item.id, 'album', item.name || item.title);
+    }
+  }
+
   function onMoreSong(song) {
     const dl = get(downloadedIds).has(song.id);
     const pls = get(playlists);
@@ -145,8 +174,12 @@
   $: trendingSongs = (modules?.trending?.songs ?? []).map(normTrendingItem).filter(s => s.id);
   // Trending albums — separate horizontal row
   $: trendingAlbums = (modules?.trending?.albums ?? []).filter(a => a.type === 'album').slice(0, 10);
-  // New Releases — API mixes song+album types, keep only proper albums
-  $: newReleases = (modules?.albums ?? []).filter(a => a.type === 'album').slice(0, 15);
+  // New Releases — API mixes song+album types; keep albums, but if list is thin include singles too
+  $: newReleases = (() => {
+    const all = modules?.albums ?? [];
+    const albums = all.filter(a => a.type === 'album');
+    return (albums.length >= 6 ? albums : all).slice(0, 15);
+  })();
   // Top Artists — from modules.artists array
   $: topArtists = (modules?.artists ?? []).slice(0, 15).map(a => ({
     id:    a.id,
@@ -256,7 +289,7 @@
         <div class="h-scroll">
           {#each newReleases as album}
             <!-- svelte-ignore a11y-click-events-have-key-events -->
-            <div class="content-card" on:click={() => openDetail(album.id, 'album', album.name || album.title)}>
+            <div class="content-card" on:click={() => openNewRelease(album)}>
               <img src={bestImg(album.image, '150x150')} alt="" class="card-img" loading="lazy" />
               <div class="card-name">{album.name || album.title}</div>
               <div class="card-sub">{Array.isArray(album.primaryArtists) ? album.primaryArtists.map(a=>a.name).join(', ') : (album.subtitle || album.language || '')}</div>
