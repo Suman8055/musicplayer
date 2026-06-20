@@ -293,6 +293,12 @@ export function getDebugInfo() {
     eqGains:              [..._eqGains],
     eqNodes:              _eqNodes,
     crossfeedOn:          _cfOn,
+    limiterAttack:        _limiterCompressor?.attack.value     ?? null,
+    limiterRelease:       _limiterCompressor?.release.value    ?? null,
+    eqHeadroomGainValue:  _eqHeadroomGain?.gain.value          ?? null,
+    preMixGainValue:      _preMixGain?.gain.value              ?? null,
+    volumeGainValue:      _volumeGain?.gain.value              ?? null,
+    audioCtxSampleRate:   _audioCtx?.sampleRate                ?? null,
   };
 }
 
@@ -504,6 +510,7 @@ function _rewireAudio() {
     _teardownEqChain();
     _teardownCrossfeed();
     _teardownStereoWidener();
+    if (_callbacks.onLog) _callbacks.onLog('info', 'EQ rewire: gainNode pre-teardown', { gainValue: _gainNode?.gain.value ?? null, volumeGain: _volumeGain?.gain.value ?? null, ctxState: _audioCtx?.state ?? 'unknown' });
     _gainNode.disconnect();
     // NOTE: _gainNode.disconnect() only severs _gainNode's outputs — the upstream
     // _mediaSource→_gainNode edge is never broken, so we must NOT reconnect it here

@@ -371,15 +371,21 @@ async function preloadNext() {
 // Two entries let CarPlay pick the sharpest size for each context without upscaling.
 // Raw CDN URLs are rejected by Tesla/Bluetooth AVRCP firmware (403 outside browser).
 // data: URLs embed bytes directly — the OS passes them over AVRCP without HTTP.
-async function _fetchArtDataUrls(url, signal) {
+async function _fetchArtDataUrls(url, signal, songId) {
+  const _fetchStart = Date.now();
   try {
     const res = await fetch(url, { signal });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      Log.warn('MediaSession: artwork HTTP error', { url, status: res.status, statusText: res.statusText });
+      return null;
+    }
     const blob = await res.blob();
     return await new Promise(resolve => {
       const img = new Image();
       const objUrl = URL.createObjectURL(blob);
+      const _decodeStart = Date.now();
       img.onload = () => {
+        Log.info('MediaSession: artwork decoded', { songId, decodeMs: Date.now() - _decodeStart });
         const draw = (size, quality) => {
           const cv = document.createElement('canvas');
           cv.width = size; cv.height = size;
@@ -393,8 +399,10 @@ async function _fetchArtDataUrls(url, signal) {
       img.src = objUrl;
     });
   } catch (e) {
-    // Let AbortError bubble — caller checks nowSong.id after await anyway
-    if (e?.name === 'AbortError') return null;
+    if (e?.name === 'AbortError') {
+      Log.info('MediaSession: artwork fetch aborted', { songId, elapsedMs: Date.now() - _fetchStart });
+      return null;
+    }
     return null;
   }
 }
@@ -429,12 +437,12 @@ async function _updateMediaSession(song) {
   _msFetchingSongId = songId;
   const imgUrl = song.image.replace(/\d+x\d+/, '500x500');
   Log.info('MediaSession: fetching artwork', { songId, url: imgUrl });
-  const art = await _fetchArtDataUrls(imgUrl, _msAbortCtrl.signal);
+  const art = await _fetchArtDataUrls(imgUrl, _msAbortCtrl.signal, songId);
   _msAbortCtrl = null;
   _msFetchingSongId = null;
 
   if (!art) { Log.warn('MediaSession: artwork fetch returned null', { songId, url: imgUrl }); return; }
-  if (get(nowSong)?.id !== songId) { Log.info('MediaSession: artwork discarded (song changed)', { songId }); return; }
+  if (get(nowSong)?.id !== songId) { Log.info('MediaSession: artwork discarded (song changed)', { fetchedSongId: songId, currentSongId: get(nowSong)?.id ?? null }); return; }
   try {
     // Two artwork sizes: iOS Safari picks the first entry for the small lock screen/CarPlay widget
     // (~96px context) and the second for the large Now Playing full-screen view (~512px context).

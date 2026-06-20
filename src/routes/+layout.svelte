@@ -164,7 +164,7 @@
         name:     $nowSong?.name   ?? null,
         duration: audioEl.duration ?? null,
       });
-      if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
+      if ('mediaSession' in navigator) { navigator.mediaSession.playbackState = 'paused'; Log.info('MediaSession: playbackState →', { state: 'paused', context: 'ended' }); }
       onEnded();
     });
 
@@ -212,8 +212,7 @@
       if (!_isActiveTab) return;
       if (document.hidden) {
         audioEngine.startBgKeepAlive();
-        if ('mediaSession' in navigator && $playing && !$userPaused)
-          navigator.mediaSession.playbackState = 'playing';
+        if ('mediaSession' in navigator && $playing && !$userPaused) { navigator.mediaSession.playbackState = 'playing'; Log.info('MediaSession: playbackState →', { state: 'playing', context: 'visibilitychange-bg' }); }
         return;
       }
       audioEngine.stopBgKeepAlive();
@@ -225,8 +224,7 @@
         if (!$userPaused && $nowSong && audioEl.paused) {
           audioEl.play().catch(() => {});
         }
-        if ('mediaSession' in navigator)
-          navigator.mediaSession.playbackState = (!$userPaused && $nowSong) ? 'playing' : 'paused';
+        if ('mediaSession' in navigator) { const _s = (!$userPaused && $nowSong) ? 'playing' : 'paused'; navigator.mediaSession.playbackState = _s; Log.info('MediaSession: playbackState →', { state: _s, context: 'visibilitychange-fg' }); }
       })();
     });
 
@@ -240,15 +238,13 @@
     });
 
     _on(window, 'pagehide', () => {
-      if ($playing && !$userPaused && 'mediaSession' in navigator)
-        navigator.mediaSession.playbackState = 'playing';
+      if ($playing && !$userPaused && 'mediaSession' in navigator) { navigator.mediaSession.playbackState = 'playing'; Log.info('MediaSession: playbackState →', { state: 'playing', context: 'pagehide' }); }
       const blobUrl = $offlineBlobUrl;
       if (blobUrl) { try { URL.revokeObjectURL(blobUrl); } catch {} offlineBlobUrl.set(null); }
     });
 
     _on(document, 'freeze', () => {
-      if ($playing && !$userPaused && 'mediaSession' in navigator)
-        navigator.mediaSession.playbackState = 'playing';
+      if ($playing && !$userPaused && 'mediaSession' in navigator) { navigator.mediaSession.playbackState = 'playing'; Log.info('MediaSession: playbackState →', { state: 'playing', context: 'freeze' }); }
     });
 
     _on(document, 'resume', () => {
