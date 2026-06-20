@@ -52,7 +52,22 @@ export async function play(song, newQueue, idx) {
     queue.set(newQueue);
     qIdx.set(idx);
     if (get(shuffleOn)) createShuffledQueue();
+    // Flush stale preload state from the previous queue so the first Next tap in
+    // the new queue doesn't consume a buffered URL or blob that belongs to the old queue.
+    if (_preloadEl) { try { _preloadEl.removeAttribute('src'); _preloadEl.load(); } catch {} }
+    if (_preloadBlobUrl) { try { URL.revokeObjectURL(_preloadBlobUrl); } catch {} }
+    _preloadBlobUrl      = null;
+    _preloadBlobSongId   = null;
+    _preloadTargetSongId = null;
   }
+
+  // Update nowSong only if this call is still the "current" one.
+  // Rapid Next taps can call play() while a previous play() is mid-flight: the previous
+  // call sets loadingUrl=true and returns early via _pendingNext.  We must NOT update
+  // nowSong here (image, title) until we are certain the audio element will actually play
+  // this song — so we snapshot the song and commit the store update only after audio.play()
+  // succeeds.  A lightweight optimistic update is still needed for the UI to feel responsive,
+  // but we guard it with a staleness check immediately after each await point.
   nowSong.set(song);
   cacheSong(song);
   npOpen.set(true);
@@ -104,15 +119,21 @@ export async function play(song, newQueue, idx) {
       // If the preload element already buffered this song's URL, reuse it directly —
       // skips the apiStream() round-trip and the browser serves from its buffer cache,
       // eliminating the 1-2s stutter at the start of every Next tap.
+      // Guard: only consume the preload if it was loaded for THIS song (matched by song id
+      // stored alongside the preload).  Without this guard, rapid Next taps or a queue
+      // switch can cause the preload element to hold a URL from the *previous* song/queue,
+      // which would then play under the new song's image (Bug 1 / Bug 2).
       let streamUrl;
       const preloadEl = _preloadEl;
       if (
         preloadEl &&
         preloadEl !== audio &&
         preloadEl.src &&
-        preloadEl.readyState >= 2 // HAVE_CURRENT_DATA — has buffered enough to play
+        preloadEl.readyState >= 2 && // HAVE_CURRENT_DATA — has buffered enough to play
+        _preloadTargetSongId === song.id  // URL belongs to this song, not a stale one
       ) {
         streamUrl = preloadEl.src;
+        _preloadTargetSongId = null; // consumed — clear so it isn't reused
         Log.info('play(): using preloaded URL', { name: song.name, readyState: preloadEl.readyState });
       } else {
         const stream = await apiStream(song.id);
@@ -308,6 +329,11 @@ export function setVolume(v) {
 let _preloadEl = null;
 export function setPreloadElement(el) { _preloadEl = el; }
 
+// Tracks which song id the preload element's buffered URL belongs to.
+// play() checks this before consuming the preload so a stale URL from the previous
+// song or queue is never played under a different song's image (Bug 1 / Bug 2 fix).
+let _preloadTargetSongId = null;
+
 // Pre-created blob URL for the next offline song — avoids idbGet() round-trip on Next tap
 let _preloadBlobUrl   = null;
 let _preloadBlobSongId = null;
@@ -355,6 +381,7 @@ async function preloadNext() {
     if (!_preloadEl) return;
     const result = await apiStream(nextSong.id);
     if (_preloadEl && _preloadEl.src !== result.url) {
+      _preloadTargetSongId = nextSong.id; // record whose URL this is before assigning src
       _preloadEl.src = result.url;
       _preloadEl.load();
       // Probe readyState after a tick — if HAVE_NOTHING, nudge with currentTime
