@@ -65,7 +65,7 @@
   #mini-info { flex: 1; min-width: 0; }
   #mini-title { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #mini-artist { font-size: 12px; color: var(--fg3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  #mini-btns { display: flex; align-items: center; gap: 4px; }
+  #mini-btns { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
   .mini-btn { color: var(--fg); padding: 6px; border-radius: 50%; }
   .mini-btn:active { background: rgba(255,255,255,.1); }
   #mini-bar {
