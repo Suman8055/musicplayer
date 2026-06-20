@@ -72,6 +72,43 @@ export async function idbGetAll() {
   });
 }
 
+export async function exportAllDownloads(toastFn) {
+  const db = await openIDB();
+  const songs = await new Promise((res, rej) => {
+    const req = db.transaction(IDB_STORE,'readonly').objectStore(IDB_STORE).getAll();
+    req.onsuccess = () => res(req.result || []);
+    req.onerror   = () => rej(req.error);
+  });
+  if (!songs.length) { toastFn('No downloaded songs'); return 0; }
+
+  let exported = 0;
+  for (const meta of songs) {
+    const blobRec = await new Promise((res, rej) => {
+      const req = db.transaction(IDB_BLOBS,'readonly').objectStore(IDB_BLOBS).get(meta.id);
+      req.onsuccess = () => res(req.result || null);
+      req.onerror   = () => rej(req.error);
+    });
+    const blob = blobRec?.blob ?? meta.blob ?? null;
+    if (!blob) continue;
+
+    const safe = s => (s || '').replace(/[/\\:*?"<>|]/g, '').trim();
+    const filename = `MusicPlayer - ${safe(meta.name)} - ${safe(meta.artist)}.mp3`;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    // Small delay between triggers — iOS Safari queues downloads sequentially
+    await new Promise(r => setTimeout(r, 600));
+    URL.revokeObjectURL(url);
+    exported++;
+    toastFn(`Exporting ${exported} / ${songs.length}…`);
+  }
+  return exported;
+}
+
 export async function idbClear() {
   const db = await openIDB();
   return new Promise((res, rej) => {

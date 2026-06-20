@@ -5,7 +5,7 @@
   import { EQ_BANDS, EQ_PRESETS, crossfeedOn } from '$lib/audioEngine.js';
   import { Log, logTick, getGhCfg, saveGhCfg, uploadLogsToGithub } from '$lib/logger.js';
   import { APP_VERSION, getEnv, setEnv, isStaging } from '$lib/api.js';
-  import { idbGetAll, idbClear } from '$lib/idb.js';
+  import { idbGetAll, idbClear, exportAllDownloads } from '$lib/idb.js';
   import { downloadedIds, playlists } from '$lib/stores/library.js';
   import { intelGetStats, intelReset } from '$lib/smartPlay.js';
   import EQSliders from '$lib/components/player/EQSliders.svelte'; // D26
@@ -34,6 +34,18 @@
     cfg.pat = ghPat;
     saveGhCfg(cfg);
     toast('Token saved');
+  }
+
+  let exporting = false;
+  async function exportDownloads() {
+    if (exporting) return;
+    exporting = true;
+    try {
+      const count = await exportAllDownloads(t => toast(t));
+      if (count > 0) toast(`Exported ${count} song${count > 1 ? 's' : ''} — check Files → Downloads`);
+    } finally {
+      exporting = false;
+    }
   }
 
   async function clearDownloads() {
@@ -204,6 +216,12 @@
     <div class="settings-row">
       <span>Downloaded songs</span><span class="settings-val">{$downloadedIds.size}</span>
     </div>
+    {#if $downloadedIds.size > 0}
+      <div class="export-hint">Files will save as <em>MusicPlayer - Song - Artist.mp3</em> in Files → Downloads</div>
+      <button class="settings-btn export-btn" on:click={exportDownloads} disabled={exporting}>
+        {exporting ? 'Exporting…' : `Export to Files (${$downloadedIds.size})`}
+      </button>
+    {/if}
     <button class="settings-btn danger" on:click={clearDownloads}>Clear All Downloads</button>
   </div>
 
@@ -283,6 +301,11 @@
   .toggle-btn.on { background: var(--accent); }
   .toggle-knob { position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: transform .2s; display: block; }
   .toggle-btn.on .toggle-knob { transform: translateX(18px); }
+  /* Export to Files */
+  .export-hint { font-size: 11px; color: var(--fg3); margin: 2px 0 6px; line-height: 1.4; }
+  .export-hint em { color: var(--fg2); font-style: normal; }
+  .export-btn { background: var(--accent); color: #fff; width: 100%; margin-bottom: 6px; }
+  .export-btn:disabled { opacity: .6; }
   /* Log viewer */
   .log-view { max-height: 260px; overflow-y: auto; background: var(--bg3); border-radius: var(--radius); padding: 8px; }
   .log-entry { font-size: 11px; font-family: monospace; padding: 2px 0; display: flex; gap: 6px; }
