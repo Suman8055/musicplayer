@@ -8,7 +8,7 @@
 
 const BASE  = self.registration.scope.replace(/\/$/, '');
 
-const CACHE = 'mbx-sk-v5.2.53';
+const CACHE = 'mbx-sk-v5.2.51';
 
 // Shell files — updated by inject-sw-shell.js after build with current chunk hashes
 const SHELL = [
