@@ -8,7 +8,7 @@
 
 const BASE  = self.registration.scope.replace(/\/$/, '');
 
-const CACHE = 'mbx-sk-v5.2.54-71cb722';
+const CACHE = 'mbx-sk-v5.2.55-be6d23f';
 
 // Shell files — updated by inject-sw-shell.js after build with current chunk hashes
 const SHELL = [
@@ -19,15 +19,15 @@ const SHELL = [
   BASE + '/icon-192.png',
   BASE + '/icon-512.png',
   BASE + '/apple-touch-icon.png',
-  BASE + '/_app/immutable/entry/start.DSihQFTd.js',
-  BASE + '/_app/immutable/chunks/WCOEtA-a.js',
+  BASE + '/_app/immutable/entry/start.DTy-zzo8.js',
+  BASE + '/_app/immutable/chunks/DiuEujct.js',
   BASE + '/_app/immutable/chunks/BSw_KR7x.js',
   BASE + '/_app/immutable/chunks/C6MFgNCR.js',
-  BASE + '/_app/immutable/entry/app.jVKaG2oi.js',
+  BASE + '/_app/immutable/entry/app.BpbG2RoE.js',
   BASE + '/_app/immutable/chunks/CmsKOCeN.js',
   BASE + '/_app/immutable/chunks/-In5gsl0.js',
-  BASE + '/_app/immutable/nodes/0.Dq6R79FW.js',
-  BASE + '/_app/immutable/chunks/DEyBMtpB.js',
+  BASE + '/_app/immutable/nodes/0.UCYqfYwz.js',
+  BASE + '/_app/immutable/chunks/_uQ_RJHu.js',
   BASE + '/_app/immutable/assets/BackButton.CxH5YLWp.css',
   BASE + '/_app/immutable/assets/0.X77guUhA.css',
 ];
