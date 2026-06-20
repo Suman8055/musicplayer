@@ -4,7 +4,7 @@
   import * as audioEngine from '$lib/audioEngine.js';
   import { extractAndApplyAccent } from '$lib/colorEngine.js';
   import { gateToken } from '$lib/stores/gate.js';
-  import { onEnded, next, prev, play, setPreloadElement, isTransitioningTrack } from '$lib/playback.js';
+  import { onEnded, next, prev, play, setPreloadElement, isTransitioningTrack, onDeferredPlay, onClearDeferredPlay } from '$lib/playback.js';
   import { Log } from '$lib/logger.js';
   import { APP_VERSION } from '$lib/api.js';
   import { intelPrune } from '$lib/smartPlay.js';
@@ -112,7 +112,11 @@
       onLog: (level, msg, data) => {
         if (level === 'warn') { Log.warn(msg, data ?? null); console.warn('[Engine]', msg, data ?? ''); }
         else { Log.info(msg, data ?? null); console.info('[Engine]', msg, data ?? ''); }
-      }
+      },
+      // Deferred-play callbacks: fired by audioEngine when the AudioContext recovers
+      // from an iOS interrupt. playback.js checks _pendingPlaySong and plays it.
+      onDeferredPlay:      () => onDeferredPlay(),
+      onClearDeferredPlay: () => onClearDeferredPlay(),
     });
 
     // ── Reload recovery: restore song after iOS memory-pressure eviction ──────────

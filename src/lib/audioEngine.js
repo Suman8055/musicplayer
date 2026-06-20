@@ -153,13 +153,14 @@ export function ensureAudioCtx() {
       } else if (state === 'running' && _wasInterrupted) {
         // Interrupt ended — iOS resumed the audio session
         _wasInterrupted = false;
+        const cur = _callbacks.getState?.() ?? {};
         if (_playingBeforeInterrupt) {
-          // We were playing when interrupted (not user-paused) — auto-resume
-          if (_callbacks.onLog) _callbacks.onLog('info', 'AudioContext: interrupt ended, auto-resuming');
+          // We were playing when interrupted (not user-paused) — auto-resume mid-song
+          if (_callbacks.onLog) _callbacks.onLog('info', 'AudioContext: interrupt ended, auto-resuming mid-song');
           setTimeout(() => {
-            const cur = _callbacks.getState?.() ?? {};
+            const cur2 = _callbacks.getState?.() ?? {};
             // Only resume if user has not explicitly paused in the interim
-            if (!cur.userPaused && _audioEl?.paused) {
+            if (!cur2.userPaused && _audioEl?.paused) {
               _audioEl.play().catch(e => {
                 if (_callbacks.onLog) _callbacks.onLog('warn', 'AudioContext: auto-resume after interrupt failed', { err: e?.message });
               });
@@ -167,6 +168,15 @@ export function ensureAudioCtx() {
           }, 300);
         }
         _playingBeforeInterrupt = false;
+        // Fire deferred-play callback regardless — playback.js will check _pendingPlaySong.
+        // This handles the race where onEnded→next()→play() fired into the interrupted context.
+        if (!cur.userPaused && _callbacks.onDeferredPlay) {
+          if (_callbacks.onLog) _callbacks.onLog('info', 'AudioContext: interrupt ended, firing onDeferredPlay');
+          setTimeout(() => {
+            const cur3 = _callbacks.getState?.() ?? {};
+            if (!cur3.userPaused && _callbacks.onDeferredPlay) _callbacks.onDeferredPlay();
+          }, 300);
+        }
       } else if (state === 'suspended' && !cb.userPaused) {
         // Non-interrupt suspension (background throttle, etc.) — try to resume
         setTimeout(() => {
@@ -219,10 +229,20 @@ export async function resumeAudioCtx() {
   }
 }
 
+// Returns the current AudioContext state, or null if not yet created.
+export function getAudioCtxState() {
+  return _audioCtx?.state ?? null;
+}
+
 // ── Playback hooks (called by audio event listeners in +layout.svelte) ────────
 export function onPlaybackStarted()  { startBgKeepAlive(); }
 export function onPlaybackPaused()   { /* keep-alive continues; stopped on user pause */ }
-export function onUserPaused()       { stopBgKeepAlive(); _playingBeforeInterrupt = false; /* user explicitly paused — don't auto-resume on interrupt end */ }
+export function onUserPaused() {
+  stopBgKeepAlive();
+  _playingBeforeInterrupt = false; // user explicitly paused — don't auto-resume on interrupt end
+  // Also discard any song queued for deferred play during an interrupt
+  if (_callbacks.onClearDeferredPlay) _callbacks.onClearDeferredPlay();
+}
 
 export function startBgKeepAlive() {
   stopBgKeepAlive();

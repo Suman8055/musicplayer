@@ -18,6 +18,9 @@ import { smartInjectAhead, smartQueueFill, intelTrackPlay, _artistKey } from './
 
 // Per-session state (not stores — concurrency flags, not reactive UI)
 let _pendingNext      = false;
+// Song queued for deferred play when play() was called into an interrupted AudioContext.
+// Cleared on resume (onDeferredPlay) or user pause (onClearDeferredPlay).
+let _pendingPlaySong  = null;
 // True while play() is in the middle of assigning a new src — suppresses the
 // spurious 'pause' event that the browser fires on src reassignment.
 // Exposed as a getter (not a raw export let) to guarantee bundlers don't inline
@@ -53,6 +56,20 @@ export async function play(song, newQueue, idx) {
     qIdx.set(idx);
     if (get(shuffleOn)) createShuffledQueue();
   }
+  // ── Interrupted AudioContext guard ──────────────────────────────────────────
+  // If the AudioContext is currently 'interrupted' (iOS phone call, Siri, CarPlay handoff),
+  // calling audio.play() into a dead context silently fails — iOS kills the promise
+  // without rejecting it. Queue the song for deferred play instead; audioEngine will
+  // call back via onDeferredPlay() when the interrupt clears.
+  if (audioEngine.getAudioCtxState() === 'interrupted') {
+    Log.info('play() deferred: AudioContext interrupted', { name: song.name, id: song.id });
+    _pendingPlaySong = song;
+    // Still update nowSong so the UI shows the correct track title/artwork
+    nowSong.set(song);
+    cacheSong(song);
+    return;
+  }
+
   nowSong.set(song);
   cacheSong(song);
   npOpen.set(true);
@@ -302,6 +319,25 @@ export function seek(ratio) {
 
 export function setVolume(v) {
   audioEngine.setVolume(v);
+}
+
+// Called by audioEngine via the onDeferredPlay callback when the AudioContext recovers
+// from an interrupted state and there is a song queued for deferred play.
+export function onDeferredPlay() {
+  if (!_pendingPlaySong) return;
+  const song = _pendingPlaySong;
+  _pendingPlaySong = null;
+  Log.info('Deferred play: resuming song that was queued during AudioContext interrupt', { name: song.name, id: song.id });
+  play(song).catch(() => {});
+}
+
+// Called by audioEngine via onClearDeferredPlay when the user explicitly pauses —
+// discard any pending song so it does not auto-start on interrupt recovery.
+export function onClearDeferredPlay() {
+  if (_pendingPlaySong) {
+    Log.info('Deferred play: cleared (user paused)', { name: _pendingPlaySong.name, id: _pendingPlaySong.id });
+    _pendingPlaySong = null;
+  }
 }
 
 // preloadEl is set by +layout.svelte via setPreloadElement() — avoids fragile DOM query
