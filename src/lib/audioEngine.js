@@ -229,22 +229,19 @@ export function startBgKeepAlive() {
   _bgKeepAliveTimer = setInterval(async () => {
     const cb = _callbacks.getState?.() ?? {};
     if (!cb.playing || cb.userPaused || !_audioCtx) return;
-    if (_audioCtx.state === 'suspended') { try { await _audioCtx.resume(); } catch {} }
+    // Always attempt resume — iOS 18 can report state:running while audio is
+    // actually frozen; calling resume() is a no-op when truly running but
+    // re-activates the session when iOS has silently suspended it.
+    try { await _audioCtx.resume(); } catch {}
+    // If the element is paused (iOS suspended the media pipeline), force play().
     if (_audioEl?.paused && !cb.userPaused && cb.nowSong) {
       try { await _audioEl.play(); } catch {}
-      return;
     }
-    try {
-      const osc = _audioCtx.createOscillator();
-      const g   = _audioCtx.createGain();
-      g.gain.value = 0;
-      osc.connect(g);
-      g.connect(_audioCtx.destination);
-      osc.start();
-      osc.stop(_audioCtx.currentTime + 0.001);
-      setTimeout(() => { try { osc.disconnect(); g.disconnect(); } catch {} }, 2);
-    } catch {}
-  }, 10000);
+    // NOTE: the silent oscillator trick (zero-gain osc → destination) was removed.
+    // iOS 18 Safari no longer treats a zero-gain oscillator as active media playback
+    // and still suspends the audio session. The resume() + play() calls above are
+    // the correct keep-alive mechanism.
+  }, 5000); // 5s interval: tighter than 10s to catch iOS suspension within one cycle
 }
 
 export function stopBgKeepAlive() {

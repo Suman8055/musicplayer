@@ -4,7 +4,7 @@
   import * as audioEngine from '$lib/audioEngine.js';
   import { extractAndApplyAccent } from '$lib/colorEngine.js';
   import { gateToken } from '$lib/stores/gate.js';
-  import { onEnded, next, prev, setPreloadElement, isTransitioningTrack } from '$lib/playback.js';
+  import { onEnded, next, prev, play, setPreloadElement, isTransitioningTrack } from '$lib/playback.js';
   import { Log } from '$lib/logger.js';
   import { APP_VERSION } from '$lib/api.js';
   import { intelPrune } from '$lib/smartPlay.js';
@@ -82,6 +82,22 @@
     Log.init(APP_VERSION);
     intelPrune();
 
+    // Parsed early, applied after audioEngine.init() below
+    let _resumePosition = null;
+    let _resumeState = null;
+    try {
+      const _resumeRaw = sessionStorage.getItem('mbx_resume');
+      if (_resumeRaw) { sessionStorage.removeItem('mbx_resume'); _resumeState = JSON.parse(_resumeRaw); }
+    } catch {}
+
+    audioEl.addEventListener('loadedmetadata', () => {
+      if (_resumePosition !== null && _resumePosition > 0) {
+        try { audioEl.currentTime = _resumePosition; } catch {}
+        _resumePosition = null;
+      }
+      duration.set(audioEl.duration || 0);
+    });
+
     // Init audio engine — does NOT create AudioContext yet (lazy, on first gesture)
     audioEngine.init(audioEl, {
       getState: () => ({
@@ -98,6 +114,19 @@
         else { Log.info(msg, data ?? null); console.info('[Engine]', msg, data ?? ''); }
       }
     });
+
+    // ── Reload recovery: restore song after iOS memory-pressure eviction ──────────
+    // pagehide wrote { song, position, wasPlaying } to sessionStorage before iOS killed the page.
+    // Now that audioEngine is initialised, restore the song into the UI and seek to position.
+    // iOS blocks autoplay without a gesture — user must tap play once; position is preserved.
+    if (_resumeState?.song) {
+      _resumePosition = _resumeState.position ?? 0;
+      play(_resumeState.song).catch(() => {});
+      Log.info('Reload recovery: song restored after iOS eviction', {
+        song:     _resumeState.song?.name ?? null,
+        position: _resumeState.position,
+      });
+    }
 
     // Apply elder view if saved from previous session
     if ($elderView) document.body.classList.add('elder-view');
@@ -154,10 +183,6 @@
       }
     });
 
-    audioEl.addEventListener('loadedmetadata', () => {
-      duration.set(audioEl.duration || 0);
-    });
-
     audioEl.addEventListener('ended', () => {
       playing.set(false);
       Log.info('Song ended naturally', {
@@ -211,6 +236,9 @@
     _on(document, 'visibilitychange', () => {
       if (!_isActiveTab) return;
       if (document.hidden) {
+        // Assert playback audio session BEFORE starting keep-alive so iOS does not
+        // downgrade the session to 'ambient' (which gets silenced in the background).
+        if ('audioSession' in navigator) navigator.audioSession.type = 'playback';
         audioEngine.startBgKeepAlive();
         if ('mediaSession' in navigator && $playing && !$userPaused) { navigator.mediaSession.playbackState = 'playing'; Log.info('MediaSession: playbackState →', { state: 'playing', context: 'visibilitychange-bg' }); }
         return;
@@ -239,6 +267,17 @@
 
     _on(window, 'pagehide', () => {
       if ($playing && !$userPaused && 'mediaSession' in navigator) { navigator.mediaSession.playbackState = 'playing'; Log.info('MediaSession: playbackState →', { state: 'playing', context: 'pagehide' }); }
+      // Persist playback position so iOS reload (memory eviction) can auto-resume.
+      // Use sessionStorage — survives reload within the same PWA session, cleared on close.
+      if ($nowSong && !$userPaused) {
+        try {
+          sessionStorage.setItem('mbx_resume', JSON.stringify({
+            song:        $nowSong,
+            position:    audioEl.currentTime ?? 0,
+            wasPlaying:  $playing && !$userPaused,
+          }));
+        } catch {}
+      }
       const blobUrl = $offlineBlobUrl;
       if (blobUrl) { try { URL.revokeObjectURL(blobUrl); } catch {} offlineBlobUrl.set(null); }
     });
