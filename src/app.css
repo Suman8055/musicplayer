@@ -91,6 +91,7 @@ a { color: inherit; text-decoration: none; }
    so spatial context (panel slides) is preserved for vestibular disorder users. */
 @media (prefers-reduced-motion: reduce) {
   /* Remove decorative spinning / pulsing animations */
+  /* NOTE: .mini-spinner is intentionally excluded — it is a loading indicator, not decorative */
   .spinner, .eq-bars span { animation: none !important; }
   /* Artwork scale pulse */
   #np-art { transition: none !important; }

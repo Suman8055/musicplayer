@@ -21,7 +21,10 @@
         </button>
         <button class="mini-btn" id="mini-play" on:click|stopPropagation={togglePlay}>
           {#if $loadingUrl}
-            <div class="spinner" style="width:22px;height:22px;border-width:2px"></div>
+            <svg class="mini-spinner" width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="11" cy="11" r="9" stroke="rgba(255,255,255,0.15)" stroke-width="2"/>
+              <path d="M11 2a9 9 0 0 1 9 9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
           {:else if $playing}
             <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
           {:else}
@@ -42,7 +45,8 @@
     position: fixed;
     bottom: calc(var(--tab-h) + env(safe-area-inset-bottom));
     left: 0; right: 0;
-    height: var(--mini-h);
+    height: var(--mini-h, 64px);
+    min-height: 56px;
     z-index: 35;
     cursor: pointer;
     overflow: hidden;
@@ -66,8 +70,10 @@
   #mini-title { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #mini-artist { font-size: 12px; color: var(--fg3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #mini-btns { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
-  .mini-btn { color: var(--fg); padding: 6px; border-radius: 50%; }
+  .mini-btn { display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: var(--fg); padding: 6px; border-radius: 50%; }
   .mini-btn:active { background: rgba(255,255,255,.1); }
+  .mini-spinner { animation: mini-spin 0.7s linear infinite; flex-shrink: 0; }
+  @keyframes mini-spin { to { transform: rotate(360deg); } }
   #mini-bar {
     position: absolute; bottom: 0; left: 0; height: 2px;
     background: var(--accent); transition: width .3s linear;
