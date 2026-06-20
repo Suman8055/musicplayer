@@ -1,5 +1,5 @@
 {
-  "uploadedAt": "2026-06-20T16:36:14.179Z",
+  "uploadedAt": "2026-06-20T16:39:56.851Z",
   "device": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.5 Mobile/15E148 Safari/604.1",
   "entries": [
     {
@@ -16,6 +16,133 @@
       "msg": "App started",
       "data": {
         "version": "5.2.51"
+      }
+    },
+    {
+      "ts": "2026-06-20T16:37:40.222Z",
+      "level": "INFO",
+      "msg": "play() called",
+      "data": {
+        "name": "Shivoham",
+        "songId": "ReBlTPRf",
+        "queueLen": 20,
+        "queueIdx": 10,
+        "shuffle": false,
+        "repeat": 0
+      }
+    },
+    {
+      "ts": "2026-06-20T16:37:41.231Z",
+      "level": "INFO",
+      "msg": "EQ rewire start",
+      "data": {
+        "ctxState": "suspended",
+        "cfOn": false
+      }
+    },
+    {
+      "ts": "2026-06-20T16:37:41.241Z",
+      "level": "INFO",
+      "msg": "EQ rewire done",
+      "data": {
+        "eqNodes": 10,
+        "cfOn": false
+      }
+    },
+    {
+      "ts": "2026-06-20T16:37:41.242Z",
+      "level": "INFO",
+      "msg": "AudioContext created",
+      "data": {
+        "sampleRate": 48000
+      }
+    },
+    {
+      "ts": "2026-06-20T16:37:41.605Z",
+      "level": "INFO",
+      "msg": "AudioContext statechange",
+      "data": {
+        "state": "running",
+        "userPaused": false,
+        "playing": true
+      }
+    },
+    {
+      "ts": "2026-06-20T16:37:42.687Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Shivoham",
+        "artist": "Sanoç"
+      }
+    },
+    {
+      "ts": "2026-06-20T16:37:42.688Z",
+      "level": "INFO",
+      "msg": "MediaSession: fetching artwork",
+      "data": {
+        "songId": "ReBlTPRf",
+        "url": "https://c.saavncdn.com/440/Shivoham-Hindi-2025-20251219123950-500x500.jpg"
+      }
+    },
+    {
+      "ts": "2026-06-20T16:37:42.777Z",
+      "level": "INFO",
+      "msg": "MediaSession: artwork set",
+      "data": {
+        "songId": "ReBlTPRf",
+        "smallBytes": 7819,
+        "largeBytes": 115479
+      }
+    },
+    {
+      "ts": "2026-06-20T16:38:10.911Z",
+      "level": "INFO",
+      "msg": "play() called",
+      "data": {
+        "name": "Shivoham Shivoham",
+        "songId": "cm5rZ7s5",
+        "queueLen": 20,
+        "queueIdx": 11,
+        "shuffle": false,
+        "repeat": 0
+      }
+    },
+    {
+      "ts": "2026-06-20T16:38:10.916Z",
+      "level": "INFO",
+      "msg": "play(): using preloaded URL",
+      "data": {
+        "name": "Shivoham Shivoham",
+        "readyState": 4
+      }
+    },
+    {
+      "ts": "2026-06-20T16:38:15.590Z",
+      "level": "INFO",
+      "msg": "Playback started",
+      "data": {
+        "name": "Shivoham Shivoham",
+        "artist": "Om Voices"
+      }
+    },
+    {
+      "ts": "2026-06-20T16:38:15.590Z",
+      "level": "INFO",
+      "msg": "MediaSession: fetching artwork",
+      "data": {
+        "songId": "cm5rZ7s5",
+        "url": "https://c.saavncdn.com/217/Shiva-Bhakti-15-Minutes-Hindi-2017-500x500.jpg"
+      }
+    },
+    {
+      "ts": "2026-06-20T16:38:17.989Z",
+      "level": "INFO",
+      "msg": "MediaSession: artwork set",
+      "data": {
+        "songId": "cm5rZ7s5",
+        "smallBytes": 9147,
+        "largeBytes": 130627
       }
     }
   ]
