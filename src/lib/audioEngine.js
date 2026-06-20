@@ -314,7 +314,7 @@ function _buildLimiterChain(ctx) {
   _limiterCompressor.threshold.value = -2;  // aligned with waveshaper CEIL (0.794 = −2dBFS)
   _limiterCompressor.knee.value      =  2;
   _limiterCompressor.ratio.value     = 10;
-  _limiterCompressor.attack.value    = 0.001; // 1ms — tighter transient clamp; 48-sample lookahead at 48kHz
+  _limiterCompressor.attack.value    = 0.003; // 3ms — prevents DC click on CarPlay/car DAC (1ms regressed this)
   _limiterCompressor.release.value   = 0.08;  // 80ms — transparent recovery, eliminates pumping on Bollywood/EDM
   _limiterWaveshaper = ctx.createWaveShaper();
   _limiterWaveshaper.oversample = '4x';

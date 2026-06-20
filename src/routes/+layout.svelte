@@ -34,6 +34,9 @@
   let audioEl;
   let audioPreloadEl;
 
+  // Throttle setPositionState success log to once per 10s (fires 30-60x/sec otherwise)
+  let _lastPosLogTs = 0;
+
   // Derived: is gate unlocked?
   $: unlocked = $gateToken === '278b0ebf70ec6ed8b4c6480de49a1650ace8d513d277e1374801564e49186d37';
 
@@ -143,6 +146,8 @@
       if ('mediaSession' in navigator && d > 0 && isFinite(t) && isFinite(d)) {
         try {
           navigator.mediaSession.setPositionState({ duration: d, playbackRate: 1.0, position: Math.min(t, d) });
+          const _now = Date.now();
+          if (_now - _lastPosLogTs > 10000) { _lastPosLogTs = _now; Log.info('MediaSession: setPositionState ok', { t: Math.round(t), d: Math.round(d) }); }
         } catch (e) {
           Log.warn('MediaSession: setPositionState failed', { err: e?.message, t, d });
         }
@@ -189,9 +194,9 @@
 
     // ── MediaSession action handlers (registered once, never re-registered) ──
     if ('mediaSession' in navigator) {
-      navigator.mediaSession.setActionHandler('play',         () => { Log.info('MediaSession: play');         try { audioEl.play(); } catch {} });
-      navigator.mediaSession.setActionHandler('pause',        () => { Log.info('MediaSession: pause');        try { audioEl.pause(); userPaused.set(true); audioEngine.onUserPaused(); } catch {} });
-      navigator.mediaSession.setActionHandler('stop',         () => { Log.info('MediaSession: stop');         try { audioEl.pause(); userPaused.set(true); audioEngine.onUserPaused(); } catch {} });
+      navigator.mediaSession.setActionHandler('play',         () => { Log.info('MediaSession: play');         audioEl.play().then(() => Log.info('MediaSession: play succeeded')).catch(e => Log.warn('MediaSession: play failed', { name: e?.name, message: e?.message })); });
+      navigator.mediaSession.setActionHandler('pause',        () => { Log.info('MediaSession: pause');        try { audioEl.pause(); userPaused.set(true); audioEngine.onUserPaused(); Log.info('MediaSession: pause succeeded'); } catch (e) { Log.warn('MediaSession: pause failed', { name: e?.name, message: e?.message }); } });
+      navigator.mediaSession.setActionHandler('stop',         () => { Log.info('MediaSession: stop');         try { audioEl.pause(); userPaused.set(true); audioEngine.onUserPaused(); Log.info('MediaSession: stop succeeded'); }  catch (e) { Log.warn('MediaSession: stop failed',  { name: e?.name, message: e?.message }); } });
       navigator.mediaSession.setActionHandler('nexttrack',    () => { Log.info('MediaSession: nexttrack');    try { next(); } catch (e) { Log.warn('MediaSession: nexttrack error', { error: e?.message }); } });
       navigator.mediaSession.setActionHandler('previoustrack',() => { Log.info('MediaSession: previoustrack'); try { prev(); } catch (e) { Log.warn('MediaSession: previoustrack error', { error: e?.message }); } });
       navigator.mediaSession.setActionHandler('seekto',       (d) => { Log.info('MediaSession: seekto', { seekTime: d.seekTime }); try { if (d.seekTime != null) audioEl.currentTime = d.seekTime; } catch {} });

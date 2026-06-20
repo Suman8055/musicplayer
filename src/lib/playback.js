@@ -400,12 +400,13 @@ async function _fetchArtDataUrls(url, signal) {
 }
 
 let _msAbortCtrl = null;
+let _msFetchingSongId = null;
 
 async function _updateMediaSession(song) {
   if (!('mediaSession' in navigator) || !song) return;
 
   // Cancel any in-flight artwork fetch from a previous song
-  if (_msAbortCtrl) { _msAbortCtrl.abort(); _msAbortCtrl = null; }
+  if (_msAbortCtrl) { Log.info('MediaSession: cancelled in-flight fetch', { previousSongId: _msFetchingSongId ?? null }); _msAbortCtrl.abort(); _msAbortCtrl = null; }
 
   // Set title/artist immediately — lock screen shows something while artwork fetches.
   // NOTE: iOS Safari WebKit bug — setting both `artist` and `album` causes `album` to be
@@ -417,6 +418,7 @@ async function _updateMediaSession(song) {
       artwork: [],
     });
     navigator.mediaSession.playbackState = 'playing';
+    Log.info('MediaSession: metadata set', { songId: song.id, title: song.name, artist: song.artist, playbackState: 'playing' });
   } catch {}
 
   if (!song.image) { Log.warn('MediaSession: no artwork URL on song', { songId: song.id, name: song.name }); return; }
@@ -424,10 +426,12 @@ async function _updateMediaSession(song) {
   // Snapshot song id — if the song changes while fetching, discard the result
   const songId = song.id;
   _msAbortCtrl = new AbortController();
+  _msFetchingSongId = songId;
   const imgUrl = song.image.replace(/\d+x\d+/, '500x500');
   Log.info('MediaSession: fetching artwork', { songId, url: imgUrl });
   const art = await _fetchArtDataUrls(imgUrl, _msAbortCtrl.signal);
   _msAbortCtrl = null;
+  _msFetchingSongId = null;
 
   if (!art) { Log.warn('MediaSession: artwork fetch returned null', { songId, url: imgUrl }); return; }
   if (get(nowSong)?.id !== songId) { Log.info('MediaSession: artwork discarded (song changed)', { songId }); return; }
