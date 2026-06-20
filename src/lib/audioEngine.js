@@ -66,6 +66,8 @@ let _cfDelayL          = null; // ITD delay L→R cross path: 0.6ms ear-to-ear s
 let _cfDelayR          = null; // ITD delay R→L cross path
 let _bgKeepAliveTimer  = null;
 let _rewiring          = false;
+let _wasInterrupted    = false;  // true while iOS audio session interrupt is active
+let _playingBeforeInterrupt = false;  // snapshot of playing state when interrupt fired
 
 // ── EQ constants ──────────────────────────────────────────────────────────────
 export const EQ_BANDS = [
@@ -133,12 +135,40 @@ export function ensureAudioCtx() {
     _audioCtx = new AC({ sampleRate: 48000 });
     _audioCtx.addEventListener('statechange', () => {
       const cb = _callbacks.getState?.() ?? {};
+      const state = _audioCtx?.state ?? 'unknown';
       if (_callbacks.onLog) _callbacks.onLog('info', 'AudioContext statechange', {
-        state:      _audioCtx?.state ?? 'unknown',
-        userPaused: cb.userPaused ?? false,
-        playing:    cb.playing    ?? false,
+        state,
+        userPaused:          cb.userPaused ?? false,
+        playing:             cb.playing    ?? false,
+        wasInterrupted:      _wasInterrupted,
+        playingBeforeInt:    _playingBeforeInterrupt,
       });
-      if (_audioCtx.state === 'suspended' && !cb.userPaused) {
+
+      if (state === 'interrupted') {
+        // iOS system interrupt (phone call, Siri, CarPlay handoff, etc.)
+        // Snapshot whether we were actively playing — NOT user-paused
+        _wasInterrupted = true;
+        _playingBeforeInterrupt = (cb.playing === true) && (cb.userPaused === false);
+        if (_callbacks.onLog) _callbacks.onLog('info', 'AudioContext: interrupt start', { playingBeforeInt: _playingBeforeInterrupt });
+      } else if (state === 'running' && _wasInterrupted) {
+        // Interrupt ended — iOS resumed the audio session
+        _wasInterrupted = false;
+        if (_playingBeforeInterrupt) {
+          // We were playing when interrupted (not user-paused) — auto-resume
+          if (_callbacks.onLog) _callbacks.onLog('info', 'AudioContext: interrupt ended, auto-resuming');
+          setTimeout(() => {
+            const cur = _callbacks.getState?.() ?? {};
+            // Only resume if user has not explicitly paused in the interim
+            if (!cur.userPaused && _audioEl?.paused) {
+              _audioEl.play().catch(e => {
+                if (_callbacks.onLog) _callbacks.onLog('warn', 'AudioContext: auto-resume after interrupt failed', { err: e?.message });
+              });
+            }
+          }, 300);
+        }
+        _playingBeforeInterrupt = false;
+      } else if (state === 'suspended' && !cb.userPaused) {
+        // Non-interrupt suspension (background throttle, etc.) — try to resume
         setTimeout(() => {
           if (_audioCtx?.state === 'suspended' && !(_callbacks.getState?.()?.userPaused)) {
             _audioCtx.resume().catch(() => {});
@@ -192,7 +222,7 @@ export async function resumeAudioCtx() {
 // ── Playback hooks (called by audio event listeners in +layout.svelte) ────────
 export function onPlaybackStarted()  { startBgKeepAlive(); }
 export function onPlaybackPaused()   { /* keep-alive continues; stopped on user pause */ }
-export function onUserPaused()       { stopBgKeepAlive(); }
+export function onUserPaused()       { stopBgKeepAlive(); _playingBeforeInterrupt = false; /* user explicitly paused — don't auto-resume on interrupt end */ }
 
 export function startBgKeepAlive() {
   stopBgKeepAlive();
