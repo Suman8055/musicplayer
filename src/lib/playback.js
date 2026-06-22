@@ -127,9 +127,14 @@ export async function play(song, newQueue, idx) {
         preloadEl &&
         preloadEl !== audio &&
         preloadEl.src &&
-        preloadEl.readyState >= 2 // HAVE_CURRENT_DATA — has buffered enough to play
+        preloadEl.readyState === 4 // HAVE_ENOUGH_DATA — fully buffered, safe to transfer
       ) {
         streamUrl = preloadEl.src;
+        // Clear the preload element immediately — on iOS 15 WKWebView, leaving both
+        // elements on the same URL causes the main player to inherit an exhausted
+        // HTTP stream, firing 'ended' instantly and auto-advancing the queue.
+        preloadEl.src = '';
+        preloadEl.load();
         Log.info('play(): using preloaded URL', { name: song.name, readyState: preloadEl.readyState });
       } else {
         const stream = await apiStream(song.id);
@@ -188,7 +193,15 @@ export async function togglePlay() {
   } else {
     userPaused.set(false);
     audioEngine.resumeAudioCtx().catch(() => {});
-    if (audio.ended) audio.currentTime = 0;
+    if (audio.ended) {
+      // Reload the src to fully reset ended state — seeking to 0 on an ended
+      // element causes a spurious 'ended' event on WKWebView (iOS 15) that
+      // immediately triggers onEnded() → next(), skipping to the next song.
+      const src = audio.src;
+      audio.src = '';
+      audio.src = src;
+      audio.load();
+    }
     audio.play().catch(() => {});
   }
 }
@@ -446,6 +459,31 @@ async function _fetchArtDataUrls(url, signal, songId) {
 let _msAbortCtrl = null;
 let _msFetchingSongId = null;
 
+// Capacitor CarPlay bridge — push song metadata and playback state to native MPNowPlayingInfoCenter.
+// Safe to call on web (window.Capacitor absent) — no-ops silently.
+export async function carPlayUpdateNowPlaying(song, artBase64 = null) {
+  try {
+    const cap = window?.Capacitor?.Plugins?.MBXCarPlay;
+    if (!cap) return;
+    const audio = getAudioElement();
+    await cap.updateNowPlaying({
+      title:          song?.name   || '',
+      artist:         song?.artist || '',
+      duration:       audio?.duration   || 0,
+      elapsed:        audio?.currentTime || 0,
+      artworkBase64:  artBase64 || '',
+    });
+  } catch {}
+}
+
+export async function carPlayUpdatePlaybackState(isPlaying) {
+  try {
+    const cap = window?.Capacitor?.Plugins?.MBXCarPlay;
+    if (!cap) return;
+    await cap.updatePlaybackState({ isPlaying });
+  } catch {}
+}
+
 async function _updateMediaSession(song) {
   if (!('mediaSession' in navigator) || !song) return;
 
@@ -493,4 +531,6 @@ async function _updateMediaSession(song) {
     });
     Log.info('MediaSession: artwork set', { songId, smallBytes: art.small.length, largeBytes: art.large.length });
   } catch {}
+  // Push to native MPNowPlayingInfoCenter for CarPlay (artwork as base64)
+  carPlayUpdateNowPlaying(song, art?.large ?? null);
 }

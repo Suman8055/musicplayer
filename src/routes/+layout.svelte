@@ -4,10 +4,11 @@
   import * as audioEngine from '$lib/audioEngine.js';
   import { extractAndApplyAccent } from '$lib/colorEngine.js';
   import { gateToken } from '$lib/stores/gate.js';
-  import { onEnded, next, prev, play, setPreloadElement, isTransitioningTrack, onDeferredPlay, onClearDeferredPlay } from '$lib/playback.js';
+  import { onEnded, next, prev, play, setPreloadElement, isTransitioningTrack, onDeferredPlay, onClearDeferredPlay, carPlayUpdateNowPlaying, carPlayUpdatePlaybackState } from '$lib/playback.js';
   import { Log } from '$lib/logger.js';
   import { APP_VERSION } from '$lib/api.js';
   import { intelPrune } from '$lib/smartPlay.js';
+  import { initAutoTest } from '$lib/autotest.js';
   import { idbGetAll } from '$lib/idb.js';
   import { downloadedIds } from '$lib/stores/library.js';
   import {
@@ -81,10 +82,16 @@
     // Init logger first so all subsequent events are captured
     Log.init(APP_VERSION);
     intelPrune();
+    initAutoTest();
 
     // Parsed early, applied after audioEngine.init() below
     let _resumePosition = null;
     let _resumeState = null;
+    // Guard: block onEnded from auto-advancing queue during the resume window.
+    // Without this, the restored audio element can fire 'ended' prematurely on
+    // Capacitor/WKWebView (iOS 15) before loadedmetadata seeks to the saved position,
+    // causing the queue to skip ahead uncontrollably.
+    let _resuming = false;
     try {
       const _resumeRaw = sessionStorage.getItem('mbx_resume');
       if (_resumeRaw) { sessionStorage.removeItem('mbx_resume'); _resumeState = JSON.parse(_resumeRaw); }
@@ -95,6 +102,8 @@
         try { audioEl.currentTime = _resumePosition; } catch {}
         _resumePosition = null;
       }
+      // Resume window ends once metadata is loaded and position is seeked
+      _resuming = false;
       duration.set(audioEl.duration || 0);
     });
 
@@ -125,7 +134,11 @@
     // iOS blocks autoplay without a gesture — user must tap play once; position is preserved.
     if (_resumeState?.song) {
       _resumePosition = _resumeState.position ?? 0;
-      play(_resumeState.song).catch(() => {});
+      _resuming = true;  // block premature onEnded during restore
+      // Reset queue to just this one song — prevents the stale queue from the
+      // previous session driving next() after the restored song ends.
+      // In Capacitor the WebView never unloads, so store state persists in memory.
+      play(_resumeState.song, [_resumeState.song], 0).catch(() => { _resuming = false; });
       Log.info('Reload recovery: song restored after iOS eviction', {
         song:     _resumeState.song?.name ?? null,
         position: _resumeState.position,
@@ -188,12 +201,16 @@
     });
 
     audioEl.addEventListener('ended', () => {
+      // Block auto-advance during resume window — prevents queue skipping when
+      // Capacitor/WKWebView fires 'ended' before loadedmetadata seeks to saved position.
+      if (_resuming) { Log.info('Song ended suppressed during resume window', { name: $nowSong?.name ?? null }); return; }
       playing.set(false);
       Log.info('Song ended naturally', {
         name:     $nowSong?.name   ?? null,
         duration: audioEl.duration ?? null,
       });
       if ('mediaSession' in navigator) { navigator.mediaSession.playbackState = 'paused'; Log.info('MediaSession: playbackState →', { state: 'paused', context: 'ended' }); }
+      carPlayUpdatePlaybackState(false);
       onEnded();
     });
 
@@ -229,6 +246,26 @@
       navigator.mediaSession.setActionHandler('nexttrack',    () => { Log.info('MediaSession: nexttrack');    try { next(); } catch (e) { Log.warn('MediaSession: nexttrack error', { error: e?.message }); } });
       navigator.mediaSession.setActionHandler('previoustrack',() => { Log.info('MediaSession: previoustrack'); try { prev(); } catch (e) { Log.warn('MediaSession: previoustrack error', { error: e?.message }); } });
       navigator.mediaSession.setActionHandler('seekto',       (d) => { Log.info('MediaSession: seekto', { seekTime: d.seekTime }); try { if (d.seekTime != null) audioEl.currentTime = d.seekTime; } catch {} });
+      navigator.mediaSession.setActionHandler('seekbackward', (d) => { const skip = d?.seekOffset ?? 15; Log.info('MediaSession: seekbackward', { skip }); try { audioEl.currentTime = Math.max(0, audioEl.currentTime - skip); } catch {} });
+      navigator.mediaSession.setActionHandler('seekforward',  (d) => { const skip = d?.seekOffset ?? 15; Log.info('MediaSession: seekforward',  { skip }); try { audioEl.currentTime = Math.min(audioEl.duration || 0, audioEl.currentTime + skip); } catch {} });
+    }
+
+    // ── CarPlay native bridge — Capacitor MBXCarPlay plugin ──────────────────
+    // Register for transport commands coming from the CarPlay head unit via native MPRemoteCommandCenter.
+    // These fire when the user taps Play/Pause/Next/Prev/Skip on the car screen.
+    const _capPlugin = window?.Capacitor?.Plugins?.MBXCarPlay;
+    let _cpListener = null;
+    if (_capPlugin) {
+      _capPlugin.addListener('carplayCommand', ({ event }) => {
+        Log.info('CarPlay: command received', { event });
+        if (event === 'play')         { audioEl.play().catch(() => {}); carPlayUpdatePlaybackState(true); }
+        else if (event === 'pause')   { audioEl.pause(); userPaused.set(true); audioEngine.onUserPaused(); carPlayUpdatePlaybackState(false); }
+        else if (event === 'next')    { next(); }
+        else if (event === 'prev')    { prev(); }
+        else if (event === 'seekBackward') { audioEl.currentTime = Math.max(0, audioEl.currentTime - 15); }
+        else if (event === 'seekForward')  { audioEl.currentTime = Math.min(audioEl.duration || 0, audioEl.currentTime + 15); }
+      }).then(l => { _cpListener = l; });
+      Log.info('CarPlay: MBXCarPlay plugin listener registered');
     }
 
     // ── Visibility / page lifecycle ──────────────────────────────────────────
@@ -320,6 +357,7 @@
       try { _bc?.close(); } catch {}
       _listeners.forEach(([t, type, fn]) => t.removeEventListener(type, fn));
       _unsubMini();
+      try { _cpListener?.remove(); } catch {}
     };
   });
 </script>
