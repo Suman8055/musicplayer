@@ -52,7 +52,7 @@ export function getSongCache() { return _songCache; }
 if (typeof AbortSignal !== 'undefined' && !AbortSignal.timeout) {
   AbortSignal.timeout = ms => {
     const c = new AbortController();
-    setTimeout(() => c.abort(new DOMException('TimeoutError', 'TimeoutError')), ms);
+    setTimeout(() => c.abort(new DOMException('The operation timed out.', 'TimeoutError')), ms);
     return c.signal;
   };
 }

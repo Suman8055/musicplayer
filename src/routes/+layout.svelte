@@ -15,7 +15,7 @@
     playing, userPaused, nowSong, seekProgress, currentTime, duration,
     loadingUrl, offlineBlobUrl, seeking, setAudioElement, getAudioElement
   } from '$lib/stores/playback.js';
-  import { toast, isOnline, updateAvailable, elderView } from '$lib/stores/ui.js';
+  import { toast, isOnline, updateAvailable, elderView, iPodMode } from '$lib/stores/ui.js';
   import PasscodeGate from '$lib/components/gate/PasscodeGate.svelte';
   import NetworkBanner from '$lib/components/layout/NetworkBanner.svelte';
   import StagingBanner from '$lib/components/layout/StagingBanner.svelte';
@@ -147,6 +147,20 @@
 
     // Apply elder view if saved from previous session
     if ($elderView) document.body.classList.add('elder-view');
+
+    // Apply iPod mode body class if saved
+    if ($iPodMode) {
+      document.body.classList.add('ipod-mode');
+      audioEngine.setIpodMode(true);
+      // iOS 15 lacks navigator.audioSession — silent switch will mute music
+      if (!('audioSession' in navigator) && /iPod|iPhone/.test(navigator.userAgent)) {
+        const _warned = localStorage.getItem('mbx_ipod_silent_warned');
+        if (!_warned) {
+          setTimeout(() => toast('Tip: turn off silent switch for background music on iOS 15', 5000), 2000);
+          localStorage.setItem('mbx_ipod_silent_warned', '1');
+        }
+      }
+    }
 
     // D21: Drive --mini-visible so #content padding has no dead gap on fresh install
     const _unsubMini = nowSong.subscribe(s => {

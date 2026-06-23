@@ -10,7 +10,10 @@
   <div id="mini" on:click={() => npOpen.set(true)}>
     <div id="mini-bg" style="background-image:url({$nowSong.image || ''})"></div>
     <div id="mini-inner">
-      <img id="mini-art" src={$nowSong.image || ''} alt={$nowSong.name || ''} />
+      <div id="mini-art-wrap">
+        <img id="mini-art" src={$nowSong.image || ''} alt={$nowSong.name || ''} />
+        {#if $loadingUrl}<div id="mini-art-loading"><div class="spinner" style="width:16px;height:16px;border-width:2px"></div></div>{/if}
+      </div>
       <div id="mini-info">
         <div id="mini-title">{$nowSong.name || '—'}</div>
         <div id="mini-artist">{$nowSong.artist || '—'}</div>
@@ -58,15 +61,21 @@
     display: flex; align-items: center; gap: 10px;
     height: 100%; padding: 0 12px;
   }
+  #mini-art-wrap { position: relative; width: 42px; height: 42px; flex-shrink: 0; }
   #mini-art {
     width: 42px; height: 42px; border-radius: 6px;
-    object-fit: cover; flex-shrink: 0;
+    object-fit: cover;
+  }
+  #mini-art-loading {
+    position: absolute; inset: 0; border-radius: 6px;
+    background: rgba(0,0,0,0.5);
+    display: flex; align-items: center; justify-content: center;
   }
   #mini-info { flex: 1; min-width: 0; }
   #mini-title { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #mini-artist { font-size: 12px; color: var(--fg3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #mini-btns { display: flex; align-items: center; gap: 4px; }
-  .mini-btn { color: var(--fg); padding: 6px; border-radius: 50%; }
+  .mini-btn { color: var(--fg); padding: 6px; border-radius: 50%; min-width: 44px; min-height: 44px; display: flex; align-items: center; justify-content: center; }
   .mini-btn:active { background: rgba(255,255,255,.1); }
   #mini-bar {
     position: absolute; bottom: 0; left: 0; height: 2px;

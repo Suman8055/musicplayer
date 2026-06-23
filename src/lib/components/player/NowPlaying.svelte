@@ -1,6 +1,6 @@
 <script>
   import { nowSong, playing, loadingUrl, seekProgress, currentTime, duration, seeking, shuffleOn, repeatMode, userPaused } from '$lib/stores/playback.js';
-  import { npOpen, eqSheetOpen, queueOpen, showSheet, toast } from '$lib/stores/ui.js';
+  import { npOpen, eqSheetOpen, queueOpen, showSheet, toast, iPodMode } from '$lib/stores/ui.js';
   import { whyChip } from '$lib/stores/smartplay.js';
   import { liked, playlists, downloadedIds } from '$lib/stores/library.js';
   import { togglePlay, prev, next, seek, createShuffledQueue } from '$lib/playback.js';
@@ -161,7 +161,7 @@
   <div id="np-inner"
     style={swipeTransform ? `transform:${swipeTransform};transition:none` : ''}
     on:touchstart={onSwipeStart}
-    on:touchmove|passive={onSwipeMove}
+    on:touchmove={onSwipeMove}
     on:touchend={onSwipeEnd}
   >
     <!-- D2: handle is now a proper button -->
@@ -362,6 +362,7 @@
     height: 100%; padding: 0 20px;
     padding-top: env(safe-area-inset-top);
     padding-bottom: calc(env(safe-area-inset-bottom) + 12px);
+    touch-action: pan-x;
   }
   /* D2: handle is a proper button — pill appearance preserved via pseudo-element */
   #np-handle {
@@ -380,12 +381,17 @@
   /* D1: .np-circle enlarged from 32px to 44px */
   .np-circle { width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,.1); display: flex; align-items: center; justify-content: center; font-size: 13px; }
   #np-label { font-size: 13px; font-weight: 600; opacity: .7; }
-  #np-art-wrap { position: relative; flex: 1; display: flex; align-items: center; justify-content: center; min-height: 0; }
+  #np-art-wrap { position: relative; flex: 1; display: flex; align-items: center; justify-content: center; min-height: 0; overflow: hidden; }
   #np-art {
     width: min(72vw, 340px); height: min(72vw, 340px);
+    max-width: 100%; max-height: 100%;
     border-radius: 16px; object-fit: cover;
     box-shadow: 0 20px 60px rgba(0,0,0,.6);
     transition: transform .4s ease;
+  }
+  /* iPod Touch 4-inch: constrain art further so controls stay visible */
+  :global(body.ipod-mode) #np-art {
+    width: min(60vw, 200px); height: min(60vw, 200px);
   }
   #np-art.playing { transform: scale(1.04); }
   #np-art.paused-anim { transform: scale(0.96); }

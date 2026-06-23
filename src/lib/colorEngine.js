@@ -1,6 +1,7 @@
 // colorEngine.js — Album art dominant color extraction
 // Extracted from index.html lines 2483–2538. Visual/CSS only — no audio.
 import { accentH, accentS, accentL } from './stores/ui.js';
+import { Log } from './logger.js';
 
 let _accentCanvas = null;
 let _accentExtractId = null;
@@ -30,7 +31,11 @@ export function extractAndApplyAccent(imgUrl, songId) {
       const s2 = Math.max(60, s);
       const l2 = Math.max(35, Math.min(55, l));
       applyAccent(h, s2, l2);
-    } catch {}
+    } catch (e) {
+      if (e?.name === 'SecurityError') {
+        Log.warn('colorEngine: canvas CORS taint — accent extraction skipped (CDN missing CORS headers)', { imgUrl });
+      }
+    }
   };
   img.onerror = () => {};
   img.src = imgUrl;

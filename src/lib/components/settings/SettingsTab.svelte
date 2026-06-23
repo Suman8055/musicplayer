@@ -1,5 +1,5 @@
 <script>
-  import { activeTab, toast, updateAvailable, elderView } from '$lib/stores/ui.js';
+  import { activeTab, toast, updateAvailable, elderView, iPodMode } from '$lib/stores/ui.js';
   import { eqState } from '$lib/stores/eq.js';
   import * as audioEngine from '$lib/audioEngine.js';
   import { EQ_BANDS, EQ_PRESETS, crossfeedOn } from '$lib/audioEngine.js';
@@ -17,6 +17,17 @@
   function toggleCrossfeed() {
     audioEngine.setCrossfeedEnabled(!$crossfeedOn);
     toast(!$crossfeedOn ? 'Headphone crossfeed on' : 'Headphone crossfeed off');
+  }
+
+  function toggleIpodMode() {
+    const next = !$iPodMode;
+    iPodMode.set(next);
+    audioEngine.setIpodMode(next);
+    if (next) {
+      toast('iPod mode on — optimised for iOS 15.8.8');
+    } else {
+      toast('iPod mode off');
+    }
   }
 
   let ghPat = getGhCfg().pat || '';
@@ -143,6 +154,26 @@
         <span class="toggle-knob"></span>
       </button>
     </div>
+  </div>
+
+  <!-- iPod Mode -->
+  <div class="settings-section">
+    <div class="section-label">DEVICE COMPATIBILITY</div>
+    <div class="settings-row">
+      <div>
+        <div class="settings-row-label">iPod Touch Mode</div>
+        <div class="settings-row-desc">Optimises for iPod Touch iOS 15.8.8 — reduces DSP load, fixes layouts &amp; touch targets for 4-inch screen</div>
+      </div>
+      <button class="toggle-btn" class:on={$iPodMode} on:click={toggleIpodMode} aria-label="Toggle iPod Touch mode" aria-pressed={$iPodMode}>
+        <span class="toggle-knob"></span>
+      </button>
+    </div>
+    {#if $iPodMode}
+      <div class="ipod-mode-badge">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        iPod Touch mode active — WaveShaper 2x, compact art, 44pt touch targets, iOS 15 safe-area
+      </div>
+    {/if}
   </div>
 
   <!-- About -->
@@ -314,4 +345,12 @@
   .log-entry.log-warn .log-level { color: #f59e0b; }
   .log-entry.log-error .log-level { color: #ef4444; }
   .log-msg { color: var(--fg2); word-break: break-all; }
+  /* iPod mode active badge */
+  .ipod-mode-badge {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 11px; color: var(--accent);
+    background: hsla(var(--accent-h),var(--accent-s),var(--accent-l),.1);
+    border: 1px solid hsla(var(--accent-h),var(--accent-s),var(--accent-l),.25);
+    border-radius: var(--radius); padding: 7px 10px; margin-top: 6px; line-height: 1.4;
+  }
 </style>

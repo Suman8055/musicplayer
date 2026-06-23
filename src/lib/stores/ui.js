@@ -35,6 +35,16 @@ elderView.subscribe(v => {
   }
 });
 
+// iPod Mode — compatibility mode for iPod Touch iOS 15.8.8 (default: off)
+function _loadIpodMode() { try { return localStorage.getItem('mbx_ipod_mode') === '1'; } catch { return false; } }
+export const iPodMode = writable(_loadIpodMode());
+iPodMode.subscribe(v => {
+  try { localStorage.setItem('mbx_ipod_mode', v ? '1' : '0'); } catch {}
+  if (typeof document !== 'undefined') {
+    document.body.classList.toggle('ipod-mode', v);
+  }
+});
+
 // Toast helper
 let _toastTimer = null;
 export function toast(msg, duration = 2800) {

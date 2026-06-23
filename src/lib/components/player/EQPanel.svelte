@@ -28,7 +28,11 @@
       <div class="eq-handle"></div>
       <div id="eq-header">
         <span id="eq-title">Equalizer</span>
-        <button id="eq-power" class:active={eqOn} on:click={onToggle}>⏻</button>
+        <button id="eq-power" class:active={eqOn} on:click={onToggle} aria-label={eqOn ? 'Disable EQ' : 'Enable EQ'} aria-pressed={eqOn}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/>
+          </svg>
+        </button>
       </div>
       <div id="eq-presets">
         {#each DISPLAY_PRESETS as name}
@@ -47,7 +51,6 @@
               value={gains[i] ?? 0}
               disabled={!eqOn}
               on:input={(e) => onSliderChange(i, e)}
-              style="writing-mode: vertical-lr; direction: rtl;"
             />
             <div class="eq-band-label">{band.label}</div>
           </div>
@@ -74,7 +77,7 @@
   .eq-handle { width: 36px; height: 4px; background: rgba(255,255,255,.2); border-radius: 2px; margin: 0 auto 14px; }
   #eq-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
   #eq-title { font-size: 15px; font-weight: 700; }
-  #eq-power { width: 30px; height: 30px; border-radius: 50%; font-size: 16px; background: rgba(255,255,255,.08); color: var(--fg3); transition: background .15s, color .15s; }
+  #eq-power { width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,.08); color: var(--fg3); transition: background .15s, color .15s; display: flex; align-items: center; justify-content: center; }
   #eq-power.active { background: var(--accent); color: #fff; }
   #eq-presets { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 8px; }
   .eq-preset-btn { flex-shrink: 0; padding: 5px 12px; border-radius: 20px; font-size: 12px; background: var(--bg3); color: var(--fg3); border: 1px solid rgba(255,255,255,.08); transition: background .15s, color .15s; }
@@ -82,7 +85,8 @@
   #eq-sliders { display: flex; justify-content: space-between; height: 130px; padding: 8px 0; }
   .eq-band { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; }
   .eq-band-slider {
-    -webkit-appearance: slider-vertical; appearance: auto;
+    -webkit-appearance: none; appearance: none;
+    writing-mode: vertical-lr; direction: rtl;
     width: 22px; flex: 1; cursor: pointer; accent-color: var(--accent);
     opacity: 1; transition: opacity .15s;
   }

@@ -116,6 +116,7 @@ let _eqGains  = JSON.parse((typeof localStorage !== 'undefined' && localStorage.
 let _eqOn     = (typeof localStorage !== 'undefined') ? localStorage.getItem(EQ_KEY + '_on') !== 'false' : true;
 let _cfOn     = (typeof localStorage !== 'undefined') ? localStorage.getItem(CF_KEY) === 'true' : false;
 let _manualEqAdjusted = false;
+let _ipodMode = (typeof localStorage !== 'undefined') ? localStorage.getItem('mbx_ipod_mode') === '1' : false;
 
 // ── init() — called once from +layout.svelte onMount ─────────────────────────
 // Sets up the audio element reference and callbacks. Does NOT create AudioContext.
@@ -244,23 +245,26 @@ export function onUserPaused() {
   if (_callbacks.onClearDeferredPlay) _callbacks.onClearDeferredPlay();
 }
 
+let _kaRunning = false;
 export function startBgKeepAlive() {
   stopBgKeepAlive();
   _bgKeepAliveTimer = setInterval(async () => {
-    const cb = _callbacks.getState?.() ?? {};
-    if (!cb.playing || cb.userPaused || !_audioCtx) return;
-    // Always attempt resume — iOS 18 can report state:running while audio is
-    // actually frozen; calling resume() is a no-op when truly running but
-    // re-activates the session when iOS has silently suspended it.
-    try { await _audioCtx.resume(); } catch {}
-    // If the element is paused (iOS suspended the media pipeline), force play().
-    if (_audioEl?.paused && !cb.userPaused && cb.nowSong) {
-      try { await _audioEl.play(); } catch {}
+    if (_kaRunning) return;
+    _kaRunning = true;
+    try {
+      const cb = _callbacks.getState?.() ?? {};
+      if (!cb.playing || cb.userPaused || !_audioCtx) return;
+      // Always attempt resume — iOS 18 can report state:running while audio is
+      // actually frozen; calling resume() is a no-op when truly running but
+      // re-activates the session when iOS has silently suspended it.
+      try { await _audioCtx.resume(); } catch {}
+      // If the element is paused (iOS suspended the media pipeline), force play().
+      if (_audioEl?.paused && !cb.userPaused && cb.nowSong) {
+        try { await _audioEl.play(); } catch {}
+      }
+    } finally {
+      _kaRunning = false;
     }
-    // NOTE: the silent oscillator trick (zero-gain osc → destination) was removed.
-    // iOS 18 Safari no longer treats a zero-gain oscillator as active media playback
-    // and still suspends the audio session. The resume() + play() calls above are
-    // the correct keep-alive mechanism.
   }, 5000); // 5s interval: tighter than 10s to catch iOS suspension within one cycle
 }
 
@@ -319,6 +323,16 @@ export function setCrossfeedEnabled(on) {
   _pushEqState();
 }
 
+// ── iPod Mode — reduce DSP load for A10 chip / iOS 15.8.8 ────────────────────
+export function setIpodMode(on) {
+  _ipodMode = on;
+  if (typeof localStorage !== 'undefined') localStorage.setItem('mbx_ipod_mode', on ? '1' : '0');
+  // Apply new oversample level to existing waveshapers without full rewire
+  const level = on ? '2x' : '4x';
+  if (_limiterWaveshaper) _limiterWaveshaper.oversample = level;
+  if (_bassExciterDist)   _bassExciterDist.oversample   = level;
+}
+
 // ── Debug API — caller does: window._mbxAudio = audioEngine.getDebugInfo ─────
 export function getDebugInfo() {
   return {
@@ -370,7 +384,7 @@ function _buildLimiterChain(ctx) {
   _limiterCompressor.attack.value    = 0.003; // 3ms — prevents DC click on CarPlay/car DAC (1ms regressed this)
   _limiterCompressor.release.value   = 0.08;  // 80ms — transparent recovery, eliminates pumping on Bollywood/EDM
   _limiterWaveshaper = ctx.createWaveShaper();
-  _limiterWaveshaper.oversample = '4x';
+  _limiterWaveshaper.oversample = _ipodMode ? '2x' : '4x';
   const N = 65536;
   const curve = new Float32Array(N);
   const CEIL = 0.794;
@@ -401,7 +415,7 @@ function _buildBassExciter(ctx) {
   _bassExciterIn.frequency.value = 65;
   _bassExciterIn.Q.value = 1.2; // narrower: 38–92Hz sub-bass zone only (was 0.7 = 19–111Hz)
   _bassExciterDist = ctx.createWaveShaper();
-  _bassExciterDist.oversample = '4x';
+  _bassExciterDist.oversample = _ipodMode ? '2x' : '4x';
   const N = 4096;
   const curve = new Float32Array(N);
   for (let i = 0; i < N; i++) {

@@ -5,12 +5,10 @@
   "start_url": "/musicplayer/",
   "scope": "/musicplayer/",
   "display": "standalone",
-  "display_override": ["standalone", "minimal-ui"],
   "background_color": "#000814",
   "theme_color": "#000814",
   "orientation": "portrait",
   "categories": ["music", "entertainment"],
-  "features": ["audio_playback"],
   "icons": [
     {
       "src": "icon-192.png",

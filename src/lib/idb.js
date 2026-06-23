@@ -11,14 +11,27 @@ let _idb = null;
 function openIDB() {
   if (_idb) return Promise.resolve(_idb);
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(IDB_NAME, 2);
+    let req;
+    try { req = indexedDB.open(IDB_NAME, 2); }
+    catch {
+      // Private Browsing on iOS/Safari throws synchronously when IDB is blocked
+      return reject(new DOMException('Downloads unavailable in Private Browsing mode', 'SecurityError'));
+    }
     req.onupgradeneeded = e => {
       const db = e.target.result;
       if (!db.objectStoreNames.contains(IDB_STORE)) db.createObjectStore(IDB_STORE, { keyPath: 'id' });
       if (!db.objectStoreNames.contains(IDB_BLOBS)) db.createObjectStore(IDB_BLOBS, { keyPath: 'id' });
     };
     req.onsuccess = e => { _idb = e.target.result; resolve(_idb); };
-    req.onerror   = () => reject(req.error);
+    req.onerror = () => {
+      const err = req.error;
+      // SecurityError = Private Browsing on iOS — give a clear user-facing message
+      if (err?.name === 'SecurityError') {
+        reject(new DOMException('Downloads unavailable in Private Browsing mode', 'SecurityError'));
+      } else {
+        reject(err);
+      }
+    };
   });
 }
 
@@ -130,6 +143,12 @@ export async function downloadSong(song, toastFn, apiStreamFn, signal) {
     const { quota, usage } = await navigator.storage.estimate();
     if (quota - usage < 30 * 1024 * 1024) { toastFn('Not enough storage — free up space in Settings'); return; }
   } catch {}
+
+  // Fail-fast if IDB is unavailable (Private Browsing)
+  try { await openIDB(); } catch (e) {
+    if (e?.name === 'SecurityError') { toastFn('Downloads unavailable in Private Browsing'); return; }
+    throw e;
+  }
 
   toastFn('Starting download…');
   try {
