@@ -1,0 +1,22 @@
+{
+	"appId": "com.suman.musicplayer",
+	"appName": "MusicPlayer",
+	"webDir": "build",
+	"server": {
+		"androidScheme": "https"
+	},
+	"ios": {
+		"scheme": "MusicPlayer",
+		"backgroundColor": "#000814",
+		"allowsLinkPreview": false,
+		"scrollEnabled": false,
+		"limitsNavigationsToAppBoundDomains": false,
+		"loggingBehavior": "debug"
+	},
+	"plugins": {
+		"SplashScreen": {
+			"launchShowDuration": 0
+		}
+	},
+	"packageClassList": []
+}

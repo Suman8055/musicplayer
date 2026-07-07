@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#000814" />
+
+    <!-- iOS PWA -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="MusicPlayer" />
+
+    <!-- Icons -->
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+    <link rel="apple-touch-icon" sizes="152x152" href="./icon-152.png" />
+    <link rel="apple-touch-icon" sizes="120x120" href="./icon-120.png" />
+    <link rel="icon" href="./icon-192.png" />
+    <link rel="manifest" href="./manifest.json" />
+
+    <!-- Preconnect: eliminates DNS+TLS round-trip on first API call (~300-800ms on mobile) -->
+    <link rel="preconnect" href="https://jiosaavn-api-sigma-sandy.vercel.app" />
+    <link rel="dns-prefetch" href="https://jiosaavn-api-sigma-sandy.vercel.app" />
+
+    <link href="./_app/immutable/entry/start.B6_KEmHR.js" rel="modulepreload">
+		<link href="./_app/immutable/chunks/DXnenwmO.js" rel="modulepreload">
+		<link href="./_app/immutable/chunks/BSw_KR7x.js" rel="modulepreload">
+		<link href="./_app/immutable/chunks/C6MFgNCR.js" rel="modulepreload">
+		<link href="./_app/immutable/entry/app.3FU1epws.js" rel="modulepreload">
+		<link href="./_app/immutable/chunks/CmsKOCeN.js" rel="modulepreload">
+		<link href="./_app/immutable/chunks/-In5gsl0.js" rel="modulepreload">
+		<link href="./_app/immutable/nodes/0.DeZaZPeN.js" rel="modulepreload">
+		<link href="./_app/immutable/chunks/BLP5BzfI.js" rel="modulepreload">
+		
+		<link href="./_app/immutable/assets/BackButton.CxH5YLWp.css" rel="stylesheet">
+		<link href="./_app/immutable/assets/0.Bp12U0mq.css" rel="stylesheet">
+  </head>
+  <body data-sveltekit-preload-data="hover">
+    <div style="display: contents">
+			<script>
+				{
+					__sveltekit_klb6a = {
+						base: "",
+						assets: ""
+					};
+
+					const element = document.currentScript.parentElement;
+
+					Promise.all([
+						import("./_app/immutable/entry/start.B6_KEmHR.js"),
+						import("./_app/immutable/entry/app.3FU1epws.js")
+					]).then(([kit, app]) => {
+						kit.start(app, element);
+					});
+				}
+			</script>
+		</div>
+
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('./sw.js', {
+          updateViaCache: 'none'
+        }).then(reg => {
+          // Ask the waiting/installing SW for its version, then notify the app
+          function notifyIfNewer(sw) {
+            if (!sw) return;
+            const mc = new MessageChannel();
+            mc.port1.onmessage = e => {
+              if (e.data?.type === 'SW_VERSION') {
+                window.dispatchEvent(new CustomEvent('sw-update-ready', {
+                  detail: { waiting: sw, newVersion: e.data.version }
+                }));
+              }
+            };
+            sw.postMessage({ type: 'GET_VERSION' }, [mc.port2]);
+          }
+
+          // Already waiting on page load (e.g. user had the tab open during a deploy)
+          if (reg.waiting) notifyIfNewer(reg.waiting);
+
+          reg.addEventListener('updatefound', () => {
+            const sw = reg.installing;
+            if (!sw) return;
+            sw.addEventListener('statechange', () => {
+              if (sw.state === 'installed' && navigator.serviceWorker.controller)
+                notifyIfNewer(sw);
+            });
+          });
+
+          // When the new SW takes control, reload to load fresh assets
+          navigator.serviceWorker.addEventListener('controllerchange', () =>
+            setTimeout(() => location.reload(), 400));
+        }).catch(() => {});
+      }
+    </script>
+  </body>
+</html>
